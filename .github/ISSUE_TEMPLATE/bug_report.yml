@@ -1,0 +1,34 @@
+name: Bug report
+description: Something is not working
+labels: ["type:bug", "needs-triage"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The commit you are on. Run `git rev-parse --short HEAD` in your install folder.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you do?
+      description: The commands you ran, in order, and which guide and step you were following.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect, and what happened instead?
+      description: Paste the output. Remove anything secret first.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before you submit
+      options:
+        - label: This is not a security problem. Security problems go through the private report link in SECURITY.md.
+          required: true
+        - label: This does not contain a password, key, token or anyone's personal data.
+          required: true

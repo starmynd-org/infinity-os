@@ -1,0 +1,87 @@
+[Unit]
+Description=Infinite Brain intake door (one write door for connectors) on 127.0.0.1:3106
+Documentation=file://%h/repos/your-brain/tools/port-registry.md
+Documentation=file://%h/repos/infinity-os/intake-service/CONTRACT.md
+
+# ---------------------------------------------------------------------------------------------
+# THIS UNIT LIVES IN `intake-service/systemd/`, NOT IN THE REPO'S `systemd/`, AND THAT IS
+# DELIBERATE. The S1 lane owns `intake-service/` and nothing else; `systemd/` and its `install.sh`
+# belong to another lane, and a file written into a directory this lane does not own is a merge
+# conflict at best and a silently reverted edit at worst. The operator moves or symlinks it:
+#
+#     sed "s#@REPO@#$HOME/repos/infinity-os#g" \
+#       intake-service/systemd/brain-intake.service \
+#       > ~/.config/systemd/user/brain-intake.service
+#     systemctl --user daemon-reload && systemctl --user enable --now brain-intake
+#
+# `systemd/install.sh` does the `@REPO@` substitution for the units in ITS directory and does not
+# see this one. Whoever adopts this into that directory should delete this paragraph with it.
+# ---------------------------------------------------------------------------------------------
+
+# Requires, not Wants, and the same argument as brain-console.service. `/health` opens a read
+# transaction against the store, so an intake door running without Postgres does not degrade: it
+# serves 500 from its own health endpoint and 503 from every write. If the store cannot come up,
+# this must not come up either.
+Requires=brain-store.service
+After=brain-store.service
+
+# Five restarts in five minutes and it stays failed. A flask that cannot bind 3106 because some
+# hand-started copy still holds it would otherwise loop forever and bury the reason in journal
+# noise. Failed-and-visible beats restarting-and-silent. These two live in [Unit], not [Service]:
+# systemd moved them in v229 and the user manager silently ignores the [Service] spelling.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@/intake-service
+Environment=BRAIN_PG_DB=brain
+Environment=INTAKE_HOST=127.0.0.1
+Environment=INTAKE_PORT=3106
+
+# THE TOKEN IS NOT IN THIS FILE AND MUST NEVER BE. This unit is committed to git; a shared secret
+# spelled in an `Environment=` line here is a leaked credential in every clone and every export.
+# The file holds one line, `INTAKE_TOKEN=...`, and is chmod 600.
+#
+# THERE IS NO `EnvironmentFile=` HERE, AND ITS ABSENCE IS THE DECISION.
+#
+# An earlier draft pointed one at `%h/.brain-intake-secrets` in `KEY=VALUE` form. That would have
+# put ONE secret in TWO places in TWO formats, because the pushing side --
+# `ingest/connectors/door.py` -- reads the RAW token from `%h/.intake-service-secrets/intake-token`,
+# which is the shape `engine/bin/scratch-db.sh::secret()` already reads the store's own credentials
+# in. This repo has written down what two copies cost: "two files each carrying their own default
+# is two answers, and the one that is wrong is the one nobody edited" (`web/host.py`).
+#
+# So `intake_service/host.py` reads that same single raw file when `INTAKE_TOKEN` is unset, and
+# both halves of the system resolve one secret from one path the same way. The service still fails
+# CLOSED when it is missing: `require_token()` raises at app construction, so the unit goes
+# `failed` and is visible in `systemctl --user --failed` rather than serving an open endpoint.
+#
+# Provision it, once:
+#     mkdir -p ~/.intake-service-secrets && chmod 700 ~/.intake-service-secrets
+#     python3 -c 'import secrets;print(secrets.token_urlsafe(36))' \
+#       > ~/.intake-service-secrets/intake-token
+#     chmod 600 ~/.intake-service-secrets/intake-token
+#
+# The durable home for this is Google Secret Manager, like every other external credential in this
+# estate, with a reference row under `your-brain/secrets/`. Creating that is
+# provisioning the operator's own cloud project and is escalated rather than taken.
+
+# The ordering edge above guarantees brain-store.service reached `active`. It does NOT guarantee
+# Postgres is serving: `docker start` on an existing container returns before crash recovery is
+# done. This is the gate that turns the registry's sentence into an enforced precondition.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=@REPO@/intake-service/bin/intake-service
+
+# on-failure, never always: a supervisor must not restart an intentional clean exit. Same rule
+# brain-console.service and the existing buzz-agent.service on this host cite.
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

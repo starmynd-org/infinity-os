@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+{% block title %}Where this came from{% endblock %}
+{% block head %}
+<style>
+  {# F9, AND IT IS A SEMANTICS REPAIR THAT CHANGES NOTHING ON SCREEN. Closure MEASURED on
+     `/attention/work_item:<id>`: **`h1` count 0** on a page of 80 elements whose own `title` is
+     `Where this came from`. S6 asks for exactly one. The queue page satisfies it -- term-13 put
+     that `h1` in, on the same reasoning as this one -- and the inspector, which the receipt stripe
+     sends people to and which is the ONLY place an acted row can be read (F5), had no heading at
+     all. A person arriving by that link had nothing that said what they had arrived at.
+
+     THE `<b>` CARRIED THE LOOK AND NONE OF THE MEANING, exactly as it did on the queue. Nothing
+     selects on it -- checked before changing it -- and the rule below renders the `h1` as the `<b>`
+     rendered: `font:inherit` because `console.css` authors no `h1` rule at all, so a bare one would
+     take the browser's own 2em and re-baseline a page nobody asked to redesign; `font-weight:700`
+     is the `<b>`; `margin:0` because a `.card` already owns its padding.
+
+     AND NOTHING ABOUT `main`. F9's other half is the queue's missing landmark, which is page
+     skeleton: `base.html` is not this seat's file, and one room quietly declaring a landmark inside
+     a shared shell is how the chrome collision happened the first time. Reported, not taken.
+
+     ONE `h1` AND NOT TWO. The two branches below are exclusive -- unreadable or readable -- so
+     exactly one of these renders on any request. The two `<b>` headings further down
+     (`Evidence behind the queue status`, `What happened, in order`) are deliberately NOT promoted:
+     S6 asks for one `h1`, promoting them would need a level below it, and a heading outline is a
+     structure decision for the whole console rather than a side effect of this repair. #}
+  .att-title{font:inherit;font-weight:700;margin:0}
+  .att-kv{display:grid;grid-template-columns:auto 1fr;gap:.25rem .7rem;font-size:.82rem;margin:.5rem 0}
+  .att-kv dt{color:var(--ink-3)}
+  .att-kv dd{margin:0}
+  .att-why{font-size:.74rem;color:var(--ink-3)}
+  .att-unknown{color:var(--ink-3);font-style:italic}
+  .att-steps{font-size:.8rem;padding-left:1.1rem;color:var(--ink-2)}
+  .att-proposal-full{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+  @media(max-width:600px){.att-kv{grid-template-columns:1fr;gap:.1rem}.att-kv dt{margin-top:.4rem}}
+</style>
+{% endblock %}
+{% block body %}
+{# THE INSPECTOR READS. It has no verb, no terminal and no raw prompt: `web/rooms.py` has no
+   `attention` key in ROOM_VERBS, so the room is refused before a row is looked up, and the whole
+   surface of this page is the dict `QueueItem.inspect()` returns.
+
+   The unreadable branch is not a degraded version of the readable one. There is no content to
+   degrade: the authorisation check happened before indexing, so nothing about this item's body
+   was ever stored for this reader, and there is no code path here that could fetch it. #}
+<div class="ro"><span data-evidence-origin>{{ attention_evidence_label }}</span> &middot; inspector &middot; read only. <a href="{{ url_for('attention.inbox', **return_context) }}#attention-{{ shown.item_id if shown.item_id else '' }}">Return to queue</a> It shows permitted metadata, provenance and recovery context; it never acts.</div>
+
+{% if not shown.readable %}
+  <div class="card">
+    <h1 class="att-title">{{ shown.title }}</h1>
+    <div class="note gap">{{ shown.message }}</div>
+    <dl class="att-kv">
+      <dt>Workspace</dt><dd>{{ shown.workspace }}</dd>
+      <dt>Content</dt><dd class="att-unknown">not read</dd>
+      <dt>Effect on you</dt><dd class="att-unknown">{{ shown.impact }}</dd>
+      <dt>Recovery</dt><dd>Ask the workspace owner for access. This inspector will not fetch restricted content.</dd>
+    </dl>
+    <p class="att-why">If you need access, ask the workspace owner. This console will not fetch it
+      for you.</p>
+  </div>
+{% else %}
+  <div class="card">
+    <h1 class="att-title">{{ shown.title }}</h1>
+    <dl class="att-kv">
+      <dt>Came from</dt><dd>{{ shown.workspace }} <span class="att-why">{{ shown.reference }}</span></dd>
+      <dt>Zone</dt><dd>{{ shown.zone }}</dd>
+      <dt>Freshness</dt><dd>{{ shown.freshness }}</dd>
+      {# RESULT, ON EVERY READABLE INSPECTOR (Q2c). The row used to be guarded by its own value, so
+         an item that finished COMPLETELY and an item nobody measured both rendered nothing at all,
+         and the state was carried by an absence a reader cannot read. T7 measured it at `93363cb`:
+         completeness in words on 0 of 7 rows, against `kind` 7 of 7 and reversibility 7 of 7.
+         The word is now always here -- `Completeness.render()`'s own vocabulary where the store
+         holds a state (`complete`, `finished without ...`, the uncertain sentence), and `not
+         stated` where it holds none. That literal lives in the template, beside "not read" on the
+         branch below, rather than in `QueueItem.inspect()`: it is a display word for an absent
+         value, and the dict keeps returning `None` so a caller can still tell "complete" from
+         "nobody said". The unreadable branch carries no Result row, because it carries no
+         completeness key, and a key nothing renders is surface without a reader. #}
+      <dt>Result</dt>
+      {% if report_url %}<dd><a data-completion-report href="{{ report_url }}">Read the completed report and artifacts</a> before accepting this work.</dd>
+      {% elif shown.completeness %}<dd>{{ shown.completeness }}</dd>{% else %}<dd class="att-unknown">not stated</dd>{% endif %}
+      {% if report_url %}<dt>Completeness assessment</dt><dd>{{ shown.completeness or 'not stated' }}</dd>{% endif %}
+      <dt>Effect on you</dt><dd>{{ shown.impact }}</dd>
+      {# WHAT IT IS NOW. The sentence and the raw store word come from `QueueItem.inspect()`; this
+         template chooses neither and derives neither. It sits ABOVE "Why it is here" because a
+         person following a receipt stripe's inspector link is asking what state the row is in,
+         and the reason it is in the queue at all is the second question, not the first. #}
+      <dt>What it is now</dt><dd>{{ shown.kind_now }}{% if shown.kind != shown.kind_now %} <span class="att-why">{{ shown.kind }}</span>{% endif %}</dd>
+      <dt>Why it is here</dt><dd>{{ shown.why }}</dd>
+      {# P3-02: an unfinished task's inspector used to offer nothing but Return to queue, so a person
+         deciding whether to mark it done could not read its work order or its history (140
+         inspector journeys, all 24 unfinished tasks). The task's own page carries the brief, the
+         report, the thread and the trail; the link carries the queue context so that page's
+         Return link comes back here, and Return to queue still lands on the row. #}
+      {% if task_url %}<dt>Task record</dt><dd><a data-task-record href="{{ task_url }}">Read this task's brief, report and history</a> <span class="att-why">its own page; following the link writes nothing, though that page carries its own act controls, and its Return link comes back here</span></dd>{% endif %}
+      {% if shown.native_options %}
+      <dt>Available actions</dt><dd>{% for option in shown.native_options %}<p>{{ option.label }}: {{ option.does }} {{ option.inverse_note }}</p>{% endfor %}</dd>
+      {% endif %}
+      {# F-01 / P3-03: the heading above is the proposal's BOUNDED title; every byte of the proposal
+         is here, under its own name, so the row can stay a row. #}
+      {% if shown.proposal %}
+      <dt>Proposal, in full</dt><dd class="att-proposal-full" data-att-proposal-full>{{ shown.proposal }}</dd>
+      {% endif %}
+      {% if shown.kind == 'recommendation' %}
+      <dt>Argument against</dt><dd>{{ shown.counterargument or 'No counterargument was recorded.' }}</dd>
+      {% endif %}
+      {% if shown.rank_reason %}<dt>Why here in the order</dt><dd>{{ shown.rank_reason }}</dd>{% endif %}
+      {% if shown.display %}<dt>{{ shown.display[0] }}</dt><dd>{{ shown.display[1] }} <span class="att-why">producer display note; not ranking evidence</span></dd>{% endif %}
+      {% if shown.unstated_signals %}<dt>Not stated</dt><dd class="att-why">{{ shown.unstated_signals }}</dd>{% endif %}
+      <dt>Recovery</dt><dd>Refresh the permitted source when it is available; stale and missing evidence stay labelled until then.</dd>
+    </dl>
+  </div>
+{% endif %}
+
+<div class="card">
+  <b>Evidence behind the queue status</b>
+  <dl class="att-kv">
+    {% for claim, evidence in shown.evidence.items() %}
+      <dt id="evidence-{{ claim }}">{{ evidence['label'] }}</dt>
+      <dd>{{ evidence['detail'] }} <span class="att-why">{{ evidence['at'].astimezone(display_zone()).strftime('%a %d %b %Y, %H:%M %Z') }}</span></dd>
+    {% endfor %}
+  </dl>
+</div>
+
+<div class="card">
+  <b>What happened, in order</b>
+  <ol class="att-steps">
+    {% for step in shown.steps %}
+      <li>{{ step.what }}
+        <div class="att-why">{{ step.at.astimezone(display_zone()).strftime('%a %d %b %Y, %H:%M %Z') }} &middot; {{ step.by }}</div>
+      </li>
+    {% endfor %}
+  </ol>
+</div>
+{% endblock %}

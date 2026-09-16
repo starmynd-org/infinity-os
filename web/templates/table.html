@@ -1,0 +1,328 @@
+{% extends "base.html" %}
+{% block title %}The board{% endblock %}
+{# THE WHOLE ROW FOLLOWS ITS ID LINK (A4 INFINITY-STREAMLINE, STREAMLINE item 8, 2026-09-14). The
+   row's existing `<a href>` to its task gets a hit area stretched over the row, so a press anywhere
+   on the row is a press on that link; a row with no href stays inert.
+   SEARCH AND DETAILS PANEL (Andrew's D-INFINITY-UX-RULINGS-1, 2026-09-14, amending MUST-NOT-BUILD
+   item 2 condition 3): one GET search form, and at wide widths the row's press opens its task page
+   beside the table (`board-panel.js`) with the task page's EXISTING Accept work and Send back forms
+   and no other. Pinned by `web/tests/test_board_row_follows_its_link.py` and
+   `web/tests/test_board_search_and_panel.py`. #}
+{% block head %}
+<style>
+  .tbl tbody tr{position:relative}
+  .tbl tbody tr:has(td.tid a):hover td{background:var(--bg-raised)}
+  .tbl td.tid a::after{content:"";position:absolute;inset:0}
+  .tsearch{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;margin:.4rem 0 .8rem}
+  .tsearch label{font-size:.72rem;color:var(--ink-3)}
+  .tsearch input[name="q"]{flex:1 1 14rem;min-width:0;max-width:28rem;box-sizing:border-box;font:inherit;padding:.3rem .45rem;border:1px solid var(--rule-strong);border-radius:5px;background:var(--bg-raised);color:var(--ink)}
+  /* W3-UX-INFINITY (2026-09-15), finding I-03. At 375 the 14rem basis is wider than what is left
+     after the label and the button, so the flex row wrapped to THREE lines and the search alone
+     cost 94px above the first row. An 8rem basis still leaves the input the widest thing in the
+     row (measured 166px at 375) and puts label, field and button back on one line.
+
+     THE LABEL STAYS VISIBLE. Hiding it and leaning on the placeholder would have bought another
+     ~95px, and a placeholder is not a label: it disappears the moment someone types, it is not
+     reliably announced, and this console keeps its skip link, its `aria-sort` and its `<caption>`
+     for the same reason. The row fits with the label in it, so there is nothing to trade. */
+  @media(max-width:720px){
+    .tsearch input[name="q"]{flex:1 1 8rem}
+  }
+  .tsearch button{font:inherit;font-size:.78rem;padding:.3rem .7rem;border:1px solid var(--rule-strong);border-radius:5px;background:var(--bg-sunk);color:var(--ink);cursor:pointer}
+  .bp-panel{display:none}
+  @media(min-width:1100px){
+    :root{--bp-panel-w:min(40vw,600px)}
+    body.bp-panel-open main#main-content{max-width:none;margin-left:1rem;margin-right:calc(var(--bp-panel-w) + 1rem)}
+    .bp-panel{display:block;position:fixed;right:0;bottom:0;width:var(--bp-panel-w);box-sizing:border-box;overflow:auto;z-index:50;padding:.6rem .85rem 1rem;background:var(--bg-raised);border-left:1px solid var(--rule-strong)}
+    .bp-panel[hidden]{display:none}
+    .bp-bar{display:flex;gap:.5rem;align-items:center;justify-content:space-between;position:sticky;top:-.6rem;padding:.35rem 0;background:var(--bg-raised);border-bottom:1px solid var(--rule)}
+    .bp-bar b{font-size:.82rem;overflow-wrap:anywhere}
+    .bp-close{font:inherit;font-size:.74rem;background:none;border:1px solid var(--rule-strong);border-radius:4px;color:var(--ink);cursor:pointer}
+    .tbl tbody tr.bp-row-open td{background:var(--bg-sunk)}
+  }
+</style>
+{% endblock %}
+
+{# ============================================================================================
+   THE FULL BOARD: his five queues, every column, sortable. The door behind the ranked window.
+
+   HIS RULING, 2026-08-31: the ranked window stays the default view AND gets a door to the full
+   sortable table behind it. BOTH, NOT EITHER. They answer different questions -- `/queue` is a
+   PLAN and is seven rows on purpose, this is an INVENTORY -- and the starvation guarantee only
+   ever needed protecting on the surface that claims to be a plan.
+
+   WHY THIS IS A SEPARATE TEMPLATE AND NOT A MODE ON `queue.html`. `MUST-NOT-BUILD` item 2 is
+   live, unoverruled, and its clause `nothing is sortable by the operator` is unqualified;
+   `console.css:1893` reads it as forbidding anything hand-sortable and makes a click on the
+   ranked header UNDELIVERABLE rather than merely ignored. Building here leaves that header
+   untouched, so the three committed censuses written to catch a sortable header keep measuring
+   an unchanged surface and keep being able to FAIL. The open question is
+   `outputs/2026-09-01-sprints/S3/01-ITEM-2-AND-THE-SORTABLE-TABLE.md` and it is his to rule on.
+
+   THIS TEMPLATE WRITES NOTHING OF ITS OWN. Every sort and tab is an `<a href>` carrying a GET
+   parameter, and the one form (the search, D-INFINITY-UX-RULINGS-1) is a GET. No POST form, no
+   verb, no `priority` control, no drag handle, no drop target, nothing draggable. The only writes
+   reachable from this page are the task page's own Accept work and Send back, lifted into the
+   details panel unchanged and posting to the same door as on /task/<id> (item 2 as amended
+   2026-09-14). Item 2's two named prohibitions are honoured by construction rather than by promise.
+============================================================================================ #}
+
+{% macro sortlink(col, label, right=False) %}
+  {#- ONE SORT CONTROL, AND IT IS A LINK, WHICH IS THE ENTIRE ACCESSIBILITY STORY. It is a real
+      anchor with a real href, so it works with the script dead, it is reachable by Tab, it
+      announces itself to a screen reader, and its target is visible in the status bar before it
+      is pressed. `aria-sort` is on the cell so assistive tech reads the CURRENT order rather
+      than inferring it from an arrow glyph. The arrow is decorative and marked so. -#}
+  {%- set active = (sort == col) -%}
+  {%- set nextdir = 'asc' if (active and dir == 'desc') else ('desc' if active else 'desc') -%}
+  <th class="tcol{{ ' tnum' if right }}{{ ' is-on' if active }}"
+      aria-sort="{{ 'descending' if active and dir == 'desc' else ('ascending' if active else 'none') }}">
+    <a class="tsort" href="?{% if search %}q={{ search|urlencode }}&amp;{% endif %}{% if queue %}queue={{ queue }}&amp;{% endif %}sort={{ col }}&amp;dir={{ nextdir }}">{{ label
+      }}<span class="tarrow" aria-hidden="true">{% if active %}{{ '&#9662;'|safe if dir == 'desc' else '&#9652;'|safe }}{% else %}&#8203;{% endif %}</span></a>
+  </th>
+{% endmacro %}
+
+{% block body %}
+<div class="wrap">
+
+  {# W3-UX-INFINITY (2026-09-15), audit finding I-02, the R16 anti-pattern gate. The board opened
+     with a 3-line lede, a 5-line coverage paragraph and a boxed 4-line callout between its search
+     and its first row; at 375 the first 812px held no row at all. "A directory that opens with an
+     article" is anti-pattern 3 in `docs/ux/AUDIT-RUBRIC.md` and it failed the R16 gate on its own.
+
+     EVERY SENTENCE IS KEPT, WORD FOR WORD, ONE PRESS AWAY. This is 14dd0b5's pattern, the one
+     already proven on Attention (`web/templates/attention/inbox.html:252`): the prose moves into a
+     closed "How this page works" disclosure in the title row, so nothing it promises is lost and
+     the table starts where a reader looks for it. Pinned by `web/tests/test_board_opens_as_a_table.py`.
+
+     WHAT DID NOT MOVE, AND WHY THAT IS THE WHOLE CARE IN THIS CHANGE. Three of those sentences are
+     not decoration, they are this page's answers to the empty-set trap, and a closed `<details>` is
+     invisible to `innerText` -- which is exactly what
+     `web/tests/test_the_board_and_the_five_queues.py` check 5 reads. So the SURFACE keeps a short
+     line for each: the denominator when anything narrows the board, the count of rows the ranked
+     read could not describe, and the one line that distinguishes `0 decisions` from a column that
+     `cannot be read`. The disclosure carries the explanation; the surface carries the claim. #}
+  <div class="tbar">
+    <h1 class="tth">The board</h1>
+    <details class="tt-help" data-board-help>
+      <summary class="tt-link">How this page works</summary>
+      {# THE SENTENCE THAT STOPS THIS PAGE BEING MISTAKEN FOR THE PLAN. The ranked window exists to
+         protect a starvation guarantee; an inventory has no such guarantee and must not imply one. #}
+      <p class="tsub">
+        Every open row across your five queues, with every column, in any order you ask for.
+        This is the inventory and not the plan &mdash;
+        <a href="/queue">the ranked window</a> is still what decides what to do next, and it is
+        still the page this console opens on.
+      </p>
+      {# THE TWO DENOMINATORS, EXPLAINED. `total` is how many distinct rows the five queues hold.
+         `enriched` is how many of those the ranked read could describe. They are equal on a healthy
+         store, and their GAP is a real coverage statement rather than a set of blank cells. A table
+         that showed 12 rows with 5 populated and said nothing would be reporting a coverage gap as
+         data. The gap's SIZE stays on the surface below; this is what it means. #}
+      {% if enriched < shown %}
+      <p class="tsub">
+        <b>{{ shown - enriched }}</b> of these rows carry no ranked card, so their lane, impact,
+        unblocks and priority cells read <span class="tno">not ranked</span> rather than blank:
+        those rows are real and the ranked read does not cover them (a done-and-unaccepted row is
+        in <b>review</b> and is not open work, so <code>brain.queue_open</code> has nothing to say
+        about it).
+      </p>
+      {% endif %}
+      {# THE OVERLAP SENTENCE ONLY APPEARS WHEN THERE IS AN OVERLAP, and this is a defect caught on
+         the first render rather than reasoned about. It was written unconditionally and printed
+         `the five counts sum to 8, which is larger than 8` on the seeded store, because 4+2+0+2+0
+         is exactly the eight distinct rows there. A page explaining a discrepancy it does not have
+         teaches the reader to stop believing its arithmetic, and this one had a claim and a
+         denominator on the same line contradicting each other. #}
+      {% if across is not none and across > total %}
+      <p class="tsub">
+        The five counts sum to <b>{{ across }}</b>, which is more than the <b>{{ total }}</b> rows
+        on the board because a row may sit in two queues at once: it is one row seen from two
+        questions, so the counts do not sum to the board.
+      </p>
+      {% elif across is not none %}
+      <p class="tsub">
+        The five counts sum to <b>{{ across }}</b>, which is exactly the number of rows on the
+        board: nothing is currently in two queues at once.
+      </p>
+      {% endif %}
+      {% if not decisions_available %}
+      <p class="tsub">
+        The <b>decisions</b> queue has no <code>brain.work_item.kind</code> on this store. Apply
+        <code>migrations/0052_a_decision_is_declared.sql</code>. It is reported as unavailable and
+        never as empty, because a store with nowhere to record a decision has none to find.
+      </p>
+      {% elif counts.decisions.n == 0 %}
+      {# THE EMPTY-SET TRAP, ANSWERED ON THE SURFACE RATHER THAN IN A REPORT. This tier being 0 has
+         already produced three wrong verdicts on this console. The column EXISTS here and is
+         readable, so `0` is a true count -- and it is 0 for a reason the operator cannot see from
+         the number, which is that NOTHING IN THE RUNTIME WRITES `kind`. Measured 2026-09-01: no
+         registered verb and no INSERT sets it, so every row folds to `work` and the decisions queue
+         is empty BY CONSTRUCTION rather than because his week has no decisions in it. #}
+      <p class="tsub">
+        Nothing in the runtime writes <code>work_item.kind</code> today &mdash; no registered verb
+        sets it and no insert supplies it &mdash; so every row folds to <b>work</b> and the
+        decisions queue is empty rather than his week having nothing to decide. Who classifies a
+        row as a decision is still an open question and it is yours.
+      </p>
+      {% endif %}
+    </details>
+  </div>
+
+  {# THE SEARCH (D-INFINITY-UX-RULINGS-1, 2026-09-14). A GET form, which MUST-NOT-BUILD item 2's
+     condition 3 now allows by name: it narrows the rendered inventory by id or title and writes
+     nothing. It carries the queue tab and the sort through, so searching never silently changes
+     which set or which order you were reading. #}
+  <form class="tsearch" method="get" action="/queue/table" role="search">
+    <label for="tq">Search the board</label>
+    <input id="tq" name="q" value="{{ search }}" placeholder="an id, or words in the title" autocomplete="off">
+    {% if queue %}<input type="hidden" name="queue" value="{{ queue }}">{% endif %}
+    {% if sort %}<input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">{% endif %}
+    <button type="submit">Search</button>
+    {% if search %}<a href="/queue/table{% if queue %}?queue={{ queue }}{% endif %}">Clear</a>{% endif %}
+  </form>
+
+  {# ------------------------------------------------------------------ the five queues, as tabs
+     HIS ASK 5, AND THE CONSOLE HAS NEVER RENDERED IT. `brain.operator_queue` has served five
+     queues since ledger 52 and `grep -rn operator_queue web/` returned 0 on 2026-09-01.
+
+     EVERY TAB CARRIES ITS DENOMINATOR AND THAT IS NOT A BADGE. `MUST-NOT-BUILD` item 7 prohibits
+     unread counts and notification badges; the overrule for intake ships AMBER and narrow. This
+     is neither: it is the SIZE OF A SET, in the shell's neutral mono, no colour, no dot, no
+     shape, and it is the thing this programme's own doctrine requires most loudly -- a verdict
+     over an empty set is not a pass, so PRINT THE DENOMINATOR. A number that says `0` here is
+     the page doing its job, not asking for attention. #}
+  <nav class="tqs" role="tablist" aria-label="queues">
+    <a class="tq{{ ' is-on' if not queue }}" role="tab" aria-selected="{{ 'true' if not queue else 'false' }}"
+       href="?{% if search %}q={{ search|urlencode }}{% endif %}{% if sort %}{{ '&amp;'|safe if search }}sort={{ sort }}&amp;dir={{ dir }}{% endif %}">
+      <span class="tqn">everything</span><span class="tqc">{{ total }}</span>
+    </a>
+    {% for q, c in counts.items() %}
+    <a class="tq{{ ' is-on' if queue == q }}{{ ' is-off' if not c.available }}" role="tab"
+       aria-selected="{{ 'true' if queue == q else 'false' }}"
+       href="?queue={{ q }}{% if search %}&amp;q={{ search|urlencode }}{% endif %}{% if sort %}&amp;sort={{ sort }}&amp;dir={{ dir }}{% endif %}">
+      <span class="tqn">{{ q }}</span>
+      {# ZERO AND UNKNOWN ARE DIFFERENT ANSWERS AND ONLY ONE OF THEM IS TRUE. `reads.queues()`
+         reports `available: false` for a store that has nowhere to record what this queue is
+         about, and painting that as `0` would be the page writing `nothing needs deciding` over
+         a column that does not exist. The reader already refuses to conflate them; this is the
+         template not undoing it. #}
+      <span class="tqc">{% if c.available %}{{ c.n }}{% else %}&mdash;{% endif %}</span>
+    </a>
+    {% endfor %}
+  </nav>
+
+  {# --------------------------------------------------------------- the count, as ONE short line
+     THE DENOMINATOR SURVIVES THE SHORTENING, because it is the half of this line that is load
+     bearing. A bare "8 open" over a narrowed board is the same three characters over a filtered
+     set and a whole one, which is the defect this page's own doctrine names most loudly. So the
+     unnarrowed board reads "8 open" and a narrowed one keeps `showing N of M` with what narrowed
+     it. `test_board_search_and_panel.py:92` pins the narrowed form and passed unchanged.
+
+     THE COVERAGE GAP KEEPS ITS SIZE HERE AND LOSES ITS PARAGRAPH. What `not ranked` MEANS is one
+     press away; how many rows are in that state is a number, and a number belongs on the surface. #}
+  {# THE COUNT AND THE DECISIONS STATE SHARE ONE ROW. Two stacked one-line paragraphs cost 61px
+     between the chips and the table on a 1440 screen (MEASURED 2026-09-15: 21px each plus 9.6px of
+     margin each), and the audit's done-when is the table header inside the first 300px. They are
+     both one-line status about the same set, so they are one row of status and wrap to two only
+     when the width runs out. #}
+  <div class="tstatus">
+  <p class="tden">
+    {%- if shown == total and not search and not queue -%}
+      <b>{{ total }}</b> open
+    {%- else -%}
+      showing <b>{{ shown }}</b> of <b>{{ total }}</b>
+      {%- if queue %} in <b>{{ queue }}</b>{% endif %}
+      {%- if search %} matching <b>&ldquo;{{ search }}&rdquo;</b>{% endif %}
+    {%- endif -%}
+    {%- if enriched < shown %} &middot; <b>{{ shown - enriched }}</b> <span class="tno">not ranked</span>{% endif -%}
+  </p>
+
+  {# ZERO AND UNREADABLE STAY DISTINGUISHABLE ON THE SURFACE, IN ONE LINE EACH. Moving these two
+     into the disclosure would have been the change that broke something quietly:
+     `test_the_board_and_the_five_queues.py` check 5 reads `page.inner_text("body")`, and a closed
+     `<details>` renders no text into it. The explanation moved; the claim did not. Exactly one of
+     these two branches ever renders, on the surface and in the disclosure alike, so the page can
+     never report both a zero count and an unreadable column -- which is check 5's second assertion. #}
+  {% if not decisions_available %}
+  <p class="tden">The <b>decisions</b> queue <b>cannot be read</b> on this store.</p>
+  {% elif counts.decisions.n == 0 %}
+  <p class="tden"><b>0 decisions</b>, empty <i>by construction</i>.</p>
+  {% endif %}
+  </div>
+
+  {# ---------------------------------------------------------------------------- the table
+     A REAL `<table>`, which the ranked window is deliberately not. The window is a CSS grid
+     because it is a list of cards that happen to align; this is a spreadsheet, its header is a
+     control, and a screen reader needs the row/column relationship that only table semantics
+     carry. `<caption>` is not decoration: it is what tells a non-visual reader what this grid IS
+     before they are inside it.
+
+     IT SCROLLS INSIDE ITS OWN BOX. Nine columns do not fit a phone, and the rule the whole
+     console is held to is that the page body never scrolls sideways. #}
+  <div class="twrap">
+  <table class="tbl">
+    <caption class="tcap">
+      Open rows across the five operator queues.
+      {% if sort %}Ordered by <b>{{ sort }}</b>, {{ 'largest first' if dir == 'desc' else 'smallest first' }}.
+      {% else %}In queue order. Press a column name to order by it.{% endif %}
+    </caption>
+    <thead>
+      <tr>
+        {{ sortlink('id', 'id') }}
+        {{ sortlink('title', 'what it is') }}
+        {{ sortlink('queue', 'queue') }}
+        {{ sortlink('state', 'state') }}
+        {{ sortlink('lane', 'lane') }}
+        {{ sortlink('impact', 'impact', right=True) }}
+        {{ sortlink('unblocks', 'unblocks', right=True) }}
+        {{ sortlink('prio', 'priority', right=True) }}
+        {{ sortlink('age', 'age', right=True) }}
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in rows %}
+      <tr>
+        <td class="tid">{% if r.href %}<a href="{{ r.href }}">{{ r.id }}</a>{% else %}{{ r.id }}{% endif %}</td>
+        <td class="ttitle">{{ r.title }}</td>
+        <td class="tqcell">{{ r.queue|join(', ') }}</td>
+        <td>{% if r.state_word %}{{ r.state_word }}{% else %}<span class="tno">not ranked</span>{% endif %}</td>
+        <td>{% if r.lane %}{{ r.lane }}{% else %}<span class="tno">not ranked</span>{% endif %}</td>
+        {# THE MONEY COLUMN. It prints what he typed -- an amount, or a band -- and it SORTS on
+           `impact_magnitude`, which is the continuous fold the ranking already multiplies by.
+           Sorting the printed text would put `critical` under `low` alphabetically and `9000`
+           above `10000` lexically, so the cell and the sort key are deliberately different
+           things and `model.SORTABLE` is where that divergence is declared. #}
+        <td class="tnum">{% if r.impact_text %}{{ r.impact_text }}{% else %}<span class="tno">unset</span>{% endif %}</td>
+        <td class="tnum">{% if r.unblocks is not none %}{{ r.unblocks }}{% else %}<span class="tno">&ndash;</span>{% endif %}</td>
+        {# ASCENDING-URGENT: 0 IS P0. Rendered `P0` and never as a bare integer, which a reader
+           would take for a size and read upside down. Same rule the ranked card follows. #}
+        <td class="tnum">{% if r.prio is not none %}P{{ r.prio }}{% else %}<span class="tno">&ndash;</span>{% endif %}</td>
+        <td class="tnum">{% if r.age_seconds is not none %}{{ (r.age_seconds / 86400)|round(1) }}d{% else %}<span class="tno">&ndash;</span>{% endif %}</td>
+      </tr>
+      {% else %}
+      {# AN EMPTY TABLE SAYS WHICH SET WAS EMPTY. Not "nothing here": the queue it filtered by and
+         the board size it filtered from, so the reader can tell an empty QUEUE from an empty
+         BOARD without leaving the page. This is the empty-set trap answered in markup. #}
+      <tr><td class="tempty" colspan="9">
+        {% if search %}Nothing on the board matches <b>&ldquo;{{ search }}&rdquo;</b>{% if queue %} in <b>{{ queue }}</b>{% endif %}.
+          The board holds <b>{{ total }}</b> row(s) &mdash; <a href="/queue/table">clear the search</a>.
+        {% elif queue %}Nothing in <b>{{ queue }}</b>. The board holds <b>{{ total }}</b> row(s)
+          across the other queues &mdash; <a href="?">show everything</a>.
+        {% else %}The five queues hold <b>0</b> rows between them. This is the whole board and
+          not a window, so this is genuinely empty rather than filtered.{% endif %}
+      </td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+
+</div>
+{# THE DETAILS PANEL. Closed until a row is pressed at a wide width; `board-panel.js` fills it with
+   the row's task page and keeps only that page's Accept work and Send back forms. #}
+<aside class="bp-panel" data-board-panel hidden aria-label="Task detail" tabindex="-1">
+  <div class="bp-bar"><b data-board-panel-title>Task detail</b><span><a data-board-panel-full>Open full page</a> <button type="button" class="bp-close" data-board-panel-close>Close</button></span></div>
+  <div data-board-panel-body></div>
+</aside>
+<script src="{{ url_for('static', filename='board-panel.js') }}"></script>
+{% endblock %}

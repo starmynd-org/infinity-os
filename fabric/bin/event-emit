@@ -1,0 +1,211 @@
+#!/usr/bin/env python3
+"""`event emit`, taking a whole envelope on stdin. This is what `BRAIN_EVENT_EMIT` points at.
+
+    $BRAIN_EVENT_EMIT --json -        # the envelope as JSON on stdin
+    $BRAIN_EVENT_EMIT --json PATH     # or from a file
+
+`python3 -m fabric.cli emit` is flag-based: a caller has to know that `--type` exists, that
+`--external` is mandatory, that the payload is a string. D3 does not hold flags, it holds an
+ENVELOPE -- `ingest/docs/EVENT-CONTRACT.md` fixes its seven keys -- and it was written against
+`<cmd> --json -`. **That command did not exist.** `BRAIN_EVENT_EMIT` was unset because there was
+nothing on this box to set it to, which is why 133 envelopes were parked behind an environment
+variable that would have pointed at nothing (task 0287; D9's estimate was that the whole defect
+was the variable).
+
+This file is that command, and it is deliberately thin: it maps envelope keys onto
+`fabric.producers.sessions`, which is where the session-lifecycle producer already lives. It
+holds no SQL, opens no connection of its own and decides nothing about retention. A second
+mapping of the same envelope elsewhere would be a second thing to keep in step.
+
+## The three envelope fields that do NOT map straight through
+
+1. **`produced_by` becomes `produced_by_producer`.** The envelope's value is the literal string
+   `d3-ingest`, and migration 17 installed `event_produced_by_is_not_a_producer`, a CHECK that
+   refuses exactly that value in `produced_by`. A component name is not an entity id. Passing it
+   through unchanged does not degrade, it fails the INSERT, and migration 17 says so in its own
+   header and calls the failure correct.
+
+2. **`occurred_at` is the envelope's, never `now()`.** These envelopes are replayed, sometimes a
+   day late. An event that says it happened at drain time is a lie about when the work occurred,
+   and it is the kind of lie nothing downstream can detect.
+
+3. **`subject_id` also becomes `session_id`,** the foreign key to `brain.session(id)`. That is
+   the lineage the fabric exists for: without it no event walks back to the session that produced
+   it. It is also the reason the producer cannot emit from inside D3's transaction -- the session
+   row is not committed yet and the FK refuses -- which is stated in `producers/sessions.py` and
+   was re-measured on live before this file was written.
+
+## `actor_type` maps straight through, and that is the point (task 0300)
+
+`producers/sessions.py` used to hardcode `"ai"` on both session events, while D3's
+`session register` wrote `'hybrid'` for the same session -- a Claude Code session is a human and
+a model together. On live `brain`, 150 session events said `ai` about a `brain.session` row that
+said `hybrid`, so one lineage walk crossed a row contradicting the row it walked to. **The
+envelope now states it**, because D3 reads it off its own RETURNING clause and is the only side
+that knows; this file only carries it across. An envelope that omits the key emits NULL, the
+already-legal "not recorded", and **never** `ai` -- substituting a plausible value for an absent
+one is the defect itself, not a mitigation of it. A value outside the `brain.actor_type` domain
+is refused here by name rather than left to surface as a constraint error from the INSERT.
+
+## The flags, which the envelope does not carry
+
+`external` and `canon_touching` are NOT NULL with no default, and `emit.FlagOmitted` exists so
+that "nobody decided" is refused rather than defaulted to permissive. The envelope carries
+neither. So they are decided HERE, per type, in a table, with the reason next to the value --
+and a type not in that table is REFUSED rather than defaulted, which keeps the decision a
+decision. A session starting on the operator's own machine reaches no third party and touches no
+canon: both are false, and a subscriber woken by one may still not send, spend, deploy or
+publish, because that gate is on the SUBSCRIBER's declaration and not on this flag alone.
+
+An envelope MAY carry `external` / `canon_touching` explicitly, and if it does they are used and
+inherited by OR (EF-7) with the declared pair, so a flagged session can never be un-flagged by
+this table.
+
+## Replay is idempotent, by construction
+
+`event_id` is a uuid5 over (type, subject_type, subject_id, occurred_at). A session starts once,
+at one instant, so those four identify the event. `brain.event.event_id` is UNIQUE, so draining
+the same envelope twice collides in the database instead of writing a second event, and this
+file reports that collision as success -- `{"deduplicated": true}` -- because the event IS
+emitted. The outbox is then free to mark the row emitted, which is what makes a half-finished
+drain safe to re-run.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+import uuid
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import psycopg2  # noqa: E402
+
+from fabric import emit as _emit  # noqa: E402
+from fabric.producers import sessions as _sessions  # noqa: E402
+
+#: Fixed. Deriving it from anything mutable would make yesterday's envelope hash differently
+#: today, which would silently defeat the deduplication above.
+NAMESPACE = uuid.UUID("6f2b0e2e-0f1a-5c3d-9a44-3d1c0d5f7a10")
+
+#: The flags an envelope of this type carries, decided once, here, with the reason.
+#: A type absent from this table is refused: see the module docstring.
+DECLARED_FLAGS = {
+    # A harness session registering on the operator's own machine. It reaches no third party
+    # and asserts nothing about canon; the durable record is the `session` row, and this event
+    # exists so a subscriber can react at 02:00.
+    "session.started": (False, False),
+    "session.ended": (False, False),
+}
+
+
+#: `brain.actor_type` (migrations/0001_initial.sql:97). NULL is admitted by the domain and means
+#: "not recorded"; anything else is refused HERE, with the value named, rather than reaching the
+#: INSERT and coming back as a domain-constraint error that does not say which key was wrong.
+ACTOR_TYPES = ("human", "ai", "hybrid")
+
+
+class EnvelopeRefused(ValueError):
+    """The envelope cannot be emitted as it stands. Never defaulted around."""
+
+
+def event_id_for(env: dict) -> str:
+    key = "|".join([env["event_type"], env.get("subject_type", ""), env.get("subject_id", ""),
+                    str(env["occurred_at"])])
+    return str(uuid.uuid5(NAMESPACE, key))
+
+
+def emit_envelope(env: dict) -> dict:
+    for required in ("event_type", "occurred_at", "subject_id"):
+        if not env.get(required):
+            raise EnvelopeRefused(
+                f"envelope has no {required!r}. The seven keys are fixed in "
+                f"ingest/docs/EVENT-CONTRACT.md and this one is load-bearing."
+            )
+    etype = env["event_type"]
+    if etype not in DECLARED_FLAGS:
+        raise EnvelopeRefused(
+            f"no external/canon_touching decision is declared for event type {etype!r}. This "
+            f"surface refuses to default them: an event whose flag nobody decided is not an "
+            f"unflagged event. Either the envelope states both flags, or a line is added to "
+            f"DECLARED_FLAGS in {__file__} with the reason next to it."
+        )
+    declared_e, declared_c = DECLARED_FLAGS[etype]
+    # OR, not override: an envelope that says it is flagged stays flagged (EF-7).
+    external, canon = _emit.inherit(
+        bool(env.get("external", declared_e)), bool(env.get("canon_touching", declared_c)),
+        (declared_e, declared_c))
+
+    # NOT `or "ai"`, and not `or` anything. An absent key means the producer recorded no actor;
+    # a present one is the session row's own value and this file does not second-guess it.
+    actor_type = env.get("actor_type") or None
+    if actor_type is not None and actor_type not in ACTOR_TYPES:
+        raise EnvelopeRefused(
+            f"actor_type {actor_type!r} is not one of {ACTOR_TYPES}. `brain.actor_type` is a "
+            f"domain over those three values and NULL; this envelope would fail the INSERT. "
+            f"Refused here so the key that is wrong is named."
+        )
+
+    payload = dict(env.get("payload") or {})
+    # The emitting machine's id. It is in the envelope and in no column, so it rides in the
+    # summary rather than being dropped: every absolute path in the payload is absolute on it.
+    if env.get("host_id") and "host_id" not in payload:
+        payload["host_id"] = env["host_id"]
+
+    common = dict(
+        occurred_at=env["occurred_at"],
+        payload=payload,
+        actor_type=actor_type,
+        produced_by_producer=env.get("produced_by") or None,
+        event_id=event_id_for(env),
+        # `subject_type` is 'session' for both of these types by contract, and the FK is what
+        # makes the walk possible. A future envelope about something else would need its own
+        # branch here rather than this one quietly pointing at the wrong table.
+        link_session=(env.get("subject_type") == "session"),
+    )
+    if etype == "session.started":
+        return _sessions.emit_session_started(
+            env["subject_id"], external=external, canon_touching=canon, **common)
+    return _sessions.emit_session_ended(
+        env["subject_id"], external=external, canon_touching=canon, **common)
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(
+        prog="event-emit", description="event emit, from a producer's envelope on stdin")
+    p.add_argument("--json", required=True, metavar="PATH",
+                   help="a file holding the envelope, or - for stdin")
+    args = p.parse_args(argv)
+
+    raw = sys.stdin.read() if args.json == "-" else open(args.json).read()
+    try:
+        env = json.loads(raw)
+    except ValueError as exc:
+        print(f"event-emit: stdin is not JSON: {exc}", file=sys.stderr)
+        return 2
+
+    try:
+        res = emit_envelope(env)
+    except psycopg2.errors.UniqueViolation:
+        # Already on the bus under the same deterministic id. The event IS emitted, so this is
+        # success: reporting it as a failure would leave the outbox row pending forever and
+        # every later drain would collide again.
+        print(json.dumps({"event_id": event_id_for(env), "deduplicated": True,
+                          "type": env.get("event_type")}))
+        return 0
+    except (EnvelopeRefused, _emit.FlagOmitted, _emit.PayloadTooLarge,
+            _emit.BudgetExceeded) as exc:
+        print(f"event-emit: {exc.__class__.__name__}: {exc}", file=sys.stderr)
+        return 3
+    except Exception as exc:  # noqa: BLE001 -- the caller reads the exit code and the message
+        print(f"event-emit: {exc.__class__.__name__}: {exc}", file=sys.stderr)
+        return 4
+
+    print(json.dumps(res, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

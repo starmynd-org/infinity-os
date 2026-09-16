@@ -1,0 +1,48 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+node_modules/
+.env
+*.local
+dist/
+build/
+*.egg-info/
+.pytest_cache/
+.gstack/
+
+# Per-agent, per-task scratch working directories (_scratch-t5-0337, _scratch-t3-0327, ...). Task
+# 0108 decided deliberately that these do NOT travel to the remote. They are a terminal's bench,
+# not the runtime: dry-run logs, .err/.sha256 pairs, throwaway psql wrappers, copies of migrations
+# already tracked under migrations/. Sixteen of them held 3.5M when this line was written, and
+# nothing in the repo reads one -- the only `scratch` the code knows is the brain_scratch DATABASE
+# (engine/bin/scratch-db.sh), which is unrelated. Ignored rather than merely left uncommitted so
+# the decision survives the next `git add`, on this host and on the VPS clone both.
+_scratch-*/
+
+# The staging directory `engine/bin/ledger-store.sh` assembles a capped migration set in. It holds
+# COPIES OF FILES ALREADY TRACKED under migrations/, budget/schema/ and queue/schema/, and the
+# script removes it on EXIT -- so it is here for the run that was killed, not for the normal one.
+# Committing it would put a second, silently ageing copy of the ledger in the tree, which is the
+# one thing a schema directory must never contain.
+.ledger-store-tmp/
+
+# Runtime working state that is NOT the runtime's source. Two directories, both created by
+# systemd units in this repo and both deliberately untracked:
+#
+#   var/intake/   the intake drop folder. `brain-intake-sweep.timer` runs
+#                 `swarm intake --source var/intake` over it every five minutes, and n8n's
+#                 push workflow writes into it. Its CONTENTS are inbound messages, some of them
+#                 client or personal material that arrived by workflow, so they are exactly the
+#                 class of thing that must never reach a remote. The folder is created by
+#                 systemd/brain-intake-sweep, so an empty checkout still works.
+#   var/state/    watermarks and last-seen markers for the sweeps. Host state, not source: a
+#                 second machine cloning this repo must start its own, never inherit this one's.
+var/
+
+# 41 ABSOLUTE symlinks into this repo's own migrations/, written by a lane on 2026-08-29 as a
+# ledger-42 replica tree. They resolve on the machine that made them and DANGLE IN EVERY CLONE.
+# They were deliberately excluded from the record commit and then swept in by a `git add -A` on
+# the directory, which is the exact shape this repo forbids. Ignored so it cannot happen a third
+# time; the directory itself is kept on disk because the lane's evidence points at it.
+outputs/2026-08-29-commander/lane-B6-schema42/

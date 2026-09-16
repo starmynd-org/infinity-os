@@ -1,0 +1,136 @@
+{# The live-session view's pieces, as macros, so ONE template renders both the page and the poll.
+
+   The same guarantee `runfeed_parts.html` exists for, and its comment states the rule this
+   follows: "rendering the poll response from a second template is how a console grows two
+   versions of one screen." This feed is append-only keyed by stream position rather than a
+   region swap, so it cannot use `_render_regions` and needs the guarantee by this route.
+
+   EVERY CLASS HERE ALREADY EXISTS IN `console.css`. Not one rule is added by this lane, and the
+   reuse is not thrift: this surface IS the runfeed's component grammar pointed at a different
+   producer, and giving it a second set of class names would be a second grammar for one idea.
+   The ids differ (`lsvt`, `lslive`, `lsfeed`) precisely so the runfeed's own poller, which binds
+   on `#feed` and asks `/api/runfeed/`, cannot attach to this page by accident. #}
+
+{# ------------------------------------------------------------------ the vitals row.
+   Facts that only accumulate, plus recency, and recency is the health signal. No bar, no ring,
+   no ETA, no percent: MUST-NOT-BUILD #4. A session does not know how far through it is either.
+
+   THE STATE WORD NEVER REPLACES THE FACT. `LIVE` is an inference from the file's modification
+   time and `file last written 4s ago` is the measurement it was inferred from, so both are on the
+   row, always. `ended_at` is not consulted at all and the module's trap 4 says why: 414 of 1,735
+   sessions have one. #}
+{% macro vitals(v) %}
+<div class="vt">
+  <span class="sdot" style="background:var(--{{ v.state.colour }})"></span>
+  <b style="color:var(--{{ v.state.colour }})">{{ v.state.word }}</b>
+  <span>{{ v.role }}</span>
+  {% if v.said %}<span>{{ v.said }} thing{{ '' if v.said == 1 else 's' }} you said</span>{% endif %}
+  <span>{{ v.beats }} repl{{ 'y' if v.beats == 1 else 'ies' }}</span>
+  <span>{{ v.tools }} tool call{{ '' if v.tools == 1 else 's' }}</span>
+  {% if v.cost is not none %}<span>~${{ '%.2f'|format(v.cost) }}</span>
+  {% else %}<span class="dim" title="{{ v.cost_why }}">cost unavailable</span>{% endif %}
+  {# The torn tail, as a dim FACT rather than as an error or as nothing. A live file's last line
+     is routinely half-written and a 1.3MB tool-result line stays half-written for two or three
+     polls, so a reader who meets this number twice learns what it is. #}
+  {% if v.torn %}<span class="dim"
+    title="A line being appended while this read it. It renders whole on a later poll; it is never an error.">{{ v.torn }}
+    torn tail line{{ '' if v.torn == 1 else 's' }}</span>{% endif %}
+  <span>{{ v.lines }} line{{ '' if v.lines == 1 else 's' }} ·
+    {{ (v.bytes / 1024)|round|int }}KB</span>
+  <span class="rec" style="color:var(--{{ v.written.colour }})">{{ v.written.text }}</span>
+</div>
+{% if v.state.detail %}<div class="vtdetail">{{ v.state.detail }}</div>{% endif %}
+<div class="vtdetail">{{ v.workdir }}{% if v.models %} · {{ v.models|join(', ') }}{% endif %}
+  {%- if v.elapsed %} · open {{ v.elapsed }}{% endif %}
+  {%- if not v.indexed %} · not indexed yet, which is what an open session looks like{% endif %}</div>
+{# The now-line: the last thing it said, one line. A glance reads state, then recency, then what
+   it says it is doing, and anything past that triple is fiction. #}
+{% if v.now_line %}<div class="nowline">{{ v.now_line }}</div>{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ one exchange row, or a fold.
+
+   THREE KINDS AND ONLY ONE OF THEM WEARS BRAND. `.ev.mine` paints the brand accent on the left
+   edge, and the design guide reserves brand for operator causality: a prompt Andrew typed is the
+   purest case of that on this surface. A subagent's launch brief and a harness task-notification
+   arrive on the same `user` record and are NOT him, so they render as plain rows. #}
+{% macro entry(e) %}
+{% if e.kind == 'said' %}
+<div class="ev{{ ' mine' if e.operator }}" data-key="{{ e.key }}">
+  <div class="evh">{{ e.who }}{% if e.operator %} → claude{% endif %}
+    {%- if e.at %} · {{ e.at[11:19] }}Z{% endif %}
+    {%- if e.source %} · {{ e.source }}{% endif %}</div>
+  <div class="evb">{{ e.text }}</div>
+</div>
+{% elif e.kind == 'beat' %}
+<div class="ev" data-key="{{ e.key }}">
+  <div class="evh">claude · reply {{ e.n }}{% if e.at %} · {{ e.at[11:19] }}Z{% endif %}</div>
+  <div class="evb">{{ e.text }}</div>
+</div>
+{% else %}
+<div class="fold" data-key="{{ e.key }}">
+  <span class="rule"></span>
+  <button class="lsfoldbtn" data-from="{{ e.from_pos }}" data-to="{{ e.to_pos }}">
+    {% if e.tools %}{{ e.tools }} tool call{{ '' if e.tools == 1 else 's' }}{% endif %}
+    {%- if e.tools and e.n > e.tools %} · {% endif %}
+    {%- if e.n > e.tools %}{{ e.n }} record{{ '' if e.n == 1 else 's' }}{% endif %}
+    {%- if e.seconds %} · {{ (e.seconds // 60) }}m{{ ' %ss'|format(e.seconds % 60) if e.seconds < 600 else '' }}{% endif %} · show
+  </button>
+  <span class="rule"></span>
+</div>
+<div class="foldout" hidden></div>
+{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ the in-place node.
+   The newest tool call plus the churn since the last rendered row. Both are still growing, so
+   neither may be appended: an appended growing node is the same row breeding once per poll. #}
+{% macro live(f) %}
+{% if f.open_fold %}
+<div class="fold live">
+  <span class="rule"></span>
+  <button class="lsfoldbtn" data-from="{{ f.open_fold.from_pos }}" data-to="{{ f.open_fold.to_pos }}">
+    {{ f.open_fold.n }} record{{ '' if f.open_fold.n == 1 else 's' }} since the last thing said
+    {%- if f.open_fold.tools %} · {{ f.open_fold.tools }} tool call{{ '' if f.open_fold.tools == 1 else 's' }}{% endif %}
+    {%- if f.open_fold.seconds %} · {{ f.open_fold.seconds }}s{% endif %} · show
+  </button>
+  <span class="rule"></span>
+</div>
+{% endif %}
+{% if f.live_tool %}
+<div class="toolline">▸ {{ f.live_tool.name }} {{ f.live_tool.detail }}</div>
+{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ the degraded states.
+   MISSING is red because recorded-as-present-and-gone is damage. Everything else is amber and
+   shows NOTHING rather than guessing. A session that simply stopped is neither. #}
+{% macro degraded(d) %}
+<div class="finding {{ d.level }}">
+  <b>{{ d.word }}</b> · {{ d.text }}
+  {% if d.path %}<div class="fpath">{{ d.path }}</div>{% endif %}
+  {% if d.raw %}<div class="fpath">{{ d.raw }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro finding(f) %}
+<div class="finding {{ f.level }}">{{ f.text }}
+  {% if f.detail %}<div class="fpath">{{ f.detail }}</div>{% endif %}</div>
+{% endmacro %}
+
+{# ------------------------------------------------------------------ one row of the picker.
+   State dot, the word, the fact behind the word, then HIS OWN FIRST SENTENCE, which is the only
+   label he already holds in his head. #}
+{% macro pickrow(r) %}
+<div class="ln">
+  <a href="/live/{{ r.key }}">
+    <span class="sdot" style="background:var(--{{ r.state.colour }})"></span>
+    <b style="color:var(--{{ r.state.colour }})">{{ r.state.word }}</b>
+    {{ r.short }}</a>
+  <div class="fpath">{{ r.written.text }}
+    {%- if r.subagents %} · {{ r.subagents }} subagent{{ '' if r.subagents == 1 else 's' }}{% endif %}
+    {%- if not r.indexed %} · not indexed yet{% endif %}
+    {%- if r.workdir_guess %} · workdir decoded from the directory name, a guess{% endif %}
+    · {{ (r.bytes / 1024)|round|int }}KB</div>
+</div>
+{% endmacro %}

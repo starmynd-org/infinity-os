@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "declared_by": "task 0349, agent T1, 2026-08-17",
+  "what_this_is": [
+    "The ONE declaration of which git refs count as durable, read by three tools that are",
+    "otherwise independent: adapter/brain_adapter/durability.py (the write-time gate),",
+    "store/bin/brain-receipt-reconcile.py (the gate over the store) and",
+    "store/bin/brain-git-ref-census.py (the measurement). Before this file each of the three",
+    "carried its own hard-coded tuple of ref names, so widening one widened nothing and",
+    "widening all three by hand was a diff nobody could see as one decision.",
+    "It is data, not logic: each tool reads the JSON and keeps its own classifier, so three",
+    "implementations agreeing stays a checkable fact rather than an assumption via import."
+  ],
+  "tiers": {
+    "mirrored": "an ancestor of a remote-tracking ref. It survives losing this machine.",
+    "canon": "an ancestor of main/master. It is what a fresh clone gets. A human lands it; no agent self-approves canon.",
+    "ledger": "an ancestor of a ref named below in the canonical repository: the booking branch, and the salvage tags. It survives scratch-branch deletion, worktree removal, /tmp being cleared, and gc. Whether it survives a re-clone depends on the remote holding it, and NOTHING HERE HAS BEEN PUSHED, so today it does not. This is the floor the invariant needs, not the ceiling, and anything reporting a count of durable refs reports the tier beside it."
+  },
+  "rules": [
+    "book_refs may never name a protected branch. promotion.py refuses such a policy outright (POLICY_REFUSED) rather than letting a config file unlock main.",
+    "A ref pattern ending in /* is expanded with git for-each-ref at read time.",
+    "Adding a ref here is a decision an operator can see in one diff. That is the point of the file: durability is declared once and reviewed, never widened at a call site or on a command line.",
+    "default.book_refs is EMPTY and must stay empty. Booking is permitted only into a repository named under `repos` by its root commit. The first cut of this policy let default.book_refs be ['receipts/durable'], and because the default applies to every repository the declaration has never heard of, `mktemp -d && git init -b receipts/durable` booked at tier 'ledger' with exit 0 into /tmp. A branch name is a string anyone can spell; identity is the root commit. durability.py refuses an undeclared repo independently (UNDECLARED_REPO), so this emptiness is the second lock and removing either one alone does not reopen the hole.",
+    "default.ledger_refs stays populated on purpose: it is CLASSIFICATION, not permission. The census walks foreign repositories and has to be able to say what a commit there is reachable from. Reading a ref is not writing one."
+  ],
+  "default": {
+    "canon_refs": [
+      "main",
+      "origin/main",
+      "master",
+      "origin/master"
+    ],
+    "ledger_refs": [
+      "receipts/durable"
+    ],
+    "book_refs": [],
+    "tombstones": null
+  },
+  "repos": {
+    "8ef5ef63285c9c9acc2c5bdeb526e17faf7598a9": {
+      "name": "your-brain (the brain)",
+      "canon_refs": [
+        "main",
+        "origin/main"
+      ],
+      "ledger_refs": [
+        "receipts/durable",
+        "refs/tags/receipts/salvage/*"
+      ],
+      "book_refs": [
+        "receipts/durable"
+      ],
+      "tombstones": {
+        "ref": "receipts/durable",
+        "path": "departments/warner-sandbox/receipts/lineage/tombstones.json"
+      },
+      "notes": [
+        "receipts/durable is the append-only booking ledger. `receipt book` lands here and a HUMAN merges it to main. That keeps D2's guarantee intact -- promotion.py still refuses main unconditionally -- while making the ref survive the branch cleanup that was costing every receipt this system had booked.",
+        "refs/tags/receipts/salvage/* is one TAG per commit rescued by task 0349 from a repository that was about to disappear. Tags rather than refs/receipts/*: `git branch -D` cannot reach a tag, `git gc` never prunes one, and a tag is carried by `git clone` and `git fetch` by default where a ref under a private namespace is not. They were created under refs/receipts/ first and moved the same hour, which is why the manifest on receipts/durable records both names.",
+        "NEVER compute a repo identity from a ref under refs/tags/receipts/salvage/*. Those commits come from five unrelated fixture repositories, so `git rev-list --max-parents=0` over them returns six root commits and not the brain's one. main and receipts/durable are single-rooted and are what store_join.repo_identity must see."
+      ]
+    }
+  }
+}

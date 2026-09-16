@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""The listener's health check, and it is not liveness -- but lag alone is not enough either.
+
+`fabric/lag.py` is right that a listener that is running, connected and stuck reports healthy
+under every process-level check, and that the signal is the subtraction
+`max(event_seq) - subscriber_cursor.last_seq`. A supervisor that only restarts a DEAD listener
+therefore misses the failure that actually loses events.
+
+This lane measured the other half of that, and it is the reason this file exists rather than a
+line of `ExecStartPre=fabric.cli health`. At 2026-08-17T13:2x, with the `operator-paging` process
+NOT RUNNING AT ALL for roughly fifteen hours:
+
+    $ python3 -m fabric.cli health
+    "subscriber": "operator-paging", "last_seq": 96, "head_seq": 101, "lag": 5,
+    "findings": [], "state": "ok"
+    "verdict": "keeping up"
+
+`state: ok` over a corpse. Nothing in that reading is wrong -- `LAG_WARN` is 25 and the lag was 5
+-- but the whole argument for lag being the health signal was that it catches the listener that
+process checks cannot see, and a threshold on a count alone does not catch a listener that died
+while the bus happened to be quiet. It will catch it in an hour, at event 126. An hour is exactly
+the window in which a page is not a page.
+
+The discriminator is not the count. It is the count TOGETHER WITH the cursor's own clock:
+
+    lag == 0                          -> caught up. `updated_at` may be ancient; a quiet bus is
+                                         not a sick one, and a staleness alarm alone would page
+                                         every night.
+    lag  > 0 and cursor moving        -> draining. Normal, and normal at any depth below CRITICAL.
+    lag  > 0 and cursor NOT moving    -> STUCK. This is dead, hung, crash-looping and partitioned,
+                                         all four at once, and it is the only reading that needs a
+                                         supervisor to act.
+
+STALE_SECONDS defaults to 120: eight times the listener's own 15s poll floor
+(`fabric.listener.Listener.poll_seconds`), so a listener draining normally can never trip it.
+
+Two things this deliberately does NOT do:
+
+* **It does not quarantine.** `fabric.lag.health()` calls `enforce()`, which WRITES: it quarantines
+  a subscriber whose reading is impossible. That is a correct policy for an operator running the
+  verb; it is not a correct thing for a probe that fires every sixty seconds forever to do behind
+  everyone's back. So this reads through `fabric.lag.subscribers()`, which is read-only, and
+  reports an impossible reading as exit 3 for a human.
+* **It does not ask for a restart of a quarantined listener.** Quarantine is released by a human
+  through the runtime role (`fabric.cli release`); `Listener.start` refuses to run while it stands.
+  Restarting into that refusal is a sawtooth, which is the precise failure `fabric/listener.py`
+  `_on_failure` says quarantine exists to avoid.
+
+Exit codes, which are the interface (`systemd/brain-health` reads them):
+
+    0  healthy
+    1  warn -- behind but moving
+    2  CRITICAL and restartable -- stuck, or lag past LAG_CRITICAL
+    3  CRITICAL and NOT restartable -- quarantined, or an impossible cursor. A human's act.
+    4  cannot tell -- the store is unreachable. Take no action; that is the store's alarm.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+OK, WARN, STUCK, HELD, UNKNOWN = 0, 1, 2, 3, 4
+
+DEFAULT_STALE_SECONDS = float(os.environ.get("PAGING_STALE_SECONDS", "120"))
+
+
+def check(subscriber: str, stale_seconds: float) -> tuple[int, dict]:
+    from fabric import lag as _lag
+
+    try:
+        rows = _lag.subscribers()
+    except Exception as exc:                                  # store down, or migration missing
+        return UNKNOWN, {"subscriber": subscriber, "verdict": "cannot tell",
+                         "error": f"{type(exc).__name__}: {exc}"}
+
+    row = next((r for r in rows if r["subscriber"] == subscriber), None)
+    if row is None:
+        # A declared subscriber with no cursor row has never acked anything. That is not "quiet",
+        # it is unprovisioned, and it is a finding rather than a reading.
+        return HELD, {"subscriber": subscriber, "verdict": "no cursor row",
+                      "declared": sorted(r["subscriber"] for r in rows)}
+
+    now = datetime.now(timezone.utc)
+    updated = row.get("updated_at")
+    age = None
+    if isinstance(updated, datetime):
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        age = (now - updated).total_seconds()
+
+    out = {"subscriber": subscriber, "last_seq": row["last_seq"], "head_seq": row["head_seq"],
+           "lag": row["lag"], "quarantined": row["quarantined"],
+           "cursor_age_seconds": None if age is None else round(age, 1),
+           "stale_after_seconds": stale_seconds, "findings": row["findings"],
+           "lag_state": row["state"]}
+
+    if row["findings"]:
+        out["verdict"] = "IMPOSSIBLE READING: " + "; ".join(row["findings"])
+        return HELD, out
+    if row["quarantined"]:
+        out["verdict"] = (f"quarantined ({row.get('quarantine_reason') or 'no reason recorded'}). "
+                          f"Release is a human's act: fabric release --subscriber "
+                          f"{subscriber} --by <name>")
+        return HELD, out
+    if row["lag"] >= _lag.LAG_CRITICAL:
+        out["verdict"] = f"lag {row['lag']} at or past LAG_CRITICAL ({_lag.LAG_CRITICAL})"
+        return STUCK, out
+    if row["lag"] > 0 and age is not None and age > stale_seconds:
+        out["verdict"] = (f"STUCK: {row['lag']} event(s) behind and the cursor has not moved in "
+                          f"{age:.0f}s (>{stale_seconds:.0f}s). This is the reading that a lag "
+                          f"threshold alone calls ok.")
+        return STUCK, out
+    if row["lag"] >= _lag.LAG_WARN:
+        out["verdict"] = f"behind ({row['lag']}) but the cursor is moving"
+        return WARN, out
+    out["verdict"] = "keeping up" if row["lag"] == 0 else f"draining ({row['lag']} behind)"
+    return OK, out
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(description="lag-based health for a bus listener")
+    p.add_argument("--subscriber", default="operator-paging")
+    p.add_argument("--stale-seconds", type=float, default=DEFAULT_STALE_SECONDS)
+    a = p.parse_args(argv)
+    code, detail = check(a.subscriber, a.stale_seconds)
+    detail["exit"] = code
+    print(json.dumps(detail, indent=2, default=str))
+    return code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# The drafting agent's surface for `queue draft options`. See queue/human_queue/options.py.
+#
+# A separate entry point from `queue/bin/queue` while the V10 build lanes run in parallel against
+# one tree: a new file collides with nobody, and folding `draft` and `show` into the queue CLI is
+# one later edit to one function.
+set -euo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+export PYTHONPATH="$REPO:$REPO/queue:$REPO/engine${PYTHONPATH:+:$PYTHONPATH}"
+# NOT `python3 -m human_queue.options`. The package `__init__` imports this module to register
+# the verb, so `-m` runs the file again as `__main__` and `store.transition` raises
+# DuplicateTransition -- which is the registry being right, not a bug to work around.
+exec python3 -c 'import sys; from human_queue import options; sys.exit(options.main())' "$@"

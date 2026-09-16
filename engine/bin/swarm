@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""swarm -- the dispatch CLI, over the store.
+
+The only writer, same as it ever was. Every transition is registered once and every surface
+calls it: this binary, the runner, the console, and anything that comes later. Where this file
+and `engine/swarm_engine/transitions.py` disagree, the transition wins, because the transition is
+what actually runs.
+"""
+
+import os
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))            # engine/
+sys.path.insert(0, str(_HERE.parent.parent))     # repo root, for `store`
+
+from swarm_engine import accept, transitions  # noqa: E402,F401  (registers every verb)
+from swarm_engine.cli import main             # noqa: E402
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

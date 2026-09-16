@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}{{ slug }}{% endblock %}
+{% block body %}
+<div class="card">
+  <div class="cid">canonical task ladder</div>
+  <div class="ctitle">{{ slug }}</div>
+  <div class="cmeta"><span>{{ items|length }} item{{ '' if items|length == 1 else 's' }}</span></div>
+</div>
+{# Grouping is a read-only tree. No kanban, in any room: a column you can drag between is a
+   second state machine that nothing else in the runtime can see. #}
+<div class="blk"><h4>Items, grouped read-only by canonical task</h4>
+  {# THE SCROLL BOX, ADDED 2026-09-16 BY W3-UX-INFINITY (reported by W3-INFINITY-TEST). This table
+     carried `class="tbl"` and nothing else, and `.tbl{min-width:46rem}` in `console.css` is
+     UNCONDITIONAL at 46rem and narrowed to 40rem inside the 720px block, so the floor that reaches
+     a phone is 640px of hard minimum in a 375px viewport, and `/sprint/<slug>` scrolled the PAGE
+     sideways, which is the one thing the whole console is held to never doing.
+
+     IT OVERFLOWED AT ZERO ROWS. The only row this table renders on an unresolved ladder is
+     "nothing resolves to this ladder yet", so no amount of seeding or trimming reaches it: a fixed
+     minimum overflows an empty table exactly as far as a full one. The route that exposed it is
+     the one with the least to show.
+
+     THE CLASS CARRIED AN ASSUMPTION ITS NAME COULD NOT EXPRESS. That floor was written for the
+     board, whose nine columns sit inside `.twrap` -- the comment on `.twrap` says so, that `.tbl`
+     "gets a floor width so nine columns squeeze the SCROLLBAR into view at 390px". The floor and
+     the box that contains it are one design in two selectors, and this template adopted the class
+     without the box. `sessions.html` solves the same problem with `.doc-scroll`, which cannot help
+     here: that rule is scoped `body[data-room="sessions"]` in `study-sessions.css` and this room
+     is `queue`.
+
+     MECHANISM MEASURED, on `/sessions` because `/sprint` needs a store: with its wrapper's
+     overflow set to `visible` in the live DOM, `document.scrollWidth` goes 375 to 541 and back,
+     stable over three reads each way. The wrapper is the only thing holding the page. #}
+  <div class="twrap">
+  <table class="tbl">
+    <tr><th>canonical</th><th>id</th><th>state</th><th>accepted</th><th>title</th></tr>
+    {% for i in items %}
+    <tr><td>{{ i.canonical_task }}</td>
+      <td><a href="/task/{{ i.id }}">{{ i.id }}</a></td>
+      <td>{{ i.state }}</td>
+      <td>{{ 'yes' if i.accepted_at else 'no' }}</td>
+      <td>{{ i.title }}</td></tr>
+    {% else %}<tr><td colspan="5">nothing resolves to this ladder yet</td></tr>{% endfor %}
+  </table>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+# One WHOLE-CORPUS pass of `ingest transcript verify`, plus the before/after reading that says
+# what the pass was worth. Run it by hand any time; `brain-transcript-verify.timer` runs it daily.
+#
+# Why this exists (task 0335). D3 had the verb and nothing called it. 1,265 of 1,346 pointers had
+# never been re-hashed, so nothing in the store would have noticed a transcript being corrupted,
+# and -- the half that matters more -- the harness's retention sweep ages a fresh cohort out every
+# day, so every day's losses sat in `filesystem.indexed_not_on_disk.not_yet_recorded`: counted, but
+# unclassified, which means nobody could tell that day's routine housekeeping from a real deletion.
+# One hand-run backlog drain fixes that for one afternoon. Only a schedule fixes it.
+#
+# WHY THE WHOLE CORPUS AND NOT `--limit N`. 0335 was posted believing a full pass was expensive
+# ("re-hashes 1,409 MiB ... it is not free") and would be permanently red (every open session
+# hashing as `mismatch`). Both were measured on this host 2026-08-17 and both are false:
+#
+#   Cold page cache: 900 pointers in 13.98s, 400 in 13.35s, 40 in 1.22s -- so a full 1,346-pointer
+#   / 1,426 MiB corpus is ~20-25s. Warm: this whole script, full pass plus BOTH coverage reads, in
+#   4.25s. Either number is less attention than brain-health.timer spends every 60 seconds. The
+#   cold one is the one to plan against, since a daily sweep after a WSL start reads from disk.
+#
+#   That full pass returned 837 match, 2 appended, 0 MISMATCH, 61 missing, 0 unreadable. The
+#   agent's own actively-growing transcript was in it and came out `appended`, because task 0330
+#   re-hashes the first `stored_bytes` and asks whether the file GREW rather than whether it
+#   CHANGED. Append is not corruption and verify already knows it.
+#
+# So there is no cost to trade against coverage, and `--limit` would buy nothing while costing the
+# thing the verb is for: a bounded window that only ever reaches each pointer once is indexing
+# twice, not verifying. The limit passed below is the measured row count, not a cap.
+#
+# THE HASHING COST STAYS BOUNDED EVEN AS THE TABLE GROWS, and this is not obvious. Rows are never
+# deleted -- a pointer, its hash and its byte count are the only surviving record that a transcript
+# existed -- so `brain.transcript` grows forever. But a pointer whose file the harness already
+# deleted costs one failed `open()` and no hashing at all, and the harness deletes on a ~30-day
+# horizon. Bytes hashed therefore tracks ~30 days of live transcripts (~4,600 pointers, a few GiB
+# at the current rate), while only the per-row database round trip grows linearly. It is the row
+# count, not the corpus size, that will eventually want revisiting.
+#
+# Exit: 0 nothing to act on. 1 verify found something a human has to look at. 2 no reading taken
+# (the store was unreachable, or a step failed in a way that is not a verification verdict). The
+# 2 is deliberately not folded into 1: "a hash moved" and "we could not check" are different
+# facts, and a unit that reports them with the same number teaches its reader to stop looking.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+INGEST="$REPO/ingest/bin/ingest"
+
+say() { printf '%s\n' "$*"; }
+die() { say "verify-sweep UNAVAILABLE: $*"; exit 2; }
+
+# Read the store's own published report rather than reaching into D3's SQL. `ingest coverage` is
+# the lane's verb surface, it costs 0.46s measured, and using it means this sweep does not carry a
+# second copy of any rule about which column means what.
+read_coverage() {
+  "$INGEST" coverage 2>&1
+}
+
+pick() {  # pick <json> <python-expression over `d`>
+  printf '%s' "$1" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+try: print(eval(sys.argv[1]))
+except Exception: print("?")
+' "$2" 2>/dev/null
+}
+
+before="$(read_coverage)" || die "ingest coverage failed: $(printf '%s' "$before" | tr '\n' ' ' | cut -c1-200)"
+printf '%s' "$before" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null \
+  || die "ingest coverage did not return JSON: $(printf '%s' "$before" | tr '\n' ' ' | cut -c1-200)"
+
+pointers="$(pick "$before" 'd["filesystem"]["pointers_indexed_here"]')"
+unverified_before="$(pick "$before" 'd["verify_state"].get("not-yet-verified",0)')"
+unrecorded_before="$(pick "$before" 'd["filesystem"]["indexed_not_on_disk"]["not_yet_recorded"]')"
+not_indexed="$(pick "$before" 'd["filesystem"]["on_disk_not_indexed"]["n"]')"
+case "$pointers" in ''|*[!0-9]*) die "could not read pointers_indexed_here from coverage" ;; esac
+
+say "before   pointers=$pointers  never-verified=$unverified_before  absences-unclassified=$unrecorded_before"
+
+# `--limit` is the measured row count, so the pass covers the corpus rather than a window. Rows
+# CAN be indexed while the sweep runs (a session ends mid-pass); those stay `not-yet-verified` and
+# the next run takes them, which the after-reading below reports rather than hides.
+out="$("$INGEST" transcript verify --limit "$pointers" 2>&1)"; rc=$?
+if [ "$rc" != 0 ] && [ "$rc" != 1 ]; then
+  say "$out"
+  die "transcript verify exited $rc (expected 0 or 1)"
+fi
+printf '%s' "$out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null || {
+  say "$out"; die "transcript verify did not return JSON"; }
+
+checked="$(pick "$out" 'd["checked"]')"
+say "pass     $(pick "$out" '" ".join(f"{k}={d[k]}" for k in ("checked","match","appended","mismatch","missing","unreadable"))')"
+say "missing  $(pick "$out" '" ".join(f"{k}={v}" for k,v in d["missing_by_classification"].items())')  absences-closed=$(pick "$out" 'd["absences_closed"]')"
+
+after="$(read_coverage)"
+unverified_after="$(pick "$after" 'd["verify_state"].get("not-yet-verified",0)')"
+unrecorded_after="$(pick "$after" 'd["filesystem"]["indexed_not_on_disk"]["not_yet_recorded"]')"
+say "after    never-verified=$unverified_after  absences-unclassified=$unrecorded_after"
+
+# Coverage this sweep did NOT provide, reported and not acted on. A file with no pointer row is
+# invisible to verify -- it cannot re-hash a row that does not exist -- so a sweep that printed
+# only its own green would overstate what is under verification.
+#
+# MOSTLY THIS IS NOT A GAP, and the line is worded so as not to cry wolf. The hook indexes a
+# transcript at SessionEnd, so a session that is still OPEN correctly has no pointer row yet.
+# Checked 2026-08-17T23:47: all 3 files in this bucket had session rows with `ended_at` NULL and
+# two of them had been written in the same second the check ran. They were live agents, not losses.
+# (Task 0329's hook fix HAS landed -- `bin/claude-session-hook` calls
+# `backfill.index_missing_subagents` at SessionEnd -- whatever the task record says.)
+#
+# What would be a real gap is a file whose session has ENDED and still has no row. `ingest
+# coverage` does not split those two, so this sweep reports the raw count rather than claiming a
+# verdict its evidence cannot support. Splitting it is a coverage-side change, posted separately.
+[ "$not_indexed" != "0" ] && say "unindexed $not_indexed file(s) on disk have no pointer row, so verify cannot see them; expected for sessions still open (the hook indexes at SessionEnd)"
+
+# Why the red names its own cause instead of just being a non-zero exit: an `unknown-age` absence
+# can be PERMANENT. Task 0324's classifier derives a file's age from its session, and a pointer
+# with no session row (workflow journals under `subagents/workflows/` are indexed with
+# session_id NULL) can never acquire an age basis, so it re-reports `unknown-age` on every pass
+# forever and holds this unit `failed` forever. Measured 2026-08-17: exactly one such pointer.
+# It is NOT suppressed here -- widening a threshold to make a check pass is not a fix -- so if
+# this unit is red every day, read these lines and then read task 0335's children.
+if [ "$rc" = 1 ]; then
+  say "ACTIONABLE, this is why the unit is red:"
+  say "  not-ok (mismatch|unreadable) = $(pick "$after" 'd["verify_state"].get("not-ok (mismatch|unreadable)",0)')"
+  say "  absence unexplained          = $(pick "$after" 'd["pointers_absent"]["open_by_classification"].get("unexplained",0)')"
+  say "  absence unknown-age          = $(pick "$after" 'd["pointers_absent"]["open_by_classification"].get("unknown-age",0)')"
+fi
+
+say "verify-sweep checked=$checked rc=$rc"
+exit "$rc"

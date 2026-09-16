@@ -1,0 +1,161 @@
+/* The typable pane's own stylesheet, and it is a SEPARATE FILE on purpose.
+ *
+ * `console.css` is owned by another lane working in parallel on the card and list surface
+ * (row 0431). Two agents in one stylesheet is the collision this sprint was sequenced to avoid,
+ * so this lane's rules live here and `base.html` links it through the head block. Nothing in
+ * here overrides a console.css rule; every selector is under a `t*` class that exists nowhere
+ * else in this repo.
+ *
+ * THE SIXTEEN ANSI SLOTS ARE THEMED, THE OTHER 240 ARE NOT, and `web/terminal_screen.py`
+ * explains the split: a colour asked for by number (`38;5;173`, `38;2;r;g;b`) is resolved to that
+ * exact number server side, because a theme cannot honestly reinterpret it. `--t0`..`--t15` are
+ * the ones a program asked for by NAME, so they follow the console's light and dark themes the
+ * way the rest of the surface does.
+ */
+
+:root {
+  --tfg: #1F2124;
+  --tbg: #FAF9F7;
+  --t0:#3B3B3B;  --t1:#B4271C;  --t2:#1C7048;  --t3:#8A6100;
+  --t4:#2F5FA0;  --t5:#8A3E96;  --t6:#12716F;  --t7:#4A4A48;
+  --t8:#6E757E;  --t9:#D6392C;  --t10:#2A9463; --t11:#A87A0A;
+  --t12:#3F7BC7; --t13:#A85AB4; --t14:#1B918D; --t15:#111111;
+}
+[data-theme="dark"] {
+  --tfg: #E4E2DE;
+  --tbg: #101216;
+  --t0:#3A3E45;  --t1:#EE8078;  --t2:#63C89B;  --t3:#E0B75A;
+  --t4:#7FB3E8;  --t5:#C99BE0;  --t6:#6FD2CE;  --t7:#C9C7C3;
+  --t8:#8F8E8B;  --t9:#F2A099;  --t10:#8BDCB6; --t11:#EFD08A;
+  --t12:#A4CBF2; --t13:#DDBAEE; --t14:#9AE3E0; --t15:#FFFFFF;
+}
+
+/* ------------------------------------------------------------------ the openers */
+.topen {
+  display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+  margin: .7rem 0 .5rem;
+}
+.topen .tsplit { width: 1px; height: 1.4rem; background: var(--rule-strong); margin: 0 .25rem; }
+.tlab { font: 500 .78rem/1.2 var(--font-sans); color: var(--ink-3); }
+/* --field-border, not --rule-strong: this is a control's visible boundary and WCAG 1.4.11 wants
+ * 3.0 for one (T4's C-12). The same swap landed on the house fields in `console.css` when Ground
+ * B Slate did; leaving this one behind would make the shell inconsistent in exactly the property
+ * the token was created to hold in one place. The token lives in console.css's `:root`, which
+ * this file has always read from -- every rule here already spends --rule-strong, --ink and
+ * --bg-raised the same way. Pinned by `web/tests/test_the_ground_is_slate.py`, which probes a
+ * real `.tinput` as well as a bare field. (2026-09-16)
+ *
+ * WHAT IS DELIBERATELY NOT CHANGED HERE: `--tfg`/`--tbg` above, and the sixteen ANSI slots. The
+ * locked guide's section 3c maps ten role names onto console.css tokens and names none of these.
+ * `--tfg` #1F2124 is the OLD `--ink`'s hex and `--tbg` #FAF9F7 is a warm paper the new cool slate
+ * ground no longer sits beside comfortably -- that is a real and visible inconsistency, it is
+ * MEASURED rather than assumed, and it is routed as a question rather than answered by this
+ * seat, because a terminal pane having its own ground is a defensible design and not obviously a
+ * defect. See the seat report. */
+.tinput {
+  font: 500 .82rem/1 var(--font-mono); padding: .42rem .5rem;
+  border: 1px solid var(--field-border); border-radius: var(--radius-inner);
+  background: var(--bg-raised); color: var(--ink);
+}
+.tinput:focus { outline: 2px solid var(--focus); outline-offset: 1px; }
+.tbtn {
+  font: 600 .82rem/1 var(--font-sans); padding: .5rem .8rem; cursor: pointer;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-inner);
+  background: var(--bg-raised); color: var(--ink);
+}
+/* NEUTRAL ON HOVER, AND THIS IS THE GRAMMAR RATHER THAN A PREFERENCE. This rule painted the
+   accent on `border-color` and `color`, and the accent is reserved for OPERATOR CAUSALITY: it
+   marks what happened because of him as against what an agent did on its own, and the rule that
+   he KEPT on 2026-08-28 says in its own words that it never appears on agent-originated content,
+   on a status, or as DECORATION. A hover state is decoration. It says a control is hoverable,
+   which is true of every control, so it carries no causal information at all.
+   Found by lane B6b while retiring the orange (row 0435) and reported rather than fixed, because
+   this file belongs to the terminal lane. Taken by the commander afterwards.
+   Left deliberately: `.tcursor` below still spends the accent, and that is NOT this defect. The
+   text cursor is the operator's own typing position, which is the purest causal mark on the
+   surface. It is also a FIFTH surface, and the rule enumerates exactly four, so whether the list
+   gains an entry is the operator's call and not a lane's. It is written up for him rather than
+   quietly kept or quietly removed. */
+.tbtn:hover:not(:disabled) { border-color: var(--ink-2); color: var(--ink); }
+.tbtn:disabled { opacity: .45; cursor: default; }
+.tbtn .tk { font-weight: 400; color: var(--ink-3); font-family: var(--font-mono); font-size: .72rem; }
+.tbtn-quiet { color: var(--ink-2); }
+.tnote { font: 400 .72rem/1.45 var(--font-sans); color: var(--ink-3); max-width: 62ch; }
+
+/* ------------------------------------------------------------------ the tabs */
+.ttabs { display: flex; gap: .3rem; flex-wrap: wrap; margin: .2rem 0 .35rem; }
+.ttab {
+  font: 500 .76rem/1 var(--font-mono); padding: .38rem .55rem; cursor: pointer;
+  border: 1px solid var(--rule); border-bottom: none; background: var(--bg-sunk);
+  color: var(--ink-2); border-radius: var(--radius-inner) var(--radius-inner) 0 0;
+}
+.ttab[aria-selected="true"] { background: var(--tbg); color: var(--ink); border-color: var(--rule-strong); }
+.ttab .tdead { color: var(--dmg); }
+
+/* ------------------------------------------------------------------ the screen */
+.twrap { position: relative; }
+/* A FIXED VIEWPORT, NOT A BOX THAT GROWS WITH ITS CONTENT, and this is a defect repair rather than
+ * a preference. It was `max-height: 72vh`, so an EMPTY pane was as tall as its placeholder, about
+ * 40px. `terminal.js:fitSize` measures this element to decide how many rows to ask the pty for,
+ * so every newly opened pane asked for the floor of that calculation: SIX ROWS, on a 1512x982
+ * window, whatever the screen size. Measured 2026-08-29 with a real Claude Code helper open in the
+ * pane: `136x6 - alt screen`. Claude Code's own chrome is four of those rows, so the operator's
+ * named use case rendered into two usable lines and its answers were drawn and immediately
+ * overwritten. bash hid the bug, because bash does not care how tall the terminal is.
+ *
+ * `height` and not `min-height`: a terminal is a window onto a screen buffer of a known size, and
+ * a container that can still grow would let a burst of output resize the pty under the program
+ * drawing into it. */
+.tscroll {
+  position: relative; overflow: auto; height: 72vh;
+  background: var(--tbg); color: var(--tfg);
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-inner);
+  padding: .5rem .6rem;
+}
+.tscreen:focus { outline: none; }
+.tscroll:focus-within { border-color: var(--focus); box-shadow: 0 0 0 1px var(--focus); }
+.thist, .tscreen { font: 400 13px/1.35 var(--font-mono); white-space: pre; }
+.tline { min-height: 1.35em; }
+/* The eight SGR flags, and `reverse` is deliberately absent: it is resolved into the two colour
+ * values server side, because a client-side invert would also invert the 256-colour cells beside
+ * it. `web/terminal_screen.py:_run` carries the measurement. */
+.tscreen .b, .thist .b { font-weight: 700; }
+.tscreen .d, .thist .d { opacity: .62; }
+.tscreen .i, .thist .i { font-style: italic; }
+.tscreen .u, .thist .u { text-decoration: underline; }
+.tscreen .s, .thist .s { text-decoration: line-through; }
+.tscreen .h, .thist .h { visibility: hidden; }
+/* NO BLINK ANIMATION. `prefers-reduced-motion` is a standing rule on this surface and a blinking
+ * cell is the one piece of terminal chrome nobody has ever needed. Rendered dim instead. */
+.tscreen .k, .thist .k { opacity: .72; }
+
+.tcursor {
+  position: absolute; width: 1ch; height: 1.35em;
+  background: var(--brand); opacity: .75; pointer-events: none;
+  border-radius: 1px;
+}
+.tscroll:not(:focus-within) .tcursor { background: transparent; outline: 1px solid var(--brand); opacity: .6; }
+.tplaceholder { color: var(--ink-3); font: 400 .82rem/1.6 var(--font-sans); white-space: normal; }
+
+/* The ruler measures one character in the ACTUAL rendered font, which is the only way to place a
+ * cursor over a grid whose font stack falls back differently on different hosts. Ten characters
+ * rather than one, because sub-pixel width divided by ten is ten times less wrong. */
+.truler {
+  position: absolute; visibility: hidden; pointer-events: none; top: 0; left: 0;
+  font: 400 13px/1.35 var(--font-mono); white-space: pre;
+}
+
+.terr {
+  margin: .4rem 0; padding: .5rem .7rem; border-radius: var(--radius-inner);
+  background: var(--tint-dmg); color: var(--dmg);
+  font: 500 .78rem/1.5 var(--font-sans); max-width: 78ch;
+}
+.tfoot {
+  display: flex; align-items: center; gap: .7rem; flex-wrap: wrap; margin: .5rem 0 1rem;
+  font: 400 .74rem/1.4 var(--font-mono); color: var(--ink-3);
+}
+
+@media (max-width: 700px) {
+  .tscroll { height: 60vh; }
+  .thist, .tscreen, .truler { font-size: 11px; }
+}

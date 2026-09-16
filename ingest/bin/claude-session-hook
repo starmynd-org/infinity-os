@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""Claude Code hook: register every session, without the model having to remember to.
+
+D3's brief: "A registration path that depends on the model choosing to call a tool will
+silently miss sessions, and a session registry with unknown gaps is worse than no registry at
+all, because it invites false conclusions from counts." So this is a harness hook, and it
+calls the verbs. It never INSERTs.
+
+Wire one entry per event in ~/.claude/settings.json (see ingest/docs/HOOK-INSTALL.md):
+
+    SessionStart      -> register the session, state open
+    UserPromptSubmit  -> record stated_goal from the FIRST prompt only, verbatim
+    SessionEnd        -> end the session, index its transcript pointer + hash, and index any
+                         subagent transcript of that session that has no row yet (task 0329)
+
+Two properties this file must never lose:
+
+1. **It exits 0 no matter what.** A session must never fail, stall or warn because the
+   registry is down, the container is stopped or the schema moved. Every failure is appended
+   to the log below and swallowed.
+2. **It fabricates nothing.** The goal is the operator's own first prompt, truncated, with
+   the harness's wrapper blocks stripped. If there is no prompt there is no goal.
+"""
+
+from __future__ import annotations
+
+import datetime as _dt
+import json
+import os
+import sys
+import time
+import traceback
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.join(HERE, ".."))
+
+LOG = os.path.expanduser(os.environ.get("BRAIN_HOOK_LOG", "~/.claude/brain-session-hook.log"))
+BUDGET_S = float(os.environ.get("BRAIN_HOOK_BUDGET_S", "8"))
+
+
+def log(msg: str) -> None:
+    try:
+        with open(LOG, "a") as fh:
+            fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())} {msg}\n")
+    except OSError:
+        pass
+
+
+def main() -> int:
+    started = time.time()
+    try:
+        raw = sys.stdin.read()
+    except Exception:
+        raw = ""
+    try:
+        payload = json.loads(raw) if raw.strip() else {}
+    except ValueError:
+        payload = {}
+
+    event = (payload.get("hook_event_name") or os.environ.get("CLAUDE_HOOK_EVENT")
+             or (sys.argv[1] if len(sys.argv) > 1 else ""))
+    session_id = payload.get("session_id") or os.environ.get("CLAUDE_SESSION_ID")
+    if not session_id:
+        log(f"{event or '?'}: no session_id in payload; keys={sorted(payload)}")
+        return 0
+
+    try:
+        from ingest import store, verbs, config
+        from ingest.goal import _clean, _first_meaningful_line
+
+        cwd = payload.get("cwd") or os.getcwd()
+        transcript_path = payload.get("transcript_path")
+
+        if event == "SessionStart":
+            res = verbs.session_register(
+                session_id, session_id=session_id, kind="main", harness="claude-code",
+                entrypoint="cli", permission_mode=payload.get("permission_mode"),
+                model=payload.get("model"),
+                model_source="hook-payload" if payload.get("model") else None,
+                workdir=cwd, workdir_source="hook-arg",
+                # An observed start, stamped now. Unlike a backfilled session, this one was
+                # actually witnessed beginning.
+                started_at=_dt.datetime.now(_dt.timezone.utc).isoformat(),
+                time_source="hook-observed",
+                actor_type="hybrid",  # a Claude Code session is a human and a model together
+                registration_source="hook",
+            )
+            # `res['event']` is what the VERB knew, and it can only ever say "pending": the
+            # envelope is parked inside the transaction and emitted by the drain that runs
+            # after it commits (task 0287). `store.last_drain()` is what actually happened.
+            log(f"SessionStart {session_id} created={res['created']} "
+                f"event={res['event']} drain={store.last_drain()} "
+                f"src={payload.get('source')} {time.time()-started:.2f}s")
+
+        elif event == "UserPromptSubmit":
+            # The goal is the operator's own words. `session register` is idempotent and
+            # stated_goal is first-write-wins, so only the first prompt of a session lands
+            # and every later prompt is a no-op. That is why this needs no extra verb.
+            prompt = payload.get("prompt") or ""
+            goal = _first_meaningful_line(_clean(prompt)) if prompt.strip() else None
+            if goal:
+                verbs.session_register(
+                    session_id, session_id=session_id, kind="main", harness="claude-code",
+                    workdir=cwd, workdir_source="hook-arg",
+                    stated_goal=goal, stated_goal_source="hook:first-prompt",
+                    stated_goal_tier="A:explicit-brief",
+                    registration_source="hook", emit_event=False,
+                )
+                log(f"UserPromptSubmit {session_id} goal={goal[:60]!r} {time.time()-started:.2f}s")
+
+        elif event == "SessionEnd":
+            try:
+                verbs.session_end(session_id, end_reason=payload.get("reason") or "hook")
+                log(f"SessionEnd {session_id} ended drain={store.last_drain()}")
+            except KeyError:
+                # Never auto-create on end: a session that was never registered must show up
+                # as a gap, not as a complete record with a start time invented at close.
+                log(f"SessionEnd {session_id} SKIPPED: never registered (gap, on purpose)")
+            if transcript_path and os.path.exists(transcript_path):
+                r = verbs.transcript_index(transcript_path, session_key=session_id)
+                note = ""
+                if r.get("session_key_unresolved"):
+                    # Task 0228: this used to be a ForeignKeyViolation swallowed by the
+                    # handler below, so an unindexable transcript left nothing but a
+                    # traceback. The row is now written keyless and the gap is counted in
+                    # `ingest.transcript_orphan`; this line only says where to look.
+                    note = (f" session_key UNRESOLVED ({r['unresolved_reason']}), "
+                            f"counted: transcript_orphan id={r['orphan_id']} "
+                            f"seen={r['orphan_times_seen']}x")
+                log(f"SessionEnd {session_id} indexed {r['bytes']}B "
+                    f"sha={r['sha256'][:12]}{note}")
+            else:
+                # Task 0437, 2026-08-29. There was no `else` here, and that is why a five session
+                # loss produced no line anywhere. A healthy session writes TWO lines to this log,
+                # the `SessionEnd ... ended` above and the `indexed NNNNB` beside it; all five lost
+                # sessions carried only the first, so the log looked like five ordinary endings.
+                # A `claude` that inherits CLAUDE_CODE_CHILD_SESSION writes no transcript file at
+                # all, so this branch is reached with a path that never existed. The session row is
+                # written either way, which is what makes the loss quiet.
+                #
+                # This line does not fix anything and is not meant to. It turns a silent loss into
+                # a complaint, which is the difference between finding this in an afternoon and
+                # finding it never.
+                log(f"SessionEnd {session_id} NOT INDEXED: transcript_path="
+                    f"{transcript_path!r} exists="
+                    f"{bool(transcript_path) and os.path.exists(transcript_path)}. "
+                    f"No conversation reached brain.transcript for this session.")
+            # Task 0329: this session's SUBAGENTS, which no hook event reports. `transcript_path`
+            # above names one file, the main session, and Claude Code fires nothing per subagent
+            # that this lane is wired to -- so before this call the only path that had ever
+            # written a subagent transcript row was a human running `ingest backfill`, and 689
+            # of the 698 subagent files on disk carried the one identical `indexed_at` that
+            # proves it. Insert-only: a file with a row is skipped, never re-upserted, because
+            # the upsert nulls `verified_at` on conflict.
+            #
+            # It gets what is LEFT of the budget, not a budget of its own. The session has
+            # already ended, so a slow sweep costs the operator nothing visible, but a hook that
+            # can exceed its stated bound is one nobody can reason about. What it does not reach
+            # is reported as `deferred` and picked up by `ingest backfill --only-missing`.
+            from ingest import backfill
+            sub = backfill.index_missing_subagents(
+                session_id, transcript_path=transcript_path,
+                budget_s=max(0.5, BUDGET_S - (time.time() - started)))
+            if sub["on_disk"]:
+                log(f"SessionEnd {session_id} subagents on_disk={sub['on_disk']} "
+                    f"indexed={sub['indexed']} already={sub['already_indexed']} "
+                    f"deferred={sub['deferred']} failed={sub['failed']} "
+                    f"{sub['elapsed_s']}s" + (f" errors={sub['errors']}" if sub["errors"] else ""))
+        else:
+            log(f"unhandled event {event!r} for {session_id}")
+
+    except Exception:
+        log(f"{event} {session_id} FAILED (swallowed):\n" + traceback.format_exc())
+
+    elapsed = time.time() - started
+    if elapsed > BUDGET_S:
+        log(f"WARNING {event} took {elapsed:.1f}s, over the {BUDGET_S}s budget")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

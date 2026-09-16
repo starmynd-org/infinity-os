@@ -1,0 +1,257 @@
+<!doctype html>
+{% import "macros.html" as m %}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Run the stack</title>
+{# THE SAME BOOT AS base.html, AND THIS TEMPLATE NEEDS ITS OWN COPY for the reason the favicon
+   comment below gives: this surface extends nothing, so the shell chrome never runs for it.
+   First visit is light (W3-UX-INFINITY, 2026-09-15, R21); the rationale is in full at
+   `base.html:7`. The two copies must stay character-identical or the full-screen room boots a
+   different theme from every other room, which is exactly the class of drift two copies invite.
+   `web/tests/test_first_visit_is_light.py` compares them. #}
+<script>(function(){var t={{ theme|tojson }};try{if(!t)t=localStorage.getItem('vd-theme')}catch(e){}
+document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');})();</script>
+{# Row 0383. THE SAME FAVICON LINE AS base.html, AND THIS TEMPLATE NEEDS ITS OWN COPY
+   because it deliberately extends nothing (see the comment below): the shell chrome never
+   runs for this surface, so a link added once in base.html reaches every room EXCEPT the
+   full-screen one. Measured: /queue/stack still took a 404 on /favicon.ico after base.html
+   had the link. Two copies of one line is the cost of the absence-by-construction this
+   template buys, and it is stated here so the next person changing one changes both. #}
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+</head>
+{# Full screen, one Decide item at a time, resolve and advance. No room tabs and no mode pill are
+   rendered here, and both are ABSENCES IN THE MARKUP rather than CSS: DS:285 (the stack route
+   renders no room tabs at all), DS:276 (full screen, frozen -- the pill is not inside the stack)
+   and the operator's ruling on q0146, 2026-08-18. This template extends nothing, so the shell
+   chrome in `base.html` never runs for this surface; that is how the absence is guaranteed
+   rather than maintained. A screen reader reads what is in the DOM, and a tab that is display:
+   none is still a tab that shipped down the wire. #}
+<body data-room="stack" data-since="{{ since }}">
+{# V-SHELL-3 (task 0177), DS section 5. The resolve loop is optimistic and the next card is
+   PREFETCHED while this one is being read, because press-to-readable is 250ms and a navigation
+   is not. `data-next` is the URL a resolve goes to and the URL the prefetch reads: one address,
+   so the fast path and the fallback path render the same server truth. Kill console.js and every
+   control below is still a form or a link that works -- the client buys 250ms, not correctness.
+
+   `data-skip` and `data-judge` are the two exits that are not decisions, and they are separate
+   URLs because they move different cursors: a skip cycles to the back (DS 5.4's hollow pip at
+   the back, denominator unchanged), `not fast` removes the item from the run (DS 5.5: the pip is
+   removed and the denominator shrinks, so the operator is never punished for using it). #}
+<div class="stackwrap" id="stackwrap"
+     data-next="{{ next_url }}"
+     data-skip="{{ skip_url }}"
+     data-judge="{{ judge_url }}"
+     data-self="{{ request.full_path }}"
+     data-t0="{{ t0 }}"
+     data-decided="{{ decided }}"
+     data-working="{{ working }}"
+     data-red="{{ red }}">
+  <div id="saybar"></div>
+  {% if item %}
+  {# DS 6.2 / DS 5.4: the header line is the ACCESSIBLE AND TEXTUAL EQUIVALENT of the pip row,
+     which is why the row below carries aria-hidden and this line carries the same three facts in
+     words. No clock: elapsed time appears once, at the end (DS 5.9). A running clock while
+     deciding pressures the decision. #}
+  <div class="stackhd">
+    <span id="stackcounts" class="stackcounts">{{ done + 1 }} of {{ total }}{%
+      if arrived %} · <b class="arrived">+{{ arrived }} arrived</b>{% endif %}{%
+      if waiting %} · <b class="burning">{{ waiting }} agent{{ '' if waiting == 1 else 's' }} waiting</b>{% endif %}</span>
+    <span style="opacity:.7">esc to leave</span>
+    <a id="stack-close" href="{{ back }}">close</a>
+  </div>
+  {# DS 5.2 class 3, DAMAGE. One persistent line under the header: word, count, link. Never a
+     card, never a modal, and it never takes focus. Even damage does not rip a half-made decision
+     out of the operator's hands; it is the one thing allowed to sit in his peripheral vision
+     until the current card resolves. Rendered only when there is damage -- an empty damage bar
+     teaches the eye to skip the place damage will appear. #}
+  <div id="stackdmg">
+    {% if damage %}
+    <div class="stackdamage"><b>{{ damage.n }} {{ damage.word }}</b> ·
+      <a href="{{ damage.href }}">{{ damage.where }}</a></div>
+    {% endif %}
+  </div>
+  <div class="stackbody">
+  <div class="stackcard" id="stackcard"
+       data-id="{{ item.id }}"
+       data-unblocks="{{ item.unblocks }}"
+       data-live="{{ item.live or 0 }}"
+       data-external="{{ 1 if external else 0 }}"
+       data-options="{{ item.options_n or 0 }}">
+    {# DS 5.3 state 6, PUT-BACK. A failed commit re-enters at the FRONT with this line above the
+       title, and the client fills it from the failure path (V10-A 3.3). It is rendered empty and
+       not omitted, so the failure path has a node to write into rather than a layout to invent
+       at the moment something has already gone wrong. #}
+    <div class="cputback" id="cputback" hidden></div>
+    <div class="cid">{{ item.id }}{% if item.src %} · {{ item.src }}{% endif %}{% if item_new %}<span
+      class="cnew" id="cnew">new</span>{% endif %}</div>
+    <div class="ctitle">{{ item.title }}</div>
+    <div class="cmeta">
+      {% for g in item.gates %}<span class="gate">{{ g }}</span> {% endfor %}
+      {% if item.live %}<span class="live">⏸ agent waiting {{ item.live }}m</span>{% endif %}
+      <span>unblocks {{ item.unblocks }}</span>
+    </div>
+    {% if item.default %}<div class="cdef">If you say nothing: <b>{{ item.default }}</b></div>{% endif %}
+    {% if item.rec %}<div class="rec">{{ item.rec }}</div>{% endif %}
+    {% if item.rec %}
+      <div class="ctr">{{ item.counter or 'This recommendation states no counterargument, which
+        is itself the finding: a recommendation with nothing arguing against it has not been
+        reviewed, it has been repeated.' }}</div>
+    {% endif %}
+
+    {# SHELL-0 (task 0156): the same two hooks the card macro carries, so a lane's insert lands
+       on both surfaces from the one macro body it owns. This call site is also the V3/V-SHELL
+       boundary: when V-SHELL rewrites this file (DS section 5), these two calls are the
+       contract it preserves.
+
+       V-SHELL-3 (task 0177) IS THAT REWRITE, AND BOTH CALLS ARE STILL HERE, in this order,
+       between the counterargument above and `.stackbtns` below. V3 (task 0165) fills
+       `options_slot` and V5 (task 0167) fills `media_slot`; neither macro is edited by this
+       lane, only called. DS amendment (d) is what makes the second call load-bearing rather than
+       ceremonial: a stack card carrying `options[]` renders C's rail right here, and DS
+       amendment (b) is why the keyboard block treats Enter as inert on such a card until an
+       option is selected and the primary button itself holds focus. #}
+    {{ m.media_slot(room, item) }}   {# HOOK card-media-slot: V5, if a stack card ever carries
+                                        an image -- unresolved [guess] in 0151's map #}
+    {{ m.options_slot(room, item) }} {# HOOK card-options-slot: V3's rail, between the
+                                        counterargument and the buttons (C section 1.7, DS:267) #}
+    <div class="stackbtns">
+      {# `data-wired="1"` IS AN OPT-OUT AND NOT A LIE. The core's `wire()` (console.js:170)
+         binds a submit listener to every `form.act-form` on the page and skips any form already
+         carrying `data-wired`. Without this, a press on the stack ran BOTH handlers: the core's
+         posted and navigated, this lane's posted and swapped, and one press produced two writes
+         and advanced the run by two. MEASURED, task 0177: card q0022, one press, header went
+         `1 of 6` to `3 of 6`. The class stays because the styling and the no-client form action
+         are the same as everywhere else; only the wiring is this lane's, and the core's own
+         guard is what says so. Nothing in `wire()` or `patch()` is edited.
+
+         DS 5.3: the verb IS the label, 56px, `--brand`. `data-verb` and `data-action` are what
+         the optimistic loop posts; the form under them is what runs when there is no client.
+         DS 5.3 state 4 and DS 5.6: on an external item the primary carries `· no undo` FROM THE
+         START, so the two-press never surprises -- the honesty arrives before the act instead of
+         after it. #}
+      {% if item.kind == 'question' and item.default %}
+      <form class="act-form stack-act" data-wired="1" method="post" action="/{{ room }}/act"
+            data-action="accept_default" data-verb="Go with default">
+        <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+        <input type="hidden" name="action" value="accept_default">
+        <input type="hidden" name="id" value="{{ item.id }}">
+        <button class="act stack-primary" type="submit" style="width:100%">Go with default{%
+          if external %}<span class="noundo"> · no undo</span>{% endif %}</button>
+      </form>
+      {% elif item.kind == 'question' %}
+      <form class="act-form stack-act" data-wired="1" method="post" action="/{{ room }}/act"
+            data-action="answer" data-verb="Answer">
+        <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+        <input type="hidden" name="action" value="answer">
+        <input type="hidden" name="id" value="{{ item.id }}">
+        <textarea name="text" data-gate="stackgo" data-min="2"
+                  placeholder="Your answer. This is the decision."></textarea>
+        <button class="act stack-primary" id="stackgo" type="submit"
+                style="width:100%;margin-top:.5rem" disabled>Answer{%
+          if external %}<span class="noundo"> · no undo</span>{% endif %}</button>
+      </form>
+      {% elif item.kind == 'recommendation' %}
+      <form class="act-form stack-act" data-wired="1" method="post" action="/{{ room }}/act"
+            data-action="approve" data-verb="Approve">
+        <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+        <input type="hidden" name="action" value="approve">
+        <input type="hidden" name="id" value="{{ item.id }}">
+        <button class="act stack-primary" type="submit" style="width:100%">Approve{%
+          if external %}<span class="noundo"> · no undo</span>{% endif %}</button>
+      </form>
+      {% endif %}
+      <div class="stackrow">
+        {# The two ways out that are not decisions (DS 5.3), 44px secondaries.
+
+           `skip` cycles to the back rather than deferring: skipping inside a stack is not a
+           wake-condition decision, and typing it as one would be a lie about what happened.
+
+           `not fast` (DS 5.5) is ONE PRESS, no reason box, no confirmation. A reason box on a
+           calibration signal converts feedback into paperwork, and paperwork in a fast rhythm is
+           punishment. The calibration record IS the demotion event; the aggregate lives on the
+           Brief. It posts `not_fast`, which `web/actions.py:274` already implements as
+           `queue demote` plus the calibration miss in one transaction. #}
+        <a class="sec stack-skip" style="text-align:center;line-height:2.8"
+           href="{{ skip_url }}">skip for now</a>
+        <form class="act-form stack-judge" data-wired="1" method="post" action="/{{ room }}/act"
+              data-action="not_fast" style="flex:1">
+          <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+          <input type="hidden" name="action" value="not_fast">
+          <input type="hidden" name="id" value="{{ item.id }}">
+          <button class="sec" type="submit" style="width:100%;line-height:2.8">not fast</button>
+        </form>
+      </div>
+      {% if skipped_only %}
+      {# DS 7.3 variant 1. The skip cursor has been round the whole remaining list once, so the
+         run cannot complete by resolution alone. One quiet line, and it exits to the completion
+         state with the honest count. Skipping must stay cheap; a stack that will not end
+         punishes the skip. #}
+      <a class="stackonlyskips" href="{{ back }}">only skips remain · leave them for the queue ▸</a>
+      {% endif %}
+    </div>
+  </div>
+  {# DS 5.4. The row is aria-hidden because the header line above says the same thing in words,
+     and because a screen reader reading out twelve dots is noise. Shape and size carry meaning
+     alongside colour: external is hollow, burning is 9px against the standard 7px, skipped is
+     hollow at the back. No pace colouring, no time axis, no cross-run memory. #}
+  <div class="pips" id="pips" aria-hidden="true">
+    {% for p in pips %}<span class="pip {{ p.cls }}"></span>{% endfor %}
+  </div>
+  {# DS 5.7 / DS 4.2. One line, newest only, bottom of the stack body. Every resolution leaves
+     one, 7s, `undo` where a real inverse verb exists and `no undo — <reason>` in the verb's own
+     terms where not, amber and persistent on failure. Never a silent vanish. The stripe stack of
+     the list surface would compete with the card, so this is one line and the newest wins. #}
+  <div class="ticker" id="ticker" aria-live="polite"></div>
+  </div>
+  {% else %}
+  <div class="stackhd"><span>run the stack</span><a id="stack-close" href="{{ back }}">close</a></div>
+  {# DS 5.9. The completion screen, in order. The convergence and the check are staged by the
+     client from the pip row it is already holding; this markup is the FINAL FRAME, which is what
+     `prefers-reduced-motion: reduce` renders directly and what a client-less browser gets. The
+     animation is theater over a state that is already true. #}
+  <div class="stackbody"><div class="stackdone" id="stackdone">
+    <div class="donecheck" id="donecheck">✓</div>
+    {# Line 1: counts and elapsed, once. DS amendment (c): DECIDED and it ships -- the operator
+       confirmed KEEP on 2026-08-18 (OVERRULES.md item 1, ANSWERED). Elapsed is written by the
+       client because the client is the thing that was present when the run started; it renders
+       as the bare count until then rather than as an invented duration.
+
+       `decided`, not `done`: `done` is every pip filled, and a skip fills a pip without deciding
+       anything. Counting skips as decisions here would be the mode congratulating the operator
+       for walking past the work. #}
+    <div class="big" id="donecount">{{ decided }} decided<span id="doneelapsed"></span></div>
+    {# Lines 2 and 3 are the reward: leverage made visible. They are written by the client from
+       the items it actually watched resolve, because the server cannot see a run that is over --
+       the items left the queue. An unobserved run renders NO leverage line rather than a zero,
+       which is the difference between a fact and a plausible integer. #}
+    <div class="donefacts" id="donefacts"></div>
+    <div class="doneroute" id="doneroute"></div>
+    {% if queue_open == 0 and not arrived %}
+    {# DS 5.9 variant: queue empty after the run. Exact copy, frozen, rendered as the closing
+       line, and SUPPRESSED when skips were returned or arrivals landed -- something is then
+       left, so the sentence would be false. #}
+    <div class="donecalm">Nothing else needs you — the queue is empty, the fleet is working,
+      {{ red }} red.</div>
+    {% else %}
+    <div class="donefleet">{{ working }} agent{{ '' if working == 1 else 's' }} working ·
+      {{ red }} red</div>
+    {% endif %}
+    {# DS 5.9: arrivals during the run get one secondary control. Never auto-started -- teeing up
+       the next loop unasked is the slot machine's move. #}
+    <div class="donearrived" id="donearrived"></div>
+    <div class="doneexits">
+      {# `Leave dispatch` is the primary: it ends the mode and returns to the originating tier and
+         the scroll position it was opened from. The laptop closes; that is the design goal.
+         `back to <tier> ▸` keeps the mode on and returns. #}
+      <a class="act" id="stack-leave" href="{{ back }}&amp;dispatch=0">Leave dispatch</a>
+      <a class="sec" href="{{ back }}">back to {{ from_tier }} ▸</a>
+    </div>
+  </div></div>
+  {% endif %}
+</div>
+<script src="{{ url_for('static', filename='console.js') }}"></script>
+</body>
+</html>

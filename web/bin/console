@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Boot the console. Loopback only, `local-attended`, no public exposure and no tunnel.
+set -euo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO"
+export FLASK_APP=web.app:app
+# THE BIND IS NOT SPELLED HERE. `web/host.py` is the one configuration point for where this
+# console is served (task 0168), and it is asked rather than copied: two files each carrying
+# their own default is two answers, and the one that is wrong is the one nobody edited. It also
+# fails the boot on a malformed CONSOLE_ORIGIN, here, rather than 403-ing every write later.
+#
+# 3103 is the console's registered port: the lowest free port in the 3100-3199 in-house block,
+# recorded in your-brain/tools/port-registry.md before anything ever bound it. It
+# shipped on 5173, which is Vite's convention and not a Flask app's to claim. Change the
+# registry first.
+eval "$(python3 -c 'import shlex; from web import host
+print("BIND=%s" % shlex.quote(host.BIND_HOST))
+print("PORT=%s" % shlex.quote(str(host.BIND_PORT)))
+print("DESC=%s" % shlex.quote(host.describe()))')"
+echo "$DESC" >&2
+exec python3 -m flask run --host "$BIND" --port "$PORT" "$@"

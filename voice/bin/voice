@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+"""voice -- record, transcribe, land. Over the store, like every other surface.
+
+It owns no state transitions. The capture lifecycle's five verbs are registered in
+`voice/voice_capture/transitions.py` and the LANDING adds none at all: it calls `intake`, the
+transition that has always put an objective in the admiral's inbox. A voice note is an input
+format, not a subsystem, and it does not earn a private door.
+"""
+
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))            # voice/
+sys.path.insert(0, str(_HERE.parent.parent))     # repo root, for `store` and `engine`
+sys.path.insert(0, str(_HERE.parent.parent / "engine"))
+
+from swarm_engine import transitions as _engine_transitions  # noqa: E402,F401  (registers intake)
+from voice_capture.cli import main                           # noqa: E402
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

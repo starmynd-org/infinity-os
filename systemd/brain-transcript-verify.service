@@ -1,0 +1,29 @@
+[Unit]
+Description=Daily whole-corpus re-hash of indexed transcripts, and classification of the day's retention losses
+Documentation=file://@REPO@/systemd/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+# The sweep talks to Postgres, so it must not run before Postgres answers. On a WSL start the
+# store unit is still waiting on dockerd and then on crash recovery, and a daily timer with
+# Persistent=true fires EXACTLY THEN -- shortly after boot, on the day the machine was off at
+# 03:20. Without this gate the once-a-day pass would be the run most likely to find no store.
+# 120s matches brain-console.service, which has the same dependency and the same race.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=@REPO@/systemd/brain-transcript-verify
+
+# Letting the unit go `failed` is the point, exactly as in brain-health.service: `systemctl --user
+# --failed` then names it without anyone reading a log. Read `journalctl --user -u
+# brain-transcript-verify -n 30` for the reason -- the sweep prints its actionable breakdown by
+# name, so the red says which of the three causes it was.
+#
+# BE WARNED that this unit is red on this host today and it is NOT a malfunction: one
+# `unknown-age` absence (a workflow journal, indexed with session_id NULL, so task 0324's
+# classifier can never derive its age) re-reports on every pass. See the sweep's header and task
+# 0335's children. It was left visible rather than filtered, because a check that is quietly
+# widened until it passes has stopped being a check.
+StandardOutput=journal
+StandardError=journal

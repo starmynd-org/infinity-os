@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# pre-push: run `tools/check-at-head.sh` against what is about to leave this machine, and refuse
+# the push if it fails.
+#
+# HIS RULING, 2026-08-31, row `0472`. The guard existed, was self-testing, and NOTHING RAN IT.
+#
+# ==============================================================================================
+# WHY A PRE-PUSH HOOK AND NOT THE THREE ALTERNATIVES
+# ==============================================================================================
+#
+# The options were put to him with their costs. What decided it: this is the only one that can
+# PREVENT rather than report. GitHub Actions cannot be bypassed but only speaks after the commit
+# has landed on the remote; a systemd timer speaks up to fifteen minutes later; a note in a
+# document speaks when somebody reads it.
+#
+# TWO THINGS THE ORIGINAL FRAMING GOT WRONG, both checked rather than assumed:
+#
+#   * "there is no CI" is not quite it. There IS a GitHub remote,
+#     `starmynd-org/infinity-os`, so Actions was available. It was not chosen because
+#     it reports after the fact, not because it was impossible.
+#   * the guard was assumed to need a database. It does not. Run with `BRAIN_PG_DB` pointed at a
+#     database that does not exist AND `BRAIN_PG_CONTAINER` pointed at no container, all four
+#     checks still pass: imports, suite registration, exec bits and ledger collisions are
+#     filesystem and Python. That is what makes 21 seconds affordable here.
+#
+# ==============================================================================================
+# WHAT IT IS AND IS NOT, IN THE WORDS THE PRE-COMMIT HOOK ALREADY USES ABOUT ITSELF
+# ==============================================================================================
+#
+# THIS IS A GUARD AGAINST ACCIDENT, NOT AN INVARIANT. `git push --no-verify` bypasses it
+# completely, so does `git -c core.hooksPath= push`, and so does deleting this file. Nothing
+# downstream may assume a commit on the remote passed it.
+#
+# What makes it worth having anyway is that a push is DELIBERATE and RARE, unlike a commit. The
+# pre-commit hook beside it is bypassed casually because committing is a rhythm; nobody types
+# `--no-verify` on a push without meaning it.
+#
+# IT CHECKS WHAT IS BEING SENT, NOT `HEAD`. A push sends specific shas, and they are not always
+# HEAD: pushing a branch you are not standing on sends something else entirely, and a guard that
+# read HEAD there would be checking a commit nobody was sending. Each sha on stdin is checked,
+# de-duplicated, and a branch DELETION is skipped because there is no tree to check.
+#
+#   INSTALL    ln -sf ../../tools/hooks/pre-push .git/hooks/pre-push
+#              (a symlink, so the hook and the repo cannot drift; `cp` is the pre-commit
+#               precedent and it is why that file is now three days older than its source)
+#   UNINSTALL  rm .git/hooks/pre-push
+#   BYPASS     git push --no-verify
+#
+# Exit: 0 the push proceeds. 1 refused. It never exits 2: an inconclusive guard that let a push
+# through would be the fail-open shape the pre-commit hook is already criticised for.
+
+set -uo pipefail
+
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+GUARD="$ROOT/tools/check-at-head.sh"
+
+# NO GUARD, NO OPINION, AND SAY SO. A hook that silently passed when its own instrument is
+# missing is worse than no hook: it reports the same green as a clean run.
+if [ ! -x "$GUARD" ]; then
+  printf '\npre-push: %s is missing or not executable, so nothing was checked.\n' "$GUARD" >&2
+  printf 'pre-push: refusing rather than passing, because a guard that cannot run and a guard\n' >&2
+  printf 'pre-push: that passed look identical from here.\n\n' >&2
+  exit 1
+fi
+
+ZERO="0000000000000000000000000000000000000000"
+shas=""
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+  [ -n "${local_sha:-}" ] || continue
+  # A DELETION SENDS THE ZERO SHA AND HAS NO TREE. Checking it would export nothing and the
+  # export's own sanity check would refuse, which would refuse a legitimate branch delete.
+  [ "$local_sha" = "$ZERO" ] && continue
+  case " $shas " in *" $local_sha "*) continue ;; esac
+  shas="$shas $local_sha"
+done
+
+# NOTHING ON STDIN IS NOT A PASS AND IS NOT A FAILURE EITHER. `git push` with everything already
+# up to date sends no refs, and there is genuinely nothing to check.
+if [ -z "$(printf '%s' "$shas" | tr -d '[:space:]')" ]; then
+  exit 0
+fi
+
+rc=0
+for sha in $shas; do
+  printf '\npre-push: checking %s before it leaves this machine\n' "$(git rev-parse --short "$sha")"
+  if ! "$GUARD" "$sha"; then
+    rc=1
+  fi
+done
+
+if [ "$rc" -ne 0 ]; then
+  printf '\npre-push: REFUSED. The commit above fails a check that runs against what a commit\n' >&2
+  printf 'pre-push: actually contains, rather than against your working tree. Seven times in this\n' >&2
+  printf 'pre-push: repo a check was green and had never run against the artefact that ships.\n' >&2
+  printf 'pre-push: Fix it, or `git push --no-verify` if you have read the failure and mean it.\n\n' >&2
+  exit 1
+fi
+exit 0

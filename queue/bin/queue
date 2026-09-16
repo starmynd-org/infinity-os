@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""queue -- the human queue CLI, over the store.
+
+A thin wrapper over `store.apply`, per the narrow waist: the console and the MCP server will be
+equally thin over the same verbs, and none of them can invent a transition.
+
+THE IMPORTABLE PACKAGE IS `human_queue`, NOT `queue`. `queue` is a Python standard library
+module, and a top-level `queue` package on sys.path shadows it for the whole process. Measured
+rather than feared: with the repo root on the path, `from queue.human_queue import transitions`
+raises `ModuleNotFoundError: 'queue' is not a package`, because a directory with no
+`__init__.py` is only a namespace portion and the stdlib's regular module wins the scan. So
+`queue/` goes on the path and the package inside it is imported by its own name, which is the
+same shape `engine/swarm_engine` and `adapter/brain_adapter` already use.
+
+D4: mount these under `swarm queue ...` by calling this, or `human_queue.cli.main` in-process.
+Subprocess versus in-process is a performance decision, not an architectural one.
+"""
+
+import sys
+from pathlib import Path
+
+_HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HERE.parent))                    # queue/, for `human_queue`
+sys.path.insert(0, str(_HERE.parent.parent))             # repo root, for `store`
+sys.path.insert(0, str(_HERE.parent.parent / "engine"))  # for `swarm_engine`, composed not copied
+
+from human_queue import transitions  # noqa: E402,F401  (registers every queue verb)
+from human_queue.cli import main     # noqa: E402
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)

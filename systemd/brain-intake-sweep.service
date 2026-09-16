@@ -1,0 +1,26 @@
+[Unit]
+Description=Intake sweep: run the intake door over the drop folders and land what arrived
+Documentation=file://@REPO@/systemd/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+# The sweep writes objectives into Postgres, so it must not run before Postgres answers. Same
+# race and same gate as brain-transcript-verify.service: on a WSL start the store unit is still
+# waiting on dockerd, and a timer with Persistent=true fires exactly then.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=@REPO@/systemd/brain-intake-sweep
+
+# This unit is ALLOWED to go `failed`, and that is the design rather than an oversight. A drop
+# folder the door cannot read, or a store it cannot write, means inbound work is piling up
+# unseen -- which is the one failure mode an intake system must never have quietly. Red here is
+# read by `systemctl --user --failed` without anyone opening a log.
+#
+# What is NOT red: a pass that takes in nothing. `swarm intake` returns EMPTY (exit 2) for a
+# folder whose files have all landed already, and that is the ordinary steady state twelve times
+# an hour. The script maps exit 2 to success deliberately and prints the denominator anyway, so
+# a quiet pass is still visible in the journal as a pass rather than as an absence.
+StandardOutput=journal
+StandardError=journal

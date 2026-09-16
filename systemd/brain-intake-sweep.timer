@@ -1,0 +1,25 @@
+[Unit]
+Description=Run the intake sweep every five minutes
+Documentation=file://@REPO@/systemd/README.md
+
+[Timer]
+# FIVE MINUTES, and the number is his and not a taste. Row 0421 item 7, in his words: intake
+# "syncing every five minutes or hourly and on demand". Five is the fast end of what he asked
+# for, and the cost of a pass is one short-lived Python process over a folder that is usually
+# empty, so the slower option buys nothing here.
+#
+# It matches the `intake-heartbeat` n8n workflow's own five minute schedule on purpose, but the
+# two are NOT coupled and must not become coupled: n8n pushes files whenever it likes and this
+# sweep takes in whatever it finds. A file dropped by hand from Windows Explorer lands on the
+# same cadence as one written by a workflow, which is the property that makes this an intake
+# door rather than an n8n integration.
+OnBootSec=2min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+# Not Persistent. A missed window costs nothing at all here: the folder still holds the file and
+# the next pass takes it in. Persistent would only crowd a booting machine for no gain.
+Unit=brain-intake-sweep.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}Intake{% endblock %}
+{% block body %}
+{# ROW 0438 (his ask 7) THROUGH ROW 0440. Lane D1, 2026-08-30.
+
+   THE ROOM CALLS ZERO VERBS, the same way Study and Sessions do, and it got that for free:
+   `web/rooms.py` has no `intake` key in `ROOM_VERBS`, so `rooms.assert_room_can_act` refuses
+   this room before a row is looked up. Nothing was added to that table to build this page and
+   nothing needs removing to keep it read only.
+
+   WHAT IS DELIBERATELY NOT HERE. No priority, no score, no ranking, no guessed category, no
+   suggested reply. The intake transition refuses to classify at the door and says why -- *"a
+   wrong classification is the same defect class as a fabricated transcription. It will be
+   believed later"* -- and a console that classified on the way out would rebuild exactly that
+   defect one layer up. Rows in arrival order, newest first, and the file's own words.
+
+   AND NO RED, ANYWHERE ON THIS PAGE. MUST-NOT-BUILD item 7 was overruled for this surface on
+   2026-08-28 on the stated condition that the badge ships AMBER: the incident behind item 7 is a
+   red count describing things that were merely WAITING, and its sentence is *"Red means damage
+   and nothing else, shell wide, or there is no colour left for a thing that is actually
+   broken."* An unprocessed intake item is waiting on a human, which is amber, literally. Every
+   coloured thing below is `--wait` and every one of them carries a word. #}
+{# ONE LINE, AND IT IS ONE LINE BECAUSE OF THE PHONE. Measured at 390x844 with the three-line
+   version of this paragraph and the mechanism block below it still at the top: the first item
+   started at 512px of an 844px screen, so 61 percent of the first screen was preamble. The room
+   he opens at 7am must answer "what arrived" above the fold. The mechanism -- which folder, how
+   often it is swept, what was accepted last -- moved to the FOOT of the page, where it is a
+   thing you look up rather than a thing you scroll past every morning. #}
+<div class="ro">Intake &middot; read only. What was pushed in from outside, unsorted, waiting for
+  you.</div>
+
+{% if not intake.read %}
+{# A FAILED READ IS NOT AN EMPTY INBOX. Rendering nothing here would say "nothing arrived" over
+   an unknown, which is the fabricated number `web/model.py` opens by forbidding. #}
+<div class="blk"><h4>The intake table could not be read</h4>
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>unknown</b> &middot;
+    no count is shown, on purpose. The badge in the header says the same thing.</div>
+  <p>{{ intake.why }}</p>
+</div>
+{% else %}
+
+<div class="blk"><h4>What is waiting on you</h4>
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span>
+    <b>{{ intake.waiting_n }}</b> waiting &middot;
+    {#- THE NUMBER THE BADGE DID NOT COUNT, SAID OUT LOUD (migration 50, row 0438). The badge
+        counts human origin only, and a count that quietly differs from the list under it is the
+        defect this room was already careful about with `waiting_n`. So the difference is stated
+        rather than left to be noticed: the machine rows are listed below, labelled, and skipped.
+        Rendered only when there ARE some, because "0 from the runtime itself" on a normal day is
+        a line that costs a row of his screen to say nothing. -#}
+    {%- if intake.machine_n %}
+    <b>{{ intake.machine_n }}</b> from the runtime itself, listed but not counted &middot;
+    {%- endif %}
+    <b>{{ intake.taken_in_total }}</b> taken in ever &middot;
+    <b>{{ intake.accepted_n }}</b> already accepted</div>
+</div>
+
+{% if not intake.waiting %}
+{# EMPTY IS CALM AND SAYS WHAT IT MEANS. No celebration and nothing that goes up when the queue
+   goes down: MUST-NOT-BUILD item 8 is KEPT, and clearing intake is not a score. #}
+<div class="blk"><h4>Nothing is waiting</h4>
+  <div class="ln">The door is open and the sweep is running. {{ intake.taken_in_total }} item{{ ''
+    if intake.taken_in_total == 1 else 's' }} came through it and every one has been sorted.</div>
+  <div class="ln">Drop a <code>.md</code> file in the folder named at the foot of this page, or
+    let a workflow write one, and it appears here within five minutes with no terminal
+    involved.</div>
+</div>
+{% endif %}
+
+{% for o in intake.waiting %}
+<div class="blk" data-intake="{{ o.name }}" id="objective-{{ o.id }}" tabindex="-1">
+  <h4>{{ o.name }}</h4>
+  {#- THE ROW SAYS WHICH IT IS. A machine row is not hidden, it is labelled: the heartbeat's
+      PRESENCE is how he sees the push path is alive, and its absence on a given day is the signal
+      that it died, so removing it from the room would break the thing the origin field sharpened.
+      The chip says `machine` rather than `waiting`, because for this row neither is a lie and only
+      one of them is useful. -#}
+  <div class="ln"><span class="gate">{{ 'machine' if o.origin == 'machine' else 'waiting' }}</span>
+    arrived <b>{{ o.ago }}</b> ({{ o.arrived }}) &middot;
+    <b>{{ o.bytes }}</b> bytes &middot; <b>{{ o.lines }}</b> lines &middot;
+    format <b>{{ o.format }}</b>
+    {%- if o.transcription %} &middot; transcription <b>{{ o.transcription }}</b>{% endif %}
+    {%- if o.source_name %} &middot; from <b>{{ o.source_name }}</b>{% endif %}</div>
+  <div class="ln" style="color:var(--ink)">{{ o.first_line }}</div>
+
+  {# THE WHOLE FILE, ONE EXPANSION AWAY AND NEVER SUMMARISED. `<details>` and not a JS fold: this
+     room ships no script of its own, so the expansion works with the page's JavaScript dead, and
+     it is keyboard-reachable without anybody binding a key. The line above is the file's own
+     first line with a heading's hashes taken off, not a generated precis. #}
+  <details>
+    <summary class="hint" style="cursor:pointer;min-height:var(--tap);line-height:var(--tap)">the
+      whole file, {{ o.lines }} lines</summary>
+    <div class="ln" style="white-space:pre-wrap;word-break:break-word;font-size:.74rem">{{ o.body }}</div>
+  </details>
+
+  {% if o.proposals %}
+  {# A PROPOSAL RENDERS ITS ARGUMENT AGAINST ITSELF, because `0438` requires it: a recommendation
+     carries a rationale AND a counterargument, is `requires_human`, and executes nothing. #}
+  {% for p in o.proposals %}
+  <div class="finding wait">
+    <div><b>proposed</b> &middot; {{ p.text }}</div>
+    {% if p.rationale %}<div class="fpath">{{ p.rationale }}</div>{% endif %}
+    {# THE COMMANDS ARE THE REAL ONES, checked against `queue --help` rather than guessed: this
+       verb lives on the QUEUE cli and not on `swarm`, and `--by` is required because the decider
+       on an acceptance is always a named human. A surface that prints a command that does not
+       exist is a surface that has stopped being read. #}
+    <div class="fpath">recommendation r{{ p.id }}, raised {{ p.created }}, subject type
+      {{ p.subject_type }}. It executes nothing.
+      {% if p.requires_human %}A human decides it.{% endif %}
+      Approve or reject it with
+      <code>queue accept r{{ p.id }} --by &lt;you&gt;</code> or
+      <code>queue reject r{{ p.id }} --by &lt;you&gt; --reason "..."</code>.</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  {# ONE LINE PER ITEM, and the reason there is no button is said ONCE at the foot rather than
+     under every card: on a phone the four-line version of this sentence was longer than the item
+     it was about. #}
+  <div class="ln hint">sort it: <code>swarm accept {{ o.name }}</code></div>
+</div>
+{% endfor %}
+
+{# AI-PROPOSED ACTIONS, AND THE ABSENCE IS MEASURED RATHER THAN ASSERTED. His ask 7 asks intake
+   to show proposed actions for approval: update the knowledge graph, assign tasks, adjust plans.
+   The primitive exists (`brain.recommendation`: rationale, counterargument, requires_human,
+   executes nothing, spawns work only on his approval) and NOTHING RAISES ONE AGAINST AN
+   OBJECTIVE yet. The two numbers below are read on every render, so this block turns into a list
+   of real proposals the day an agent writes one, with nothing here edited. #}
+<div class="blk"><h4>AI-proposed actions</h4>
+  {% if intake.proposals_n %}
+  <div class="ln"><b>{{ intake.proposals_n }}</b> proposal{{ '' if intake.proposals_n == 1
+    else 's' }} {{ 'is' if intake.proposals_n == 1 else 'are' }} rendered above, each beside the
+    item it is about, each carrying its argument against itself, and each executing nothing until
+    you decide it.</div>
+  {% else %}
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>not generated
+    yet</b> &middot; nothing in the store proposes an action on an intake item.</div>
+  <div class="ln">Measured on this store now: <b>{{ intake.open_recs }}</b> open recommendation{{
+    '' if intake.open_recs == 1 else 's' }}, <b>{{ intake.objective_recs }}</b> of any state
+    naming an objective. The count is the denominator, not a promise.</div>
+  <div class="ln">The shape this is waiting for is an agent that reads an item above and raises a
+    recommendation carrying its rationale <b>and its argument against itself</b>, marked
+    <code>requires_human</code>, executing nothing. Until one exists this block shows the absence
+    rather than an empty approve button, because an affordance that cannot work is worse than one
+    that is absent.</div>
+  {# THE MECHANISM GAP, MEASURED BY WATCHING THE REFUSAL RATHER THAN BY READING THE CODE. It is
+     on the surface and not only in a report because it is the reason the number above cannot
+     move on its own. #}
+  <div class="ln"><b>And nothing can raise one yet.</b> The registered verb refuses this subject:
+    <code>recommend</code> takes <code>work_item</code>, <code>session</code>, <code>event</code>
+    and <code>entity</code>, and answers <code>unknown subject type 'objective'</code> to
+    anything else (<code>queue/human_queue/transitions.py</code>). Measured 2026-08-30 by running
+    it. This surface reads both <code>objective</code> and <code>entity</code> subjects, matching
+    an entity on the item's NAME, so a proposal raised the way the verb allows today renders here
+    with nothing edited.</div>
+  {% endif %}
+</div>
+
+{# WHERE THESE COME FROM. AT THE FOOT, and the placement is the phone measurement above: this is
+   reference, not the morning question, and it was costing 200px of the first screen. #}
+<div class="blk"><h4>Where these come from</h4>
+  {% for s in intake.sources %}
+  <div class="ln">drop folder <b>{{ s.path }}</b></div>
+  <div class="ln">{% if s.exists %}<b>{{ s.md }}</b> .md file{{ '' if s.md == 1 else 's' }}
+    sitting in it now{% else %}<span class="sdot" style="background:var(--wait)"></span>
+    <b>missing</b> &middot; that folder does not exist on this host{% endif %} &middot; swept every
+    five minutes by <code>brain-intake-sweep.timer</code>, which runs
+    <code>swarm intake --source</code> over it. A file it has already seen is refused rather than
+    landed twice, so the number in the folder and the number above are allowed to differ.</div>
+  {% endfor %}
+  {% if intake.sources_why %}
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>unknown</b> &middot;
+    {{ intake.sources_why }}</div>
+  {% endif %}
+  {% if intake.recent_accepted %}
+  <div class="ln">last accepted:
+    {%- for a in intake.recent_accepted %} <b>{{ a.name }}</b> ({{ a.at }}){{ '' if loop.last else ' ·' }}{% endfor %}</div>
+  {% endif %}
+  <div class="ln">The door does not classify what arrives and this room does not either. One file
+    becomes one unsorted row; deciding what it is remains a human act through verbs that exist.</div>
+  {# WHY THERE IS NO ACCEPT BUTTON, said once. `web/rooms.py` already grants `intake` and `accept`
+     to the Scope room, so the PERMISSION exists and the control is still absent: a write door on
+     this room is a second thing to get right and it was not what this row asked for. The exit is
+     one line in a terminal, and this console now has a typable one. #}
+  <div class="ln">There is no accept button here yet. This room has no write door at all
+    (<code>POST /intake/act</code> is refused), so the way off the list is
+    <code>swarm accept &lt;name&gt;</code> in the Terminal room or any shell. A control that
+    posted nowhere would be worse than one that is absent.</div>
+</div>
+{% endif %}
+{% endblock %}

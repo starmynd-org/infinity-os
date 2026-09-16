@@ -1,0 +1,411 @@
+#!/usr/bin/env bash
+# The one test 0288 could not run, and 0299 could not run either: does `systemd --user` start at
+# boot under linger and reach default.target with no human running a command?
+#
+# WHY THIS IS A SCRIPT AND NOT A CHECKLIST
+#
+# The agent that would run the test lives inside the thing being rebooted. `wsl --shutdown` kills
+# the shell issuing it, so no process on this side of the reboot can both trigger it and observe
+# the result. The test has to be split: capture BEFORE, a human reboots, verify AFTER. This script
+# is both halves, so the human half is one command and carries no judgement.
+#
+#   ./systemd/reboot-test capture     # now, while everything is up
+#   wsl --shutdown                    # from Windows (PowerShell/CMD), fleet idle
+#   ...start WSL, wait ~200s...
+#   ./systemd/reboot-test verify      # reads the capture, asserts, prints PASS/FAIL
+#
+# THE DISCRIMINATOR
+#
+# "The units are running" does NOT prove linger. On WSL the distro only starts when something
+# touches it, and that something is usually a login shell, which starts `user@1000.service` via
+# PAM whether linger is set or not. A green `list-units` after opening a terminal is consistent
+# with linger being decorative.
+#
+# What separates them is ORDER: under linger, systemd-logind starts the user manager while
+# reaching multi-user.target, BEFORE any session exists. Under PAM it starts at/after the session.
+# So this compares the user manager's activation against the earliest you session, and if it
+# cannot tell them apart it says INCONCLUSIVE rather than PASS.
+#
+# Comparison is in MONOTONIC microseconds since boot, never wall clock. Measured on this host
+# 2026-08-17: `uptime -s` reported 2026-08-16 08:21 while `systemctl show -p UserspaceTimestamp`
+# reported 2026-08-15 22:05 EEST, a ~10h disagreement, because the WSL wall clock jumps on Windows
+# sleep/resume while CLOCK_MONOTONIC does not advance. Wall-clock arithmetic here would be a coin
+# flip dressed as a measurement.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO"
+STATE="$REPO/systemd/.reboot-test-before"
+# Written by store/bin/brain-docker-wait.sh on every invocation (task 0345). Nothing rotates it,
+# which is the entire point: gate 6's number used to live only in the user journal, and this host
+# retains ~3.75h of that.
+COLDLOG="$REPO/systemd/.cold-start-log"
+UID_N="$(id -u)"
+
+c_pass=$'\033[32m'; c_fail=$'\033[31m'; c_warn=$'\033[33m'; c_off=$'\033[0m'
+[[ -t 1 ]] || { c_pass=; c_fail=; c_warn=; c_off=; }
+
+fails=0; inconc=0
+ok()   { printf '%s  PASS%s  %s\n' "$c_pass" "$c_off" "$*"; }
+bad()  { printf '%s  FAIL%s  %s\n' "$c_fail" "$c_off" "$*"; fails=$((fails+1)); }
+huh()  { printf '%s  ????%s  %s\n' "$c_warn" "$c_off" "$*"; inconc=$((inconc+1)); }
+# Continuation line of an inconclusive block: prints, does NOT count. Without this the summary
+# reports the number of LINES it printed as the number of CHECKS that failed to discriminate.
+huh_() { printf '%s  ????%s  %s\n' "$c_warn" "$c_off" "$*"; }
+# Same idea for a hard failure. A two-line explanation of ONE broken thing is one failure.
+bad_() { printf '%s  FAIL%s  %s\n' "$c_fail" "$c_off" "$*"; }
+hdr()  { printf '\n== %s ==\n' "$*"; }
+
+# Monotonic usec since boot at which user@<uid>.service went active. 0 if unknown.
+mgr_mono() {
+  systemctl show "user@${UID_N}.service" -p ActiveEnterTimestampMonotonic --value 2>/dev/null \
+    | tr -dc '0-9'
+}
+
+# Number of journal entries this boot for a user unit. "-- No entries --" and other journalctl
+# meta lines start with "-- " and are not entries.
+unit_journal_lines() {
+  journalctl --user -u "$1" -b --no-pager 2>/dev/null | grep -cv '^-- ' || true
+}
+
+# Monotonic usec of the OLDEST journal entry still retained for this boot. Empty if undeterminable.
+# This is how far back the journal can still see, which is NOT how far back the boot goes.
+earliest_journal_mono() {
+  journalctl --user -b -o json -q --no-pager 2>/dev/null \
+    | head -1 \
+    | python3 -c 'import sys,json
+try: print(json.loads(sys.stdin.readline())["__MONOTONIC_TIMESTAMP"])
+except Exception: pass' 2>/dev/null | tr -dc '0-9'
+}
+
+# The .cold-start-log record for THIS boot's actual brain-store activation, or nothing.
+#
+# Both keys are required and neither is sufficient. boot= alone would happily accept a line some
+# agent wrote by hand at hour six of the same boot. invocation= alone would accept a line from an
+# earlier boot. Together they say: this record was written by the process the LIVE
+# brain-store.service invocation started, on the boot being verified. That is the property that
+# lets a file be trusted the way a journal entry is, and without it this gate would have become a
+# way to manufacture a green rather than a way to keep one honest.
+#
+# Note that INVOCATION_ID being set proves nothing on its own: it is inherited, so a hand run from
+# a shell inside any unit or scope carries one. Only the exact match below discriminates.
+cold_record() {
+  local boot inv
+  boot="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+  inv="$(systemctl --user show brain-store.service -p InvocationID --value 2>/dev/null | tr -dc '0-9a-f')"
+  [[ -f "$COLDLOG" && -n "$boot" && -n "$inv" ]] || return 1
+  grep -F "boot=$boot " "$COLDLOG" 2>/dev/null | grep -F "invocation=$inv " | tail -1
+}
+
+# One key=value field out of a .cold-start-log line. cold_field "<line>" waited_s
+cold_field() { printf '%s\n' "$1" | tr ' ' '\n' | sed -n "s/^$2=//p" | tail -1; }
+
+# Earliest monotonic usec of any session belonging to this user. Empty if none.
+earliest_session_mono() {
+  local s best= v
+  for s in $(loginctl list-sessions --no-legend 2>/dev/null | awk -v u="$UID_N" '$2==u {print $1}'); do
+    v="$(loginctl show-session "$s" -p TimestampMonotonic --value 2>/dev/null | tr -dc '0-9')"
+    [[ -n "$v" ]] || continue
+    if [[ -z "$best" || "$v" -lt "$best" ]]; then best="$v"; fi
+  done
+  printf '%s' "$best"
+}
+
+capture() {
+  hdr "capture: before-state"
+  {
+    echo "captured_at_wall=$(date -Is)"
+    echo "captured_at_boot_id=$(cat /proc/sys/kernel/random/boot_id)"
+    echo "userspace_mono_usec=$(systemctl show -p UserspaceTimestampMonotonic --value 2>/dev/null)"
+    echo "mgr_active_mono_usec=$(mgr_mono)"
+    echo "linger=$(loginctl show-user "$USER" --property=Linger --value 2>/dev/null)"
+    echo "--- units ---"
+    systemctl --user list-units 'brain-*' --all --no-pager --no-legend 2>&1
+    echo "--- enabled ---"
+    systemctl --user list-unit-files 'brain-*' --no-pager --no-legend 2>&1
+    echo "--- docker ---"
+    docker ps --format '{{.Names}}\t{{.Status}}' 2>&1 | grep -i brain || echo "(no brain container)"
+    echo "--- health ---"
+    ./systemd/brain-health 2>&1; echo "brain_health_exit=$?"
+    curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3103/api/health 2>&1 | sed 's/^/console_http=/'
+    echo
+    ./subscribers/bin/paging-health >/dev/null 2>&1; echo "paging_health_exit=$?"
+  } > "$STATE" 2>&1
+  cat "$STATE"
+  printf '\nwrote %s\n' "$STATE"
+  cat <<'EOF'
+
+NEXT, in this order:
+  1. Make sure no swarm terminals are mid-task (`swarm status`), and that the operator has saved
+     work. `wsl --shutdown` kills every WSL process on the machine, without warning, immediately.
+  2. From Windows PowerShell or CMD (NOT from inside WSL):   wsl --shutdown
+  3. Start the distro and run NOTHING else. The sharpest form, which leaves no you session at
+     all and so makes the discriminator unambiguous:
+         wsl -u root -e /bin/true
+     Just opening a normal terminal also works; the verifier falls back to the timestamp
+     comparison and will say so.
+  4. Wait ~200 seconds. brain-health.timer is OnStartupSec=180.
+  5. Then:   cd <this repo> && ./systemd/reboot-test verify
+
+  DO NOT HAND-START ANYTHING FIRST. Since task 0345 the one number this test exists to measure
+  (how long brain-docker-wait.sh waited for dockerd) is written to systemd/.cold-start-log as
+  well as the journal, so an overnight restart read the next morning no longer loses it to
+  journal rotation -- this host retains only ~3.75h of user journal, because brain-health logs
+  every 60s and evicts brain-store's single boot line. What still destroys the number is a hand
+  `systemctl --user restart brain-store`: that mints a new invocation against a warm dockerd, and
+  gate 6 will then say so rather than report the warm number as the cold one. Verifying promptly
+  is still better, because only then does the journal survive as an independent second source.
+EOF
+}
+
+verify() {
+  local boot_now boot_then mgr sess us
+  boot_now="$(cat /proc/sys/kernel/random/boot_id)"
+  boot_then="$(sed -n 's/^captured_at_boot_id=//p' "$STATE" 2>/dev/null)"
+
+  hdr "0. did a reboot actually happen?"
+  if [[ ! -f "$STATE" ]]; then
+    bad "no before-state at $STATE. Run './systemd/reboot-test capture' before rebooting."
+    printf '\n%sABORT%s: nothing to compare against.\n' "$c_fail" "$c_off"; return 2
+  fi
+  if [[ "$boot_now" == "$boot_then" ]]; then
+    bad "boot_id is UNCHANGED ($boot_now). WSL did not restart. Everything below would be"
+    bad "measuring the same boot the capture came from. This is not the test."
+    printf '\n%sABORT%s: no reboot occurred.\n' "$c_fail" "$c_off"; return 2
+  fi
+  ok "boot_id changed: ${boot_then:0:12}... -> ${boot_now:0:12}...  (a real restart)"
+
+  hdr "1. linger: did the USER MANAGER start without a human?"
+  local ling; ling="$(loginctl show-user "$USER" --property=Linger --value 2>/dev/null)"
+  [[ "$ling" == "yes" ]] && ok "Linger=yes" || bad "Linger=$ling (expected yes)"
+
+  if ! systemctl is-active --quiet "user@${UID_N}.service"; then
+    bad "user@${UID_N}.service is NOT active. The user manager did not start at all."
+    bad "-> linger is not doing what the man page says on WSL. Report this; do not paper over it."
+  else
+    mgr="$(mgr_mono)"; sess="$(earliest_session_mono)"
+    us="$(systemctl show -p UserspaceTimestampMonotonic --value 2>/dev/null | tr -dc '0-9')"
+    printf '       user manager active at %s us after boot\n' "${mgr:-?}"
+    printf '       earliest you session at %s us after boot\n' "${sess:-<none>}"
+    if [[ -z "$sess" ]]; then
+      ok "user manager is ACTIVE and NO you session exists. Only linger can have started it."
+    elif [[ -n "$mgr" && -n "$sess" && "$mgr" -lt "$sess" ]]; then
+      ok "user manager started $(( (sess - mgr) / 1000 ))ms BEFORE the earliest session -> linger started it, not PAM."
+    else
+      huh "user manager started at/after the first session, so this run cannot tell linger from"
+      huh_ "a PAM login. Re-run the sharp form: wsl --shutdown, then 'wsl -u root -e /bin/true'."
+      huh_ "NOT a pass and NOT a failure: the boot link is still unproven."
+    fi
+    [[ -n "$us" && -n "$mgr" ]] && printf '       (userspace reached at %s us; manager +%sms)\n' "$us" "$(( (mgr - us) / 1000 ))"
+  fi
+
+  hdr "2. units: did default.target bring all three back?"
+  systemctl --user list-units 'brain-*' --all --no-pager --no-legend 2>&1 | sed 's/^/       /'
+  local st
+  st="$(systemctl --user show brain-store.service -p ActiveState -p SubState --value 2>/dev/null | paste -sd/ -)"
+  [[ "$st" == "active/exited" ]]  && ok "brain-store.service   active (exited)" || bad "brain-store.service   = $st (expected active/exited)"
+  st="$(systemctl --user show brain-console.service -p ActiveState -p SubState --value 2>/dev/null | paste -sd/ -)"
+  [[ "$st" == "active/running" ]] && ok "brain-console.service active (running)" || bad "brain-console.service = $st (expected active/running)"
+  st="$(systemctl --user show brain-paging.service -p ActiveState -p SubState --value 2>/dev/null | paste -sd/ -)"
+  [[ "$st" == "active/running" ]] && ok "brain-paging.service  active (running)" || bad "brain-paging.service  = $st (expected active/running)"
+  systemctl --user is-active --quiet brain-health.timer && ok "brain-health.timer    active" || bad "brain-health.timer    not active"
+  systemctl --user is-active --quiet brain-transcript-verify.timer \
+    && ok "brain-transcript-verify.timer active" || bad "brain-transcript-verify.timer not active"
+  # The claim this gate is really testing (task 0335): the verify timer is OnCalendar=03:20 with
+  # Persistent=true, and on a laptop that is DOWN at 03:20 the Persistent catch-up is the only
+  # thing that ever runs it. That catch-up can only be observed on a boot, which is why it is
+  # asserted here and not in the sweep. LastTriggerUSec=0 means it has never fired at all.
+  local ltrig; ltrig="$(systemctl --user show brain-transcript-verify.timer -p LastTriggerUSec --value 2>/dev/null)"
+  if [[ -n "$ltrig" && "$ltrig" != "0" && "$ltrig" != "n/a" ]]; then
+    ok "brain-transcript-verify.timer has fired (last: $ltrig)"
+  else
+    huh "brain-transcript-verify.timer has NEVER fired -- Persistent=true catch-up unproven"
+    huh_ "If 03:20 has passed since install and this is still empty, the daily sweep is not running."
+  fi
+
+  hdr "3. the console actually answers"
+  local code; code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 http://127.0.0.1:3103/api/health 2>/dev/null)"
+  [[ "$code" == "200" ]] && ok "GET /api/health -> 200" || bad "GET /api/health -> ${code:-no-response} (expected 200)"
+
+  hdr "4. the listener is draining"
+  if ./subscribers/bin/paging-health >/tmp/rt-paging.$$ 2>&1; then
+    ok "paging-health exit 0 ($(sed -n 's/.*"verdict": "\([^"]*\)".*/\1/p' /tmp/rt-paging.$$ | head -1))"
+  else
+    bad "paging-health exit $? -- $(tr -d '\n' < /tmp/rt-paging.$$ | tail -c 240)"
+  fi
+  rm -f /tmp/rt-paging.$$
+
+  hdr "5. brain-health sweep"
+  if ./systemd/brain-health >/tmp/rt-bh.$$ 2>&1; then ok "brain-health exit 0"; else bad "brain-health exit $?"; fi
+  sed 's/^/       /' /tmp/rt-bh.$$; rm -f /tmp/rt-bh.$$
+
+  hdr "6. THE MEASURED NUMBER 0288 COULD ONLY GUESS AT"
+  echo "       How long did brain-docker-wait.sh actually wait for dockerd on a cold start?"
+  local waited jnum rec
+  # Source A, perishable: the journal line. Read first because when it is still there it is a
+  # genuinely independent second measurement, not because it is the better one.
+  waited="$(journalctl --user -u brain-store.service -b --no-pager 2>/dev/null | grep -o 'docker engine reachable after [0-9]*s' | tail -1)"
+  jnum="$(printf '%s' "$waited" | tr -dc '0-9')"
+  # Source B, durable: systemd/.cold-start-log, written by the gate itself (task 0345). Accepted
+  # only when it carries both this boot's id and brain-store's live InvocationID -- see cold_record.
+  rec="$(cold_record)" || rec=""
+
+  if [[ -n "$rec" ]]; then
+    local outcome num budget upt
+    outcome="$(cold_field "$rec" outcome)"
+    num="$(cold_field "$rec" waited_s)"
+    budget="$(cold_field "$rec" budget_s)"
+    upt="$(cold_field "$rec" uptime_us)"
+    printf '       source: systemd/.cold-start-log, bound to invocation %s\n' "$(cold_field "$rec" invocation)"
+    # A record can be current, bound, and still not describe a COLD start. `systemctl --user
+    # restart brain-store` mints a fresh InvocationID and writes a fresh record, against a dockerd
+    # that has been warm for hours. uptime_us is when the line was written, counted from boot, so
+    # the boot's own activation is necessarily early: the wait gate itself only allows 180s.
+    # 900s is past any legitimate boot-time activation and nowhere near "restarted it at hour six".
+    # Decided BEFORE the number is printed, because a warm number printed as PASS and qualified
+    # underneath is exactly the shape of green this test exists to refuse.
+    local late=no
+    [[ -n "$upt" && "$upt" -gt 900000000 ]] && late=yes
+
+    if [[ "$outcome" == "timeout" ]]; then
+      bad "the wait gate BLEW: dockerd did not answer within ${budget}s, so the store did not start."
+      bad_ "This is the measurement, not a reason to widen the budget. Report the number first."
+    elif [[ -z "$num" ]]; then
+      huh "a record exists for this invocation but carries no waited_s. Read it by hand:"
+      huh_ "  tail -3 systemd/.cold-start-log"
+    elif [[ "$late" == yes ]]; then
+      huh "docker engine reachable after ${num}s, but that record was written $(( upt / 1000000 ))s AFTER"
+      huh_ "boot -- far too late to be the boot's own activation. It is a hand restart of"
+      huh_ "brain-store, measured against a WARM dockerd. NOT the cold-start number, which is"
+      huh_ "still unobserved. Verify BEFORE hand-starting anything."
+    else
+      ok "docker engine reachable after ${num}s   (gate is ${budget:-180}s)"
+      if [[ "$num" -gt 120 ]]; then
+        huh "that is >120s of the ${budget:-180}s budget. Report the number and let the operator decide;"
+        huh_ "do NOT raise the timeout as part of this test."
+      fi
+    fi
+    if [[ -n "$jnum" && -n "$num" && "$jnum" != "$num" ]]; then
+      huh "the journal says ${jnum}s and the durable record says ${num}s for the SAME invocation."
+      huh_ "One of them is not describing this start. Do not average them; find out which."
+    elif [[ -n "$jnum" ]]; then
+      printf '       journal agrees independently: %s\n' "$waited"
+    else
+      printf '       (the journal copy has already rotated away -- the file is why this number survived)\n'
+    fi
+  elif [[ -n "$waited" ]]; then
+    ok "$waited   (gate is 180s)"
+    local n; n="$(printf '%s' "$waited" | tr -dc '0-9')"
+    if [[ -n "$n" && "$n" -gt 120 ]]; then
+      huh "that is >120s of the 180s budget. Report the number and let the operator decide;"
+      huh_ "do NOT raise the timeout as part of this test."
+    fi
+    # Journal but no durable record: this boot ran a pre-0345 brain-docker-wait.sh, or the write
+    # failed. Worth saying, because the number above is on the 3.75h clock and this one is not
+    # going to be there next time either.
+    if [[ ! -f "$COLDLOG" ]]; then
+      huh "read from the JOURNAL only: systemd/.cold-start-log does not exist, so this boot ran a"
+      huh_ "brain-docker-wait.sh from before task 0345 and the number above is still perishable."
+    else
+      huh "read from the JOURNAL only: .cold-start-log exists but holds no record bound to this"
+      huh_ "boot AND brain-store's live invocation. Check it by hand: tail -3 systemd/.cold-start-log"
+    fi
+  else
+    # Three different worlds produce "no line", and they are not equally good news. Distinguish
+    # them, because the benign reading (dockerd was warm) is the one a reader reaches for by
+    # default, and on this host the usual truth is that the journal ate the evidence.
+    local jl; jl="$(unit_journal_lines brain-store.service)"
+    local sm; sm="$(systemctl --user show brain-store.service -p ExecMainStartTimestampMonotonic --value 2>/dev/null | tr -dc '0-9')"
+    local ej; ej="$(earliest_journal_mono)"
+    if [[ "${jl:-0}" -eq 0 ]] && systemctl --user is-active --quiet brain-store.service; then
+      huh "brain-store is ACTIVE but has ZERO journal entries this boot -> the user journal has"
+      huh_ "ROTATED PAST the unit's start. The number is not 'unmeasured', it is DESTROYED in the"
+      huh_ "journal. Measured on this host 2026-08-17: the user journal retains only ~3.75h"
+      huh_ "(brain-health logs every 60s and evicts the one-shot line). Do NOT read this as"
+      huh_ "'dockerd was warm'."
+    elif [[ -n "$sm" && -n "$ej" && "$sm" -lt "$ej" ]]; then
+      huh "the oldest retained journal entry ($ej us) is NEWER than brain-store's start ($sm us),"
+      huh_ "so the wait-gate line has rotated away in the journal."
+    else
+      huh "no 'docker engine reachable after Ns' line in this boot's journal for brain-store,"
+      huh_ "and the journal does reach back past the unit's start. So either the unit did not run"
+      huh_ "the gate, or dockerd was already up and the line was not emitted."
+    fi
+    # Reaching here means BOTH sources came up empty, so say why the durable one did not save it.
+    # Since task 0345 rotation alone is no longer enough to destroy the number, and that changes
+    # what a reader should do next: chase the write, not the clock.
+    if [[ ! -f "$COLDLOG" ]]; then
+      huh_ "systemd/.cold-start-log does not exist either, so this boot ran a brain-docker-wait.sh"
+      huh_ "from before task 0345 (or its write failed). The durable copy starts at the NEXT boot."
+    else
+      huh_ "systemd/.cold-start-log exists but holds no record for this boot bound to brain-store's"
+      huh_ "live invocation. Either the unit was hand-restarted since, or the write failed. Read it:"
+      huh_ "  tail -3 systemd/.cold-start-log"
+    fi
+  fi
+  echo "       --- brain-store journal, this boot ---"
+  journalctl --user -u brain-store.service -b --no-pager 2>&1 | tail -25 | sed 's/^/       /'
+  printf '       (journal reaches back to %s us after boot; brain-store started at %s us)\n' \
+    "$(earliest_journal_mono)" \
+    "$(systemctl --user show brain-store.service -p ExecMainStartTimestampMonotonic --value 2>/dev/null | tr -dc '0-9')"
+  echo "       --- systemd/.cold-start-log, last 3 ---"
+  if [[ -f "$COLDLOG" ]]; then
+    tail -3 "$COLDLOG" 2>/dev/null | sed 's/^/       /'
+    printf '       (live brain-store invocation: %s)\n' \
+      "$(systemctl --user show brain-store.service -p InvocationID --value 2>/dev/null)"
+  else
+    echo "       (absent -- no boot has run a post-0345 brain-docker-wait.sh yet)"
+  fi
+
+  hdr "7. anything failed?"
+  local f; f="$(systemctl --user list-units --state=failed --no-pager --no-legend 2>/dev/null)"
+  # brain-transcript-verify.service is EXPECTED red on this host and it is not an outage: one
+  # `unknown-age` transcript absence (a workflow journal with session_id NULL, which task 0324's
+  # classifier can never date) re-reports on every pass and exits the verb 1. Task 0335 left it
+  # visible on purpose rather than filtering it, so this gate has to say what it is instead of
+  # either crying outage or being taught to look away.
+  #
+  # It is scored `huh`, not `ok`. Inconclusive returns 3 and prints "Do not record this as a pass",
+  # so a standing red still cannot be certified as a clean boot -- which is the point. Excluding
+  # it from the check outright would be the loosening this file's own summary warns about. When
+  # 0335's child lands, the unit goes green and this returns to a plain PASS by itself.
+  local other; other="$(printf '%s\n' "$f" | grep -v '^\s*$' | grep -v 'brain-transcript-verify\.service')"
+  if [[ -z "$f" ]]; then
+    ok "no failed user units"
+  elif [[ -z "$other" ]]; then
+    huh "the only failed unit is brain-transcript-verify.service -- the KNOWN standing red"
+    huh_ "journalctl --user -u brain-transcript-verify -n 30   names which of the 3 causes it was."
+    huh_ "Expect 'absence unknown-age = 1'. Anything else here is new and is not this exemption."
+  else
+    bad "failed user units present:"; printf '%s\n' "$f" | sed 's/^/       /'
+  fi
+
+  printf '\n=====================================================\n'
+  if (( fails == 0 && inconc == 0 )); then
+    printf '%sRESULT: PASS%s  the boot link is proven. All three units came back with no human command.\n' "$c_pass" "$c_off"
+    return 0
+  elif (( fails == 0 )); then
+    printf '%sRESULT: INCONCLUSIVE%s  %d check(s) could not discriminate. The boot link is NOT proven.\n' "$c_warn" "$c_off" "$inconc"
+    printf 'Do not record this as a pass.\n'
+    return 3
+  else
+    printf '%sRESULT: FAIL%s  %d hard failure(s), %d inconclusive.\n' "$c_fail" "$c_off" "$fails" "$inconc"
+    printf 'Report the measured numbers before changing any timeout. A green from a loosened test\n'
+    printf 'is worse than the red.\n'
+    return 1
+  fi
+}
+
+case "${1:-}" in
+  capture) capture ;;
+  verify)  verify ;;
+  *) cat <<EOF
+usage: ./systemd/reboot-test {capture|verify}
+
+  capture   record the before-state, then print the reboot instructions
+  verify    after the reboot, assert every gate and print PASS / FAIL / INCONCLUSIVE
+
+Full protocol, and why it is split in two halves, is in the header of this file.
+EOF
+     exit 64 ;;
+esac

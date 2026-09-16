@@ -1,0 +1,1210 @@
+{# Shared rendering. The button label is ALWAYS the verb that will run: `Go with default`,
+   `Approve`, `Accept work`, `Send back`, `Mark my task done`. There is no button labelled
+   "Done" anywhere in this file or in any other, and a label that names its state transition
+   cannot quietly generalise across rooms.
+
+   ONE LABEL NOW DIVERGES FROM ITS ACTION ID BY ONE WORD, AND IT IS DELIBERATE. The button reads
+   `Go with default` while the action posted is still `accept_default`. Operator ruling on row
+   0420, taken as decision D-06 of 2026-08-29 from his own recording: "accept default ... It
+   sounds kind of developer-y. It doesn't sound very actionable. So even like go with default
+   might be better." MUST-NOT-BUILD item 1 is NOT breached: what it forbids is a label that
+   GENERALISES across rooms, its example being a button labelled "Done", and `Go with default`
+   names this one act exactly. Renaming the action id to match would touch the verb registry,
+   VERB-PARITY.md, the room allowlists, the `primary_verb` literal in `brain.queue_open` (which
+   `web/model.py` reads as a dispatch KEY and never as a label, so renaming it there would change
+   which CARD a row renders as), the `data-verb` attributes in stack.html, and the tests, and it
+   buys him nothing he asked for. Written here so the next reader meets a decision and not drift.
+
+   `Silence ships:` was RE-WORDED and not deleted, to `If you say nothing:`, by the same ruling.
+   He disliked the phrase and offered no replacement. Deleting it would keep the action and drop
+   the warning, and on this surface the wording IS the argument rather than the mechanism. #}
+
+{# `room` is a PARAMETER because macros.html is imported without context: an
+   undefined `room` here would render action="//act" and the undo button would
+   404 rather than refuse, which is the worst of both. #}
+{% macro receipts(rows, room) %}
+{% for r in rows %}
+<div class="receipt{{ ' noundo' if not r.undo }}">
+  <b>✓</b> <span>{{ r.text }}</span>
+  {% if r.undo %}
+  <form class="act-form" method="post" action="/{{ room }}/act">
+    <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+    <input type="hidden" name="action" value="{{ r.undo.action }}">
+    <input type="hidden" name="id" value="{{ r.undo.id or r.undo.qid }}">
+    <button type="submit">{{ r.undo.label }}</button>
+  </form>
+  {% else %}
+  <span class="why">no undo{% if r.no_undo_reason %}, {{ r.no_undo_reason }}{% endif %}</span>
+  {% endif %}
+  {% if r.note %}<div class="note">{{ r.note }}</div>{% endif %}
+</div>
+{% endfor %}
+{% endmacro %}
+
+{% macro gates(item) %}
+{% for g in item.gates %}<span class="gate">{{ g }}</span> {% endfor %}
+{% endmacro %}
+
+{% macro hidden(room, action, id) %}
+<input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+<input type="hidden" name="action" value="{{ action }}">
+<input type="hidden" name="id" value="{{ id }}">
+{% endmacro %}
+
+{# The primary control. Orange, because accept is operator causality. #}
+{% macro primary(room, item) %}
+{% if item.kind == 'question' and item.default %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+  {{ hidden(room, 'accept_default', item.id) }}
+  <button class="act" type="submit">Go with default</button>
+</form>
+{% elif item.kind == 'question' %}
+<button class="sec" data-toggle="ans-{{ item.id }}">Answer</button>
+{% elif item.kind == 'recommendation' %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+  {{ hidden(room, 'approve', item.id) }}
+  <button class="act" type="submit">Approve</button>
+</form>
+{% elif item.kind == 'review' %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+  {{ hidden(room, 'accept_work', item.id) }}
+  <button class="act" type="submit">Accept work</button>
+</form>
+{#- ROW 0399. `Send back` runs `reopen`, which clears `claimed_by`, so an agent's finished work
+    item comes back on the operator's own arm of `brain.queue_open` under the same card id with
+    this verb where `Accept work` was. The write door refuses it (`rooms.assert_allowed_on`) and
+    so does the database (migration 42), and an affordance that cannot work is worse than one
+    that is absent, so it renders disabled WITH THE REASON BESIDE IT and not only on `title`.
+    The word carries the state; the disabled attribute is not the message. -#}
+{% elif item.kind == 'human' and item.done_refused %}
+<div style="flex:1">
+  <button class="act" type="button" disabled title="{{ item.done_refused }}">Mark my task done</button>
+  <div class="chipnote warn">{{ item.done_refused }}</div>
+</div>
+{% elif item.kind == 'human' %}
+<button class="act" data-toggle="mine-{{ item.id }}">Mark my task done</button>
+{% endif %}
+{% endmacro %}
+
+{# The verb that argues with the primary one. `counter` is not decoration: it is what makes the
+   two real verbs the same size and the same weight in the row, because a row where accept is
+   four times reject is the rubber stamp this card's copy refuses to be. Open, Defer and Bump do
+   not carry it -- they are not positions on the work. #}
+{% macro secondary(room, item) %}
+{% if item.kind == 'review' %}
+<button class="sec counter" data-toggle="sb-{{ item.id }}">Send back</button>
+{% elif item.kind == 'recommendation' %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+  {{ hidden(room, 'reject', item.id) }}
+  <button class="sec counter danger" type="submit">Reject</button>
+</form>
+{% endif %}
+{% endmacro %}
+
+{# --------------------------------------------------- WHERE `Send back` ACTUALLY SENDS IT (0414)
+
+   `reopen` does two things and the card only ever said one of them. It clears `claimed_by`, and
+   it leaves `agent_claimable` alone. On a fleet row that means the item goes back to the FLEET
+   and LEAVES THE HUMAN QUEUE ENTIRELY: `brain.queue_open` returned 1 row for the operator's item
+   before his click on 2026-08-28 and 0 rows after it, and nothing on screen said so. On live the
+   fleet is paused, so the same click moves the work to nobody.
+
+   The failure mode this is written against is not annoyance. His own recording reads *"It has
+   now disappeared from the queue, so I guess that is good"*: he scored the silent failure as
+   success, and a surface that can be read as working when it is not is worse than one that
+   visibly breaks.
+
+   Three sentences, in this order, because that is the order a person needs them: where it goes,
+   whether anything is there to take it, and what brings it back. The third is the remedy the
+   product has always printed inside the forgery refusal on `swarm done`, which is the one screen
+   the operator will never see.
+
+   `send_back_to` and `fleet_paused` are stamped in `web/model.py::_stamp_review_facts` off
+   `brain.work_item` and `brain.runtime_flag`, never off the card. Where the stamp is absent (a
+   store this console could not read) the hint says the destination is unread rather than
+   guessing at one, because a confident wrong destination is the defect restated. #}
+{% macro send_back_hint(item) %}
+{%- if item.send_back_to == 'fleet' -%}
+Required, and this does not send it to you: `reopen` clears the agent's claim and leaves the
+fleet able to claim it, so {{ item.id }} goes back to the FLEET and leaves your queue.
+{# `trim_blocks` is ON in this environment (web/app.py), so a newline directly after a block tag
+   is eaten and the sentence either side of `{% raw %}{% endif %}{% endraw %}` would run together.
+   The space that separates them is on the same line as the tag, deliberately. #}
+{% if item.fleet_paused %}THE FLEET IS PAUSED RIGHT NOW, so nothing will pick it up and the item
+will sit with nobody until you resume it.{% else %}An agent picks it up when one is
+free.{% endif %} To take it back onto your own board instead:
+`swarm set {{ item.id }} agent_claimable false --as-operator`.
+{%- elif item.send_back_to == 'you' -%}
+Required. The fleet may not claim {{ item.id }}, so this comes straight back onto your own board
+as `Mark my task done` rather than going to an agent.
+{%- else -%}
+Required. A reopen with no reason is how a lane repeats the same defect. Where this row goes next
+could not be read from this console, so it is not stated: `reopen` leaves `agent_claimable` as it
+found it, and that column decides whether the item returns to you or to the fleet.
+{%- endif %}
+{% endmacro %}
+
+{% macro reason_box(room, action, item, gate_id, label, placeholder, hint, min=12) %}
+<div class="sbwrap" id="{{ gate_id }}" hidden>
+  <form class="act-form" method="post" action="/{{ room }}/act">
+    {{ hidden(room, action, item.id) }}
+    {#- RB-01, 2026-09-13. BEFORE THE ACT, WHAT THE NOTE DOES. The engine's `done` writes the note
+        into `work_item.result` and `reopen` leaves it there (P3-01). The Attention door says so
+        on its own option (`web/attention_options.py`, `DONE_DISCLOSURE` and `DONE_INVERSE_NOTE`);
+        this is the same act from the Queue card, so it says the same two sentences, above the
+        field. A template cannot import those constants, so the words here are a MIRROR and
+        `web/tests/test_attention_ux.py` reads both files and goes red when they part. If Platform
+        restores the prior result on reopen, both change together. -#}
+    {% if action == 'mark_done' %}<p class="hint" data-done-disclosure>Your note becomes this task's stored result text and replaces whatever result it held before. Undo reopens this task as unfinished work and keeps your note as its stored result; the earlier result text is not restored.</p>{% endif %}
+    {% if action == 'unaccept' %}<label for="reason-{{ gate_id }}">Reason for withdrawing acceptance</label>{% endif %}
+    <textarea name="text" data-gate="go-{{ gate_id }}" data-min="{{ min }}"{% if action == 'unaccept' %} id="reason-{{ gate_id }}" data-normalize="words"{% endif %}
+              placeholder="{{ placeholder }}"></textarea>
+    {% if action == 'unaccept' %}<p class="hint">Use at least {{ min }} characters after repeated spaces are collapsed.</p>{% endif %}
+    <div class="hint">{{ hint }}</div>
+    <button class="act" type="submit" id="go-{{ gate_id }}" style="margin-top:.5rem" disabled>
+      {{ label }}</button>
+  </form>
+</div>
+{% endmacro %}
+
+{% macro defer_block(room, item, opts, deep=False) %}
+{# TRIAGE VOCABULARY LEAVES THE MARKUP IN DEEP WORK, not the layout (DS section 6.2, the
+   operator's answer to q0146). `.tier .tm` was this one's sibling and went first; these chips
+   were the last element in that list still on the wire, at present=7 on Judge and present=8 on
+   Shape in all four of task 0171's deep combos.
+   THE `hidden` ATTRIBUTE BELOW IS NOT THE SUPPRESSION, and reading it as one is how this
+   survived. It is the ordinary closed state of the chip row, which `Defer` opens, and in
+   dispatch it stays exactly as it was. The ruling is that a suppressed element is ABSENT: "one
+   stylesheet regression, one specificity accident, one devtools toggle, and a CSS-hidden
+   element is on screen. A markup-absent one cannot come back." One attribute removal is the
+   same distance as one stylesheet regression.
+   `deep` is a PARAMETER rather than a global because `queue.html` imports this file WITHOUT
+   context, so no request-scope name reaches a macro body here. It defaults to the dispatch
+   behaviour, so every caller that does not know about deep work renders what it always did.
+   Task 0236. #}
+{% if not deep %}
+<div class="chips" id="defer-{{ item.id }}" hidden>
+  {% for o in opts.live %}
+    {% if o.action == 'accept_default' %}
+    <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+      {{ hidden(room, 'accept_default', item.id) }}
+      <button class="chip" type="submit" title="{{ o.hint }}">{{ o.label }}</button>
+    </form>
+    {% else %}
+    <button class="chip{{ ' warn' if o.warn }}" data-toggle="{{ o.action }}-{{ item.id }}"
+            title="{{ o.hint }}">{{ o.label }}</button>
+    {% endif %}
+  {% endfor %}
+  {% for d in opts.disabled %}
+    {% if opts.typed_defer %}
+    <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+      {{ hidden(room, 'defer_time', item.id) }}
+      {# A SPEC, not a timestamp. See model.wake_at_from: an absolute time rendered here changed
+         on every poll and made this panel's markup churn three seconds apart forever. #}
+      <input type="hidden" name="wake_in" value="{{ d.wake_in }}">
+      <input type="hidden" name="label" value="{{ d.label }}">
+      {% if opts.default_note %}
+      <input type="hidden" name="acknowledge_default" value="{{ '1' if opts.acknowledged }}">
+      {% endif %}
+      <button class="chip" type="submit">{{ d.label }}</button>
+    </form>
+    {% else %}
+    <button class="chip" disabled title="{{ d.why }}">{{ d.label }}</button>
+    {% endif %}
+  {% endfor %}
+  {% if opts.third_defer %}
+  {# THE THIRD DEFER REFUSES TO BE A DEFER. Three deferrals means mis-scoped, not mis-timed. #}
+  <div class="chipnote warn">Deferred twice already. The time chips are gone: decline it, or
+    move it to Shape.</div>
+  {% endif %}
+  {% if not opts.typed_defer %}<div class="chipnote warn">{{ opts.disabled_note }}</div>{% endif %}
+  {% if opts.default_note %}
+  {# Deferring past a silence window is an interstitial, never a side effect. #}
+  <div class="chipnote warn">{{ opts.default_note }}</div>
+  {% endif %}
+</div>
+{% endif %}
+{{ reason_box(room, 'defer_question', item, 'defer_question-' ~ item.id,
+              'Post it', 'What would make this decidable? An agent produces exactly this.',
+              'Posted as a child task, parented to this item so the gates inherit.') }}
+{{ reason_box(room, 'decline', item, 'decline-' ~ item.id,
+              'Decline', 'Why is this going back to the producer?',
+              'Returned to the producer. Re-raisable once, and only with a new event.') }}
+{% endmacro %}
+
+{# ----------------------------------------------- SHELL-0 hook points (task 0156).
+   Two named, empty slots at the one place two V10 lanes would otherwise edit the same block
+   (0151's collision 1: both insert into the card ahead of the verbs). Each lane fills ONLY
+   its own macro body; the card macro and stack.html call both and are never edited again for
+   this. Empty means empty: a lane with nothing to show emits no markup at all, per the q0146
+   rule (markup absence, never render-then-hide). #}
+
+{# HOOK card-options-slot -- V3 (multi-option card) alone inserts here. What it may insert:
+   the option rail and option focus of C sections 1.1/1.4, between the counterargument and
+   the verbs. #}
+{% macro options_slot(room, item) %}
+{#- V3, task 0165. Two to four drafted options, each with its counterargument, and choosing one
+    dispatches real work. The shape is C section 1.1: FACTS FOR EVERY OPTION AT ONCE (the rail),
+    PROSE FOR ONE AT A TIME (the focus). Four options times plan-plus-counterargument is eight
+    blocks of prose, and eight stacked blocks is what trains a reader to skip the one block this
+    whole component exists to make him read.
+
+    Three rules are load-bearing and none of them is styling:
+      * NO ROW IS SELECTED ON ARRIVAL. `recommended` is a neutral outlined word and pays the same
+        single tap as every other row. A pre-selected option is a default ridden, not a choice
+        made.
+      * THE RAIL IS NOT A FORM and the verb form holds no radio. Selecting is one act on the row;
+        dispatching is a second act on the button. A stray Enter on a focused row submits
+        nothing, because there is no form under it to submit.
+      * THE COUNTERARGUMENT IS IN THE ACTION PATH, between the plan and the verb, and it does not
+        collapse. Where the drafter wrote none, the finding sits in its exact slot and the verb
+        stays enabled -- blocking would teach drafters to write filler, and filler there is worse
+        than a finding because it reads like an argument. -#}
+{% if item.options_failed %}
+{#- C section 1.6b. Amber, word first, and NOT red: the queue item is intact and resolvable, and
+    nothing recorded as present is gone. The legacy single-option card renders above this, so the
+    fallback path is still there. -#}
+<div class="optfail"><b>⚠ option drafting FAILED</b> · {{ item.options_failed }}
+  <div class="why">The item is intact. Decide it with the verbs below, or draft again.</div></div>
+{% elif item.options_n %}
+<div class="opts" id="opts-{{ item.id }}">
+  {% if item.options_same_engine %}
+  {#- The drafter says fast or deep; the fleet config decides. Where two options resolve to the
+      same engine, model and effort, the difference the rail is offering does not exist on this
+      fleet, and the card says so rather than letting the operator pay a different price for the
+      same run. Amber: a finding, not damage. -#}
+  <div class="optsame"><b>⚠ same run</b> · {{ item.options_same_engine }}</div>
+  {% endif %}
+  {% if item.option_dispatched %}
+  {#- The choice was made. The rail states what was chosen rather than offering the choice again:
+      re-offering a decided set is how the same proposal gets executed twice. -#}
+  <div class="optdone"><b>✓ dispatched</b> option {{ item.option_dispatched.n }},
+    {{ item.option_dispatched.label }} → <a href="/task/{{ item.option_dispatched.task }}">{{
+    item.option_dispatched.task }}</a>{% if item.option_dispatched.by %} · decided by {{
+    item.option_dispatched.by }}{% endif %}</div>
+  {% for o in item.options %}
+  <div class="orow spent{{ ' chosen' if o.spawned }}">
+    <span class="olabel">{{ o.label }}</span>
+    <span class="oax">{{ o.who }} · {{ o.thinking }} · {{ o.size }}</span>
+    <span class="ocost">{{ o.cost or 'no cost stated' }} · {{ o.time or 'no time stated' }}</span>
+    <span class="otags">{% if o.spawned %}<span class="otag on">chosen</span>{% else %}<span
+      class="otag">{{ o.state }}</span>{% endif %}</span>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="rail" role="radiogroup" aria-label="How this gets done: {{ item.options_n }} options">
+    {% for o in item.options %}
+    <label class="orow" data-optrow="{{ item.id }}">
+      <input type="radio" name="opt-{{ item.id }}" value="{{ o.n }}"
+             data-opt="{{ item.id }}" aria-describedby="ofocus-{{ item.id }}-{{ o.n }}">
+      <span class="olabel">{{ o.label }}</span>
+      <span class="oax">{{ o.who }} · {{ o.thinking }} · {{ o.size }}</span>
+      {#- COST IS NEVER ELIDED AT ANY WIDTH (section 9). An option that hides its price is a trap. -#}
+      <span class="ocost">{% if o.cost %}{{ o.cost }}{% else %}<span class="owarn">⚠ no cost
+        stated</span>{% endif %} · {% if o.time %}{{ o.time }}{% else %}<span class="owarn">⚠ no
+        time stated</span>{% endif %}</span>
+      <span class="otags">{% if o.recommended %}<span class="otag">recommended</span>{% endif %}{%
+        if o.counter_missing %} <span class="owarn">⚠ no counterargument</span>{% endif %}</span>
+    </label>
+    {% endfor %}
+  </div>
+
+  {#- No enabled primary until a row is selected, and the disabled button says why. The console's
+      shipped rule: an affordance that cannot work states its reason. -#}
+  <div class="ofocus" data-optempty="{{ item.id }}">
+    <button class="act" type="button" disabled>Pick an option first</button>
+  </div>
+
+  {% for o in item.options %}
+  <div class="ofocus" id="ofocus-{{ item.id }}-{{ o.n }}" data-optfocus="{{ item.id }}"
+       data-n="{{ o.n }}" hidden>
+    <h5>What this does</h5>
+    <div class="oplan">{{ o.plan }}</div>
+    <h5>Against it</h5>
+    {% if o.counter %}
+    <div class="ctr">{{ o.counter }}</div>
+    {% else %}
+    <div class="ctr owarn">This option states no counterargument. An option with nothing against
+      it has not been argued, it has been advertised. Finding, not filler.</div>
+    {% endif %}
+    <div class="ocommit">{{ o.commitment }}</div>
+    {% if o.action %}
+    <form class="act-form" method="post" action="/{{ room }}/act">
+      {{ hidden(room, o.action, item.id) }}
+      <input type="hidden" name="option" value="{{ o.n }}">
+      <button class="act" type="submit">{{ o.verb_label }}</button>
+    </form>
+    {% else %}
+    {#- A SPRINT IS NEVER SPAWNED FROM THIS CARD (C section 1.5). This is a link into the Scope
+        room carrying the option's own words, so what gets posted at the end is a definition of
+        done the operator demolished rather than a one-line task. -#}
+    <a class="act" href="/scope?intent={{ o.title|urlencode }}&lane={{ (o.lane or item.lane)|urlencode }}"
+       >{{ o.verb_label }} ▸</a>
+    <div class="why">Scoping is its own surface with its own demolition step. What comes out is a
+      definition of done, not one line.</div>
+    {% endif %}
+  </div>
+  {% endfor %}
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# HOOK card-media-slot -- V5 (images in place) alone inserts here. What it may insert: the
+   image block of C section 3.2, after the body it belongs to, before the verbs.
+
+   FILLED BY TASK 0167 (V5). The slot delegates to `media_block` below so the SAME markup renders
+   on a queue card, in the stack, and on /task/<id>, which is what "render it in the console where
+   the item is rendered" has to mean if the three surfaces are not to drift.
+
+   `item.img` is absent on an item with no image and the block emits NOTHING -- not an empty box,
+   not a placeholder. An item that never had an image is not an item whose image is gone, and the
+   difference between those two is the entire point of the lane. #}
+{% macro media_slot(room, item) %}
+{{ media_block(room, item.img, item.source_type or 'work_item', item.id) }}
+{% endmacro %}
+
+{# ------------------------------------------------------- V5: the image block (C section 3.2)
+
+   Seven renderings and each one is a fact rather than a fallback:
+
+     (nothing)   no image. No markup, per the q0146 rule.
+     ok          the file is there and hashes to what was attested. The one happy case.
+     landing     the attempt is open. State words and a byte count. NO BAR, NO PERCENT, NO RING.
+     missing     recorded as present, not on disk NOW. Red. Holds the layout slot the image
+                 claimed, and renders NO <img> at all -- a broken-image glyph is the browser
+                 reporting a fetch, not the console reporting a finding.
+     changed     on disk, and the sha256 disagrees. Amber, finding first, current bytes beneath
+                 it dimmed, because showing changed bytes as the attested ones is a lie and
+                 hiding them helps nobody.
+     unreadable  it stats and will not open. Its own state: a permission error and a deletion are
+                 different facts and reporting the one you can prove beats guessing.
+     elsewhere   the pointer is absolute on ANOTHER host. Not missing -- unspeakable-about. This
+                 is D3's inherited warning and the reason `pointer_host` is a column.
+     failed      the attach died. Red, loud, and it stays until acted on.
+
+   Every colour, radius and duration below is a token by name. #}
+{% macro media_block(room, img, subject_type, subject_id) %}
+{% if img %}
+<div class="imgblock" data-img="{{ img.attach_id }}">
+
+  {% if img.state == 'ok' %}
+  <div class="imgbox" id="imgbox-{{ img.attach_id }}">
+    {# `alt` is the finding's words, not the filename: a screen reader on a broken fetch should
+       hear what a sighted reader sees in the MISSING block, and the JS below turns a failed
+       fetch into that block rather than leaving the browser's glyph. #}
+    <img src="/image/{{ img.attach_id }}" data-imgfind="{{ img.attach_id }}"
+         alt="{{ img.name }}, attached to {{ subject_id }} and verified against sha {{ img.sha_short }}">
+  </div>
+  {% elif img.state == 'changed' %}
+  <div class="imgfind amber"><b>&#9888; CHANGED</b> &middot; bytes on disk no longer match the
+    recorded hash ({{ img.sha_short }} &rarr; {{ img.on_disk_sha_short }})
+    {# EXACT byte counts, not the caption's rounded ones: 95,301 and 95,365 both render as
+       "93 KB", and a finding whose two numbers look identical is one the reader stops
+       believing. Measured on this lane's own proof run, 2026-08-18. #}
+    <div class="sub">Showing what is on disk now, dimmed, because showing it as the attested
+      image would be a lie. {{ "{:,}".format(img.bytes) }} bytes recorded,
+      {{ "{:,}".format(img.on_disk_bytes or 0) }} on disk, checked {{ img.checked_at }}.</div></div>
+  <div class="imgbox dim" id="imgbox-{{ img.attach_id }}">
+    <img src="/image/{{ img.attach_id }}?unattested=1" data-imgfind="{{ img.attach_id }}"
+         alt="the current bytes of {{ img.name }}, which are NOT the bytes that were attested">
+  </div>
+  {% elif img.state == 'missing' %}
+  {# The box keeps its minimum height so absence occupies the space presence claimed. #}
+  <div class="imgbox gone">
+    <div class="imgfind red bare"><b>MISSING</b> &middot; recorded present, not on disk at
+      {{ img.checked_at }}
+      <div class="sub">{{ img.pointer }} &middot; host {{ img.pointer_host }} &middot;
+        sha {{ img.sha_short }} &middot; {{ img.size }} when recorded</div></div>
+  </div>
+  {% elif img.state == 'unreadable' %}
+  <div class="imgbox gone">
+    <div class="imgfind amber bare"><b>UNREADABLE</b> &middot; {{ img.pointer }} is on disk and
+      this process cannot read it, at {{ img.checked_at }}
+      <div class="sub">{{ img.detail }} &middot; showing nothing rather than guessing whether the
+        bytes changed.</div></div>
+  </div>
+  {% elif img.state == 'elsewhere' %}
+  <div class="imgbox gone">
+    <div class="imgfind amber bare"><b>ANOTHER HOST</b> &middot; this pointer is absolute on
+      {{ img.pointer_host }}
+      <div class="sub">{{ img.pointer }} &middot; sha {{ img.sha_short }} &middot; {{ img.size }}
+        when recorded. Not a missing file: a file this host cannot speak about. The move that
+        makes this true is the one `pointer_host` exists to make loud.</div></div>
+  </div>
+  {% elif img.state == 'landing' %}
+  <div class="imgbox landing">
+    <span class="landwords">reading &rarr; hashing &rarr; recording pointer</span>
+  </div>
+  {% elif img.state == 'failed' %}
+  <div class="imgfind red"><b>ATTACH FAILED</b> at {{ img.failed_stage }} &middot; nothing was
+    recorded
+    <div class="sub">{{ img.requested_path }} on {{ img.requested_host }}. No pointer was written
+      and no file was copied. This block stays until you act on it.</div>
+    <div class="sub mono">{{ img.failed_reason }}</div></div>
+  {% endif %}
+
+  {# THE CAPTION ALWAYS RENDERS. It is the pointer made legible, and an image with no provenance
+     line is a decoration -- nothing on these surfaces is decoration. On a failed attach there is
+     no pointer to make legible, so it names the attempt instead and says so. #}
+  <div class="imgcap">
+    {% if img.state == 'failed' %}
+    <span>{{ img.name or 'no file' }}</span><span>attempt {{ img.attach_id }}</span>
+    <span>nothing attested</span>
+    {% else %}
+    <span>{{ img.name }}</span><span>{{ img.size }}</span>
+    {% if img.state == 'changed' %}
+    <span>sha {{ img.on_disk_sha_short }} on disk &middot; {{ img.sha_short }} recorded</span>
+    {% elif img.sha_short %}<span>sha {{ img.sha_short }}</span>{% endif %}
+    <span>on {{ img.pointer_host or img.requested_host }}</span>
+    {% if img.attached_at %}
+    <span>attached {{ img.attached_at.strftime('%Y-%m-%d') }} by
+      {{ 'you' if img.attached_by == OPERATOR else (img.attached_by or 'an unrecorded actor') }}</span>
+    {% endif %}
+    {% endif %}
+    {% if img.state in ('ok', 'changed') %}
+    <button type="button" class="imgtoggle" data-imgtoggle="imgbox-{{ img.attach_id }}"
+            aria-expanded="false">view full size</button>
+    {% endif %}
+  </div>
+
+  {# The verbs. `Discard` on a failed attach and `Remove` on a live one are two different acts on
+     two different rows and they say so: a failed attempt attested nothing, so there is nothing to
+     undo; an attached image has a pointer, and removing it leaves the file exactly where it is. #}
+  <div class="imgacts">
+    {% if img.state == 'failed' %}
+    <button type="button" class="sec" data-toggle="att-{{ subject_id }}">Attach again</button>
+    <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="discard_image">
+      <input type="hidden" name="id" value="{{ subject_id }}">
+      <input type="hidden" name="attach_id" value="{{ img.attach_id }}">
+      <button class="sec" type="submit">Discard</button>
+    </form>
+    {% elif img.state != 'landing' %}
+    <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="detach_image">
+      <input type="hidden" name="id" value="{{ subject_id }}">
+      <input type="hidden" name="attach_id" value="{{ img.attach_id }}">
+      <button class="sec" type="submit" title="Removes the pointer. The file on disk is untouched.">
+        Remove image</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+{# On a failed attach the `Attach again` button above already toggles this box, so the entry
+   verb is not rendered a second time: two buttons opening one field reads as two different
+   things to try. #}
+{% if not img %}
+{{ attach_control(room, subject_type, subject_id) }}
+{% elif img.state == 'failed' %}
+{{ attach_control(room, subject_type, subject_id, button=False) }}
+{% endif %}
+{% endmacro %}
+
+{# The attach entry (C section 3.4). DESIGN-SYSTEM section 7.3 offers two: the `Attach image`
+   verb OR drop-with-word. This is the verb, and the drop target is deliberately NOT rendered --
+   see web/README.md's images section: a browser hands JavaScript a File, never a path, so a drop
+   could only be honoured by uploading the bytes and writing them somewhere, and where retained
+   media lives is a V6 question (DESIGN-SYSTEM section 10). An affordance that promises what the
+   posture forbids is worse than one that is absent. #}
+{% macro attach_control(room, subject_type, subject_id, button=True) %}
+<div class="imgattach">
+  {% if button %}
+  <button type="button" class="sec" data-toggle="att-{{ subject_id }}">Attach image</button>
+  {% endif %}
+  <div class="attbox" id="att-{{ subject_id }}" hidden>
+    <form class="act-form" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="attach_image">
+      <input type="hidden" name="id" value="{{ subject_id }}">
+      <input type="hidden" name="subject_type" value="{{ subject_type }}">
+      <label class="attlab" for="attp-{{ subject_id }}">Absolute path, on
+        <b>{{ image_host() }}</b> &mdash; the console records a pointer and a hash, never the
+        bytes, so it needs the file where it is rather than a copy of it.</label>
+      <input id="attp-{{ subject_id }}" type="text" name="path" autocomplete="off"
+             placeholder="/mnt/c/Users/you/screens/acme-proof.png">
+      <button class="act" type="submit">Attach image</button>
+    </form>
+  </div>
+</div>
+{% endmacro %}
+
+{# ------------------------------------------- WHAT ARGUES AGAINST THE ORANGE BUTTON (0410, 0416)
+
+   ONE MECHANISM, TWO ROWS, because they were one defect wearing two verbs: the thing that
+   should change the operator's mind sat one interaction away from the control that ends the
+   decision. He drove the product end to end on 2026-08-28 and said so twice.
+
+   ROW 0410, `Approve`. The counterargument block below lives inside `{% if expanded %}` and the
+   tier list renders COLLAPSED, so `brain.recommendation.rationale` was stored in full, reached
+   the card object, and printed nowhere. Measured on the demo store before this macro existed:
+   `/queue?tier=shape` rendered 2 `Approve`, 2 `Reject` and the word `Against` 0 times, on a card
+   whose rationale begins with it. Asked whether, standing on that screen, he would have known an
+   argument existed that he had not read: *"approved it, no i wouldn't have known"*. The template
+   states the rule four inches below this comment and was not enforcing it: *never show a
+   recommendation without its counterargument, that is how a review queue becomes a rubber
+   stamp.*
+
+   ROW 0416, `Accept work`. The same shape on the next verb along. Measured on the same store:
+   `/queue?tier=judge` rendered 8 `Accept work` and 0 occurrences of any of the four self-stated
+   caveats its own cards carry. His words: *"I only see it in the report in full and not in
+   something that would like tie in to where I should accept work or not."*
+
+   ABSENT AND MERELY UNRENDERED MUST NOT LOOK ALIKE, and that is the trap 0410 was actually
+   about. The `no counterargument` finding never fired on the row that raised it, because the
+   counterargument WAS there and simply was not printed. So this block renders on every card that
+   has a verb of position, and it always says which of the three it is: here is the argument,
+   there is none and that is a finding, or the report was read and states no caveat of its own.
+   An empty slot is not one of the three, and a card missing this block entirely is a bug rather
+   than a quiet no.
+
+   IT IS THE LAST THING BEFORE `.btns` ON PURPOSE. The wave before this one nearly shipped a fix
+   that rendered at y=1054 on a 1057px viewport and called it the same defect wearing a
+   scrollbar. Adjacency, not presence, is the thing being built: this block and the verbs are
+   siblings in one card, so no scroll position exists that shows `Approve` and hides the argument
+   against it. `web/tests/test_argument_is_beside_the_verb.py` measures exactly that, in a real
+   browser, on every card on the board.
+
+   `.exp` is the container the EXPANDED card already renders the counterargument in, reused
+   verbatim so the two surfaces cannot drift apart in styling any more than they now can in
+   words, and `.live` is the amber the missing-counterargument finding already used. No new CSS,
+   and nothing here is hidden, collapsed or behind a toggle. #}
+{% macro before_you_act(item) %}
+{% if item.kind == 'recommendation' and not item.options_n %}
+<div class="exp beforeact">
+  <h5>Against it</h5>
+  {% if item.counter %}{{ item.counter }}
+  {% else %}
+  {# The SAME sentence the expanded card prints, deliberately. Two wordings of one finding is how
+     an operator learns that the surfaces disagree about what they measured. #}
+  <span class="live">This recommendation states no counterargument. A recommendation with
+  nothing arguing against it has not been reviewed, it has been repeated.</span>
+  {% endif %}
+</div>
+{% elif item.kind == 'review' %}
+<div class="exp beforeact">
+  <h5>What the report says against itself</h5>
+  {% if not item.caveat %}
+  {#- The stamp is absent, which happens only when `_stamp_review_facts` could not read the
+      store. SAID, not skipped: a card that renders this heading over nothing, and a card whose
+      report genuinely admits nothing, must not be the same screen. That is the whole of 0410
+      restated, and it would be a poor joke to reintroduce it in the fix for it. -#}
+  <div class="chipnote warn">The report could not be read from this console, so what it says
+    against itself is unknown here rather than absent. Open the item.</div>
+  {% elif item.caveat.lines %}
+  {% for ln in item.caveat.lines %}<div class="live">{{ ln }}</div>{% endfor %}
+  {% if item.caveat.extra %}
+  <div class="chipnote">{{ item.caveat.extra }} more like {{ 'this' if item.caveat.extra == 1
+    else 'these' }} in the report. Open it.</div>
+  {% endif %}
+  {% else %}
+  {# NOT SILENCE. `scanned` is the number of claim lines this report actually has, so this
+     sentence separates a clean report from an unread one, which is the whole of row 0410's
+     lesson applied to row 0416's verb. The wording states what was done rather than reassuring:
+     nothing here says the work is good. #}
+  <div class="chipnote">{{ item.caveat.scanned }} claim{{ '' if item.caveat.scanned == 1
+    else 's' }} read; the report states no caveat of its own. That is not a verdict on the
+    work, only on what the report volunteered.</div>
+  {% endif %}
+</div>
+{% endif %}
+{% endmacro %}
+
+{# --------------------------------------------------------------- the card
+   ROW 0431, 2026-08-28. THE CARD IS A SPREADSHEET ROW WITH TWO LEVELS OF EXPANSION, and the
+   operator's words are the specification: *"one row per item, hard edges, neutral colours"*,
+   *"like Airtable"*, with Notion and ROWY named beside it, and then *"first click expands the
+   row inline with its actions, second opens a right-side panel"*, and **never navigate to a new
+   page**.
+
+   WHAT WAS HERE BEFORE, so the change is legible rather than merely present: every card
+   rendered its whole self at rest. The id line, the title, the meta, the silence-ships block,
+   the argument against the verb, the verb row, and four collapsed reason panels were all in the
+   markup of every one of the seven rows the window shows. Measured on the seeded demo store at
+   1440px before this change, `/queue?tier=judge` put the third card's title at y=1197 of a
+   1000px viewport: the operator could see two items at once on a board whose whole job is to be
+   ranked. That is the "blocks of text" he named.
+
+   THREE THINGS ABOUT THE MECHANISM, and each one is a constraint from somewhere else in this
+   repo rather than a preference.
+
+   1. IT IS A URL FRAGMENT, AND THAT IS THE POLL'S DOING. `console.js` patches the `list`
+      region by assigning `innerHTML` whenever the server's markup for it changes. Any open
+      state held in the DOM -- a `<details open>`, a class, a `hidden` attribute -- is destroyed
+      by that assignment. A URL fragment is not in the DOM and survives it, so the anchors are
+      real anchors and the surface opens with JavaScript switched off.
+
+      THE FRAGMENT SURVIVES THE REPAINT AND `:target` DOES NOT, which was recorded on
+      2026-08-28 as a known limit and closed on 2026-08-29 by the lane that owns `console.js`.
+      The browser resolves the target element once and does not re-resolve a re-inserted one, so
+      an open row shut itself every time the board moved. `console.js` re-reads the hash after
+      every repaint and paints `.is-open` / `.is-panel`, which are the same rules in the same
+      selector lists in `console.css`. It also takes the click, so opening a row no longer
+      scrolls the page: measured at 1440x760, the fragment navigation moved the list 122px under
+      the cursor that had just clicked it. Both are measured rather than assumed, in
+      `web/tests/test_two_levels_of_expansion.py`.
+   2. NOTHING ANIMATES. `test_browser.py:reduced_motion` walks every element on the queue with
+      `prefers-reduced-motion: reduce` emulated and fails on any live animation or any
+      transition-duration above zero. The expansion therefore has no transition at all, in
+      either motion setting, which is also the honest thing: there is no latency to cover.
+   3. THE VERBS AND THE ARGUMENT AGAINST THEM MOVE TOGETHER, NEVER SEPARATELY. Rows 0410 and
+      0416 put `before_you_act()` directly above `.btns` and `test_argument_is_beside_the_verb.py`
+      measures the gap between them. Both are inside the level-1 expansion, in that order, so
+      the rule holds at the only moment it can be broken -- the moment the verb becomes
+      reachable. A design that left the verb on the collapsed row and moved the argument into
+      the panel would have satisfied every DOM assertion in this repo and reintroduced the exact
+      defect the operator filed.
+
+   WHAT IS DELIBERATELY NOT HERE. Item 2 of `web/MUST-NOT-BUILD.md` is KEPT: there is no drag
+   handle, no `draggable`, no drop target and no control that writes `priority`, so this
+   spreadsheet is not hand-sortable and never will be by this macro. A grid that looks like
+   Airtable is the one shape where somebody would reach for a drag handle by reflex, which is
+   why the prohibition is restated here rather than only in that file. #}
+{% macro card(room, item, defer, expanded=False, review=None, sw=None, deep=False) %}
+{#- `srvopen` is the SERVER's expansion, the pre-existing `?open=<id>` path that `web/app.py`
+    reads and that the fast pane's `open` link still uses. It is kept, and kept separate from
+    the fragment, for one reason: `open_review` -- the full claims analysis -- is built in
+    `app.py` for that one item and cannot be got at from here. So a row arrives expanded when
+    the server said so, and the fragment expands any row without a round trip. -#}
+{#- ROW 0434: THE FACETS A FILTER READS, AS DATA ON THE ROW ITSELF.
+
+    His ask 4 is "Notion-style filtering by project, client, task, priority and custom fields".
+    These five attributes are the half of that which exists in `brain`, and the console filters on
+    them in the browser without a round trip. They are DATA AND NEVER STYLE: nothing in
+    `console.css` selects on them, no rule paints from them, and a row with every one of them
+    empty renders exactly as it does today.
+
+    WHY ON THE ROW AND NOT IN A LOOKUP THE SCRIPT BUILDS. The three-second poll replaces this
+    region's markup wholesale, so any map the client kept beside the DOM would go stale the first
+    time an item resolved. The row carries its own facets, so a repaint re-delivers them and the
+    filter is re-applied from what is actually on the screen.
+
+    `data-f-text` IS PRE-LOWERCASED, so the search does one `indexOf` per row instead of a
+    `toLowerCase()` per row per keystroke. It carries the id, the title and the task it blocks,
+    which are the three things a person types when they are looking for one row.
+
+    `data-f-score` IS THE RANKING'S OWN NUMBER, carried so the strip above the grid can say when
+    the rows on screen are TIED and their order is therefore the id tiebreak. It is read and
+    never written: MUST-NOT-BUILD item 2 forbids score editing, and measured on live `brain` on
+    2026-08-29 the whole rendered Shape window was one seven-way tie at 5.335, which is an
+    ordering carrying no information and nothing on the screen said so. -#}
+<div class="card qrow{{ ' srvopen' if expanded }}" id="card-{{ item.id }}"
+     data-f-lane="{{ item.lane }}" data-f-kind="{{ item.kind }}"
+     data-f-prio="{{ '' if item.prio is none else item.prio }}"
+     data-f-project="{{ item.project }}"
+     data-f-gate="{{ item.gates|join(' ')|lower }}"
+     data-f-score="{{ '' if item.score is none else item.score }}"
+     data-f-text="{{ (item.id ~ ' ' ~ item.title ~ ' ' ~ (item.task or ''))|lower }}">
+  {#- The collapse target. A zero-size anchor INSIDE the row rather than a link to the top of
+      the list: `href="#c-<id>"` stops matching `.qrow:target` and leaves the scroll position on
+      the row the operator was reading. A close control that jumps the page to the top is a
+      close control nobody uses twice. -#}
+  <span class="qanchor" id="c-{{ item.id }}"></span>
+  <div class="qgrid">
+    {#- LEVEL ONE. A stretched link rather than a wrapper, because the row carries two real links
+        of its own (0412's route from a card to the question it is about) and an anchor may not
+        contain an anchor. `.qc` cells are `pointer-events:none` so a click anywhere on the row
+        -- including on the title text -- falls through to this one; the links inside them take
+        their events back. -#}
+    <a class="qopen" href="#card-{{ item.id }}"
+       aria-label="Expand {{ item.id }}: {{ item.title }}"></a>
+    <a class="qshut" href="#c-{{ item.id }}" aria-label="Collapse {{ item.id }}"></a>
+    <div class="qc qcmark" aria-hidden="true"><span class="qcaret"></span></div>
+    <div class="qc qcid">
+      {# ROW 0412 IS KEPT AND IS NOW A CELL. `item.href` is the page for THIS row and is derived
+         once in model.py `_href`. It was `'/task/' ~ item.task`, and `item.task` on a question
+         card is the item the question BLOCKS, so a question card's own id linked to somebody
+         else's page. Both links survive the redesign because the operator reached a question
+         through exactly one of them. #}
+      <a href="{{ item.href }}">{{ item.id }}</a>
+    </div>
+    <div class="qc qctitle">{{ item.title }}</div>
+    <div class="qc qcstate">
+      {#- `blocks <id>` IS A STATE AND NOT AN IDENTITY, and it moved here from the id cell on
+          2026-08-29 for a reason that was visible in a screenshot: in a 5.5rem id column the two
+          did not fit and the second one rendered as the word `block...`, which names nothing and
+          links somewhere. It is the same link, still the second of 0412's two routes, in the
+          column that already carries what is true about the row rather than what the row is
+          called. -#}
+      {% if item.kind == 'question' and item.task %}<a class="qblocks"
+        href="/task/{{ item.task }}">blocks {{ item.task }}</a>{% endif %}
+      {{ gates(item) }}
+      {% if item.live %}<span class="live">waiting {{ item.live }}m</span>{% endif %}
+      {# D6b reserves one slot per tier for the tier's OLDEST item and marks it. Rendering the
+         mark is what converts starvation from a statistic into something the operator declines
+         on purpose; leaving it unrendered would keep the reserved slot and lose the reason. #}
+      {% if item.reserved_oldest %}<span class="gate">OLDEST</span>{% endif %}
+    </div>
+    <div class="qc qcsrc">{{ item.src }}</div>
+    {#- `unblocks` IS A COUNT AND NOT A BAR. MUST-NOT-BUILD item 4 leaves the run-the-stack pips
+        as this console's only progress indicator, and a grid is where somebody would put a
+        second one. It is a number in a column, right-aligned like a spreadsheet's. -#}
+    <div class="qc qcunb" title="items this unblocks">{{ item.unblocks }}</div>
+    <div class="qc qcdef">{% if item.default %}if you say nothing &rarr; {{ item.default }}{% endif %}</div>
+  </div>
+
+  {#- LEVEL ONE'S CONTENT: THE ROW'S ACTIONS, INLINE. His words are "expands the row inline with
+      its actions", so what is here is the acting surface and nothing else. Everything that is
+      reading rather than acting is one more click away, in the panel. -#}
+  <div class="qexp">
+    {{ media_slot(room, item) }}   {# HOOK card-media-slot: V5's image block arrives via this call #}
+    {{ options_slot(room, item) }} {# HOOK card-options-slot: V3's rail arrives via this call,
+                                      directly above the verbs (C section 1.4) #}
+    {#- ROWS 0410 AND 0416, AND THE ORDER IS LOAD-BEARING. The last thing before the verbs, on
+        every card that carries a position verb. It renders in BOTH expansion states because it
+        is the argument against the button directly beneath it, and the panel's copy of the
+        counterargument is a different reader's need -- so the panel is what is skipped when the
+        two would be the same sentence twice, not this. -#}
+    {{ before_you_act(item) }}
+    <div class="btns">
+      {{ primary(room, item) }}
+      {{ secondary(room, item) }}
+      {#- LEVEL TWO. `Full context` and not `Open`: the label names what arrives, and what
+          arrives is a panel on this page. The old control here was `Open`, an ordinary link to
+          `/task/<id>`, and it is what the operator hit when he said *"if I click on open, it
+          actually takes me somewhere else"*. The page is still reachable -- the id cell above
+          links to it and the panel names it again -- but it is no longer the way to read an
+          item you are standing on. -#}
+      <a class="sec qmore" href="#pan-{{ item.id }}">Full context &#9656;</a>
+      <button class="sec" data-toggle="defer-{{ item.id }}">Defer &#9662;</button>
+      {# The bump is a labelled disagreement with the model, so it is gated on a reason by the
+         verb AND by a CHECK on the column: the log is the weight-tuning dataset. It decays on a
+         24h half life; it does not pin, and it never edits the computed score. #}
+      <button class="sec" data-toggle="bump-{{ item.id }}">Bump</button>
+      {#- ROW 0432, HIS ASK 3. MUST-NOT-BUILD item 5 is overruled for this and only this, by him,
+          on 2026-08-30: *"i want to override and say voice is needed to make it easy for users to
+          get through inbox"*. The condition is at item 5 in `web/MUST-NOT-BUILD.md`.
+
+          IT IS A BUTTON AND NOT A BOX, and that is the condition made structural. There is no
+          textarea here, no `reason_box`, nothing to type into. The only body this control can ever
+          post is a transcript a transcription engine produced, so item 5's own sentence stays
+          true: there is no box whose text goes nowhere.
+
+          THE KEY AND THE BUTTON ARE ONE PATH. `console.js`'s `V` clicks this form, exactly as the
+          number keys click the primary controls. A key with its own POST would be a second way to
+          do one thing, and the two would drift the first time one of them grew a guard. -#}
+      <form class="act-form qvoice" method="post" action="/{{ room }}/act"
+            style="display:inline" data-voice="{{ item.id }}">
+        {{ hidden(room, 'voice_note', item.id) }}
+        <button class="sec" type="submit"
+                title="Record a voice note on this row. It is transcribed on this host and posted
+                       through the `note` verb, with the audio retained and hashed. Nothing is
+                       guessed: a capture that heard nothing posts a note saying so.">Voice</button>
+      </form>
+      {% if item.tier == 'decide' %}
+      {# The `not fast` button demotes AND logs a calibration miss against the producer, in one
+         transaction. Fast-lane trust is the whole asset: one ambush a week and the lane stops
+         being used. #}
+      <button class="sec" data-toggle="nf-{{ item.id }}">not fast</button>
+      {% endif %}
+      {# The stopwatch belongs on the CARD and not only on `/task/<id>`, because the tier the
+         entry is stamped with is the tier the card is in, and the claim it was built to test --
+         "Decide is a two-minute lane" -- is about items that mostly are not work items at all.
+         A Decide question has no `/task/` page to start a timer from, so a control that lived
+         only there could never measure the one ceiling anybody has claimed. #}
+      {% if sw %}{{ timer_control(room, sw, item.source_type, item.id) }}{% endif %}
+      <a class="sec qcollapse"
+         href="{{ '/queue?tier=' ~ item.tier if expanded else '#c-' ~ item.id }}">Close</a>
+    </div>
+    {{ reason_box(room, 'bump', item, 'bump-' ~ item.id, 'Bump it',
+                  'Why does this rank too low? This log is what tunes the weights.',
+                  'Decays on a 24h half life. It never edits the computed score, and beyond three
+                   simultaneous bumps the queue says plainly that they have become a second queue.') }}
+    {% if item.tier == 'decide' %}
+    {{ reason_box(room, 'not_fast', item, 'nf-' ~ item.id, 'Move it out of Decide',
+                  'What made this slower than two minutes?',
+                  'Logs a calibration miss against the producer, in the same transaction as the
+                   demote. The stopwatch decides what is cheap for you, never the producing agent.') }}
+    {% endif %}
+
+    {% if item.kind == 'question' and not item.default %}
+    {{ reason_box(room, 'answer', item, 'ans-' ~ item.id, 'Answer',
+                  'Your answer. This is the decision, and it wakes what is blocked on it.',
+                  'Answered, not requeued behind a live engine: the runner fences the process
+                   and requeues. See the 2026-08-16 incident.', 2) }}
+    {% endif %}
+    {% if item.kind == 'review' %}
+    {#- ROW 0414. THE HINT SAYS WHERE THE WORK GOES, and it is measured off this row rather than
+        written once for all rows. `Send back` runs `reopen`, which clears `claimed_by` and
+        leaves `agent_claimable` EXACTLY as it was, so the destination is a property of the row
+        and there are two of them: back to the FLEET, out of the human queue entirely, or back
+        onto the operator's own board as `Mark my task done`. Measured either side of his click
+        on 2026-08-28: before, `agent_claimable` true and `brain.queue_open` returned 1 row;
+        after, `agent_claimable` still true and it returned 0. He read the disappearance as
+        success (*"It has now disappeared from the queue, so I guess that is good"*), which is
+        worse than a failure that annoys him.
+
+        THE REMEDY IS PRINTED HERE BECAUSE THE PRODUCT ALREADY KNEW IT AND SAID IT NOWHERE
+        USEFUL. `swarm set <id> agent_claimable ...` appears in `rooms.assert_allowed_on`'s
+        refusal, which is shown only to somebody attempting a forgery: the one place the
+        operator will never look. It belongs on the card where the button is. -#}
+    {{ reason_box(room, 'send_back', item, 'sb-' ~ item.id, 'Send back',
+                  'Why is this going back? A reason a fresh session can act on.',
+                  send_back_hint(item)) }}
+    {% endif %}
+    {#- No panel behind a control that is disabled: a hidden form whose only opener is inert is a
+        second door standing open behind a locked one. Row 0399. -#}
+    {% if item.kind == 'human' and not item.done_refused %}
+    {{ reason_box(room, 'mark_done', item, 'mine-' ~ item.id, 'Mark my task done',
+                  'What did you actually do? Numbers, paths, how you checked it.',
+                  'Your own work: `claim` will not hand it out, and no agent is holding it. On an
+                   agent item this verb would fabricate that agent report, which is what the
+                   prohibition was about. The guard reads the row, not this card (task 0427).') }}
+    {% endif %}
+    {{ defer_block(room, item, defer(item), deep=deep) }}
+  </div>
+
+  {#- LEVEL TWO'S CONTENT: THE RIGHT-SIDE PANEL, and it is reading rather than acting.
+
+      WHAT IT CANNOT CARRY, SAID PLAINLY RATHER THAN LEFT AS A GAP. The full claims analysis --
+      `review_block` -- comes from `model.review()`, which is three reads and a parse per item,
+      and it is assembled in `web/app.py` for the ONE item named by `?open=<id>`. Stamping it on
+      every card would put it on the three-second poll path, and `web/app.py` belongs to another
+      row today. So the panel renders it when the server supplied it and otherwise says where it
+      is. That is parity with what shipped before this change, not a loss: today's expanded card
+      does not show the analysis either unless `?open=` built it.
+
+      It is inside the row in the markup and fixed to the right of the viewport in the
+      stylesheet. Inside, because `.qrow:has(> .qpanel:target)` is what keeps the level-1
+      expansion open underneath the panel -- the second click must not undo the first. -#}
+  <aside class="qpanel" id="pan-{{ item.id }}" aria-label="Full context for {{ item.id }}">
+    <div class="qpanelhd">
+      <span class="qpid">{{ item.id }}</span>
+      {#- A server-expanded row (`?open=<id>`) has no fragment to drop, so its close is the
+          round trip that opened it. Every other row closes with a fragment and no request. -#}
+      <a class="qpclose"
+         href="{{ '/queue?tier=' ~ item.tier if expanded else '#c-' ~ item.id }}"
+         aria-label="Close the panel">&#10005;</a>
+    </div>
+    <div class="qptitle">{{ item.title }}</div>
+    <div class="qpmeta">{{ gates(item) }}
+      {% if item.live %}<span class="live">agent waiting {{ item.live }}m</span>{% endif %}
+      <span>unblocks {{ item.unblocks }}</span>
+      {% if item.src %}<span>{{ item.src }}</span>{% endif %}</div>
+    {% if item.default %}
+    <div class="cdef">If you say nothing: <b>{{ item.default }}</b></div>
+    {% endif %}
+    <div class="exp">
+      {% if item.rec %}<h5>Recommended</h5>{{ item.rec }}{% endif %}
+      {% if item.rec %}
+        <h5>Counterargument</h5>
+        {% if item.counter %}{{ item.counter }}
+        {% else %}
+        {# Never show a recommendation without its counterargument: that is how a review queue
+           becomes a rubber stamp. A missing counterargument is rendered as the finding it is. #}
+        <span class="live">This recommendation states no counterargument. A recommendation with
+        nothing arguing against it has not been reviewed, it has been repeated.</span>
+        {% endif %}
+      {% endif %}
+      {% if review %}{{ review_block(review) }}
+      {% elif item.kind == 'review' %}
+      {#- NOT SILENCE, AND NOT A PRETENCE THAT THE ANALYSIS IS HERE. The claim-by-claim read is
+          the one thing this panel cannot assemble; it says so and gives the door, rather than
+          ending after the caveat and letting the reader conclude that is all there was. -#}
+      <h5>Claim by claim</h5>
+      <div class="chipnote">Not assembled for this row. The claim-by-claim read of the report is
+        built per item and is on <a href="{{ item.href }}">{{ item.href }}</a>. What the report
+        says against ITSELF is above the verbs, where the decision is.</div>
+      {% endif %}
+      <div class="rev"><h5>Why this position</h5>
+        <span style="font-family:var(--font-mono);font-size:.76rem">{{ item.why }}</span></div>
+    </div>
+  </aside>
+</div>
+{% endmacro %}
+
+{# ------------------------------------------------ the review view, in full #}
+{% macro review_block(rv) %}
+<div class="rev">
+  <h5>What it claims, and how it knows</h5>
+  {% for c in rv.analysis.claims if not c.naked %}
+  <div class="claim ok"><div class="mk">&#10003;</div><div class="bd">{{ c.text }}
+    <div class="ev">{{ c.how }}: {{ c.evidence }}</div></div></div>
+  {% endfor %}
+  {% if rv.analysis.naked %}
+  <h5>Claims with nothing behind them</h5>
+  {% for c in rv.analysis.naked %}
+  <div class="claim naked"><div class="mk">&#9888;</div><div class="bd">{{ c.text }}
+    <div class="ev">{{ c.how }}</div></div></div>
+  {% endfor %}
+  {% endif %}
+  <div class="nakedcount">{{ rv.analysis.line }}</div>
+</div>
+
+<div class="rev">
+  <h5>Definition of done</h5>
+  {# There used to be a `read from ...` line here, because the definition could arrive from the
+     task's thread rather than from its body: `post` and `done` shared one column and the Scope
+     room duplicated the definition onto the append-only thread so it would outlive `done`.
+     Migration 14 gave the work order a write-once column, so there is one source again and
+     naming it would say nothing. Task 0169. #}
+  {% for d in rv.dod %}
+  <div class="claim {{ 'ok' if d.ticked and not d.human else 'naked' }}">
+    <div class="mk">{{ '&#10003;'|safe if d.ticked else '&#9888;'|safe }}</div>
+    <div class="bd">{{ d.text }}
+      <div class="ev">{{ d.verifier }}{% if d.human %} · this review is that check{% endif %}</div>
+    </div></div>
+  {% endfor %}
+  {% if rv.dod_note %}<div class="note gap">{{ rv.dod_note }}</div>{% endif %}
+</div>
+
+<div class="rev">
+  <h5>Review trail</h5>
+  <div class="trail">
+    {% for t in rv.trail %}
+    <div class="rd">
+      {% if t.stamp %}<span class="stamp {{ t.cls }}">{{ t.stamp }}</span>{% endif %}
+      <b>{{ t.from_agent or '?' }}</b>
+      <span style="opacity:.7">{{ t.ts.strftime('%m-%d %H:%M') if t.ts }}</span>
+      <div class="sub">{{ t.text }}</div>
+    </div>
+    {% else %}
+    <div class="rd">No trail. Every state change writes a thread event in the same transaction,
+      so an empty trail means nothing has happened to this item, not that something was lost.</div>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="rev">
+  <h5>Artifacts</h5>
+  {% for a in rv.artifacts %}
+  <div class="art">
+    <span>{{ a.kind }}</span>
+    <span><a href="/artifact/{{ a.seq }}">{{ a.path }}</a></span>
+    {% if a.drifted %}
+    <span class="drift">recorded as present, GONE NOW</span>
+    {% elif not a.exists_now %}
+    <span class="drift">not on disk</span>
+    {% else %}<span style="opacity:.7">on disk</span>{% endif %}
+  </div>
+  {% else %}
+  <div class="art">No artifact recorded. A report with no artifact is a claim with no object.</div>
+  {% endfor %}
+</div>
+
+<div class="rev">
+  <h5>Auto-accept, which is OFF</h5>
+  <div class="note">
+    {% if rv.would_auto_accept.enabled %}ENABLED.{% else %}Auto-accept is disabled.{% endif %}
+    This item {{ 'WOULD' if rv.would_auto_accept.eligible else 'would NOT' }} have been accepted
+    automatically{% if rv.would_auto_accept.reasons %} ({{ rv.would_auto_accept.reasons|join(', ') }}){% endif %}.
+    Recorded so the week of measurement has something to measure; nothing acts on it.
+  </div>
+</div>
+{% endmacro %}
+
+{# ------------------------------------------------ the operator's stopwatch (task 0284)
+
+   THE LABEL IS THE VERB, here as everywhere: `Start the timer` and `Stop the timer` are
+   `queue time start` and `queue time stop`, and the third button says `not work: abandon it`
+   because that is what the row will say -- `ended_how = 'abandoned'`, in the ledger and out of
+   every mean. There is no button labelled "reset" and there is none labelled "delete": a stopped
+   entry is never edited, the table refuses UPDATE and DELETE, and the correction path is
+   `queue time correct`, which needs two timestamps and a reason and is therefore the CLI's.
+
+   TWO TIMERS AT ONCE ARE REFUSED BY THE VERB, so the second control renders DISABLED WITH THE
+   REASON ON IT rather than absent. The console's rule for a control the store would refuse is
+   the one D6b's defer chips already follow: say why, do not vanish. Omitting it would leave the
+   operator looking at a card with no timer control and no way to learn that the reason is a
+   timer running somewhere else.
+
+   NO ELAPSED FIGURE IS RENDERED IN THIS MACRO, and that is not an oversight either. The cards are
+   the `list` region, the poller swaps any region whose HTML changed, and a minute count that
+   ticked would rewrite every card on the screen every three seconds -- precisely the churn that
+   gave an opened Defer panel a median life under a second (console.js states the measurement).
+   The elapsed number changes on the clock, so it lives in the one region that exists to: the
+   strip below. #}
+{% macro timer_control(room, sw, source_type, source_id) %}
+{% if sw.unavailable %}
+<button class="sec" disabled title="{{ sw.unavailable }}">Start the timer</button>
+{% elif sw.running and sw.running.source_id|string == source_id|string
+        and sw.running.source_type == source_type %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+  <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+  <input type="hidden" name="action" value="time_stop">
+  <input type="hidden" name="id" value="{{ source_id }}">
+  {# SECONDARY, and on this control that is a rule rather than a preference. Orange is the
+     operator's decision on the item -- Go with default, Approve, Accept work -- and rendered here
+     it put a second orange button of equal weight beside the one the card exists for. A
+     stopwatch is not a position on the work. The strip's stop is primary because it is the only
+     verb in the strip. #}
+  <button class="sec" type="submit">Stop the timer</button>
+</form>
+{% elif sw.running %}
+<button class="sec" disabled
+        title="a timer is already running on {{ sw.running.source_id }}. Two at once are refused: overlapping intervals would let the measured minutes exceed the wall clock they are measured from. Stop that one first.">
+  Start the timer</button>
+{% else %}
+<form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+  <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+  <input type="hidden" name="action" value="time_start">
+  <input type="hidden" name="id" value="{{ source_id }}">
+  {# The kind rides the form because the card may be gone: an item that has left the queue is
+     still timeable, with tier_at_start NULL. `web/actions.py:time_start` checks it against the
+     three kinds the queue addresses and the verb refuses an id that names no row. #}
+  <input type="hidden" name="source_type" value="{{ source_type }}">
+  <button class="sec" type="submit">Start the timer</button>
+</form>
+{% endif %}
+{% endmacro %}
+
+{# The strip. It is a PATCHED REGION and the elapsed figure is why: it is the only number on this
+   console that is stale the instant it is rendered.
+
+   `running.warning` is written by `human_queue.reads.time_status` and shown BEFORE the stop, which
+   is the whole argument for the strip existing. An operator told at stop time that his entry was
+   relabelled has lost the chance to correct it; one told while it runs has not. #}
+{% macro stopwatch_strip(room, sw, live=True) %}
+{% if sw.unavailable %}
+<div class="strip"><b>stopwatch</b> <span>{{ sw.unavailable }}</span></div>
+{% elif sw.running %}
+<div class="strip timing{{ ' overcap' if sw.running.over_cap }}">
+  <b>timing {{ sw.running.source_id }}</b>
+  <span>{{ '%.1f'|format(sw.running.elapsed_minutes) }} min
+    {%- if not live %} as of {{ sw.now.strftime('%H:%M:%S') }}, and this page does not
+      refresh{% endif %} ·
+    started {{ sw.running.started_at.strftime('%H:%M') }} ·
+    {{ sw.running.tier_at_start|title if sw.running.tier_at_start
+       else 'not in a live tier when it started, so it counts in the overall figure and in no
+             tier\'s' }}</span>
+  <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+    <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+    <input type="hidden" name="action" value="time_stop">
+    <input type="hidden" name="id" value="{{ sw.running.source_id }}">
+    <button class="act" type="submit">Stop the timer</button>
+  </form>
+  <form class="act-form" method="post" action="/{{ room }}/act" style="display:inline">
+    <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+    <input type="hidden" name="action" value="time_abandon">
+    <input type="hidden" name="id" value="{{ sw.running.source_id }}">
+    <button class="sec" type="submit"
+            title="in the ledger, out of every mean. The honest end for a timer that was left running.">
+      not work: abandon it</button>
+  </form>
+  {% if sw.running.warning %}
+  <div class="chipnote tmwarn">OVER THE {{ (sw.cap_seconds / 3600)|round|int }}-HOUR CAP:
+    {{ sw.running.warning }}</div>
+  {% endif %}
+</div>
+{% elif sw.today %}
+{# NOT RUNNING IS A STATE WORTH RENDERING, and the sentence is deliberately not an exhortation. A
+   timer is never required and an untimed item is normal; a strip that nagged would collect
+   compliance entries rather than measurements. It states what today has measured, including that
+   it has measured nothing, because a null is not a zero. #}
+<div class="strip idle"><b>no timer running</b>
+  <span>
+    {% if sw.today.n %}today: {{ sw.today.n }} measured entr{{ 'y' if sw.today.n == 1 else 'ies' }},
+      {{ sw.today.total_minutes }} min, median {{ sw.today.median_minutes }} min{% else %}
+      nothing measured today. A timer is never required and an untimed item is normal; what the
+      stopwatch changes is that the figures below say how much of the work they actually watched
+    {% endif %}
+    {%- if sw.abandoned %} · {{ sw.abandoned }} abandoned, in no mean{% endif %}
+    {%- if sw.superseded %} · {{ sw.superseded }} superseded by a correction{% endif %}</span>
+</div>
+{% endif %}
+{% endmacro %}
+
+{# Depth, clearance and the two ETAs. THE TWO CURRENCIES ARE NEVER MIXED and they are never even
+   adjacent: items per day and hours of the operator's life answer different questions, and a
+   surface that interleaved them would invite exactly the arithmetic nobody should do.
+
+   Every null here is rendered as the sentence the read attached to it, not as a dash and never as
+   a zero. `unmeasured_tiers` names the tier and the depth that is therefore NOT in the hours
+   figure; `coverage` says "measured over N of M". Dropping either is how a partial measurement
+   comes to be read as a total one. #}
+{% macro depth_block(d) %}
+{% if d.unavailable %}
+<div class="hint">{{ d.unavailable }}</div>
+{% else %}
+<div class="ln"><b>{{ d.depth.open }} open</b> · decide {{ d.depth.decide }},
+  judge {{ d.depth.judge }}, shape {{ d.depth.shape }} · {{ d.depth.blocked }} blocked,
+  {{ d.depth.deferred }} deferred</div>
+{% if not d.measured %}
+<div class="ln">clearance: nothing cleared in {{ d.days_measured }}d, so the ETA is UNDEFINED and
+  not zero. An ETA from an assumed rate would be a confident number from no measurement.</div>
+{% else %}
+<div class="ln">clearance: {{ d.cleared }} in {{ d.days_measured }}d = {{ d.per_day }}/day, so
+  {{ d.eta_days.all }} days at this rate <span class="hint">{{ d.eta_days_basis }}</span></div>
+{% if d.triage_mode %}
+<div class="ln"><b>TRIAGE MODE</b>: depth is past 7x daily clearance. Batch-decline candidates
+  belong in one reviewable list, not a red number and not a silent drop.</div>
+{% endif %}
+{% endif %}
+
+{% set sw = d.stopwatch %}
+<div class="ln" style="margin-top:.4rem"><b>your time</b> ({{ sw.who }}) ·
+  {{ sw.entries.measured }} measured, {{ sw.entries.abandoned }} abandoned,
+  {{ sw.entries.superseded }} superseded, {{ sw.entries.running }} running</div>
+<div class="ln">coverage: {{ sw.coverage.text }}{% if sw.coverage.rate is not none %}
+  ({{ (sw.coverage.rate * 100)|round|int }}%){% endif %}</div>
+{% if not sw.overall.n %}
+<div class="ln">{{ sw.basis }}</div>
+{% else %}
+<div class="ln">measured: {{ sw.overall.n }} timed item(s), median {{ sw.overall.median_minutes }}min,
+  mean {{ sw.overall.mean_minutes }}min, {{ sw.overall.total_minutes }}min total</div>
+{% for t in ['decide','judge','shape'] %}
+  {% if sw.per_item[t].n %}
+  <div class="ln">eta {{ t }}: <b>{{ sw.eta_hours[t] }} hours</b> · depth {{ d.depth[t] }} x median
+    {{ sw.per_item[t].median_minutes }}min over {{ sw.per_item[t].n }} measured item(s)</div>
+  {% endif %}
+{% endfor %}
+{% for u in sw.unmeasured_tiers %}
+<div class="ln">eta {{ u.tier }}: <b>UNMEASURED</b> — {{ u.why }}, and its {{ u.depth }} item(s) are
+  therefore NOT in the hours figure below.</div>
+{% endfor %}
+{% if sw.eta_hours_measured_tiers_only is not none %}
+<div class="ln">= <b>{{ sw.eta_hours_measured_tiers_only }} hours of your time</b>, over the
+  {{ 3 - sw.unmeasured_tiers|length }} tier(s) that have a measurement. It is not an "all".</div>
+{% endif %}
+{% if sw.untiered_items %}
+<div class="ln">{{ sw.untiered_items }} timed item(s) were not in a live tier when the stopwatch
+  started; they count in the overall figure and in no tier's.</div>
+{% endif %}
+{% if sw.mixed_tier_items %}
+<div class="ln">{{ sw.mixed_tier_items }} timed item(s) span two tiers (demoted mid-item); each is
+  counted once, in the tier it started in.</div>
+{% endif %}
+<div class="ln hint">{{ sw.basis }}</div>
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro agent_line(name, size=22) %}
+<span class="who" style="display:inline-flex;flex-direction:row;gap:.3rem;align-items:center">
+  {{ glyph(name, colour_for(name), size)|safe }}<span class="nm">{{ name }}</span></span>
+{% endmacro %}
+
+{# ---------------------------------------------------------------- HOW OLD, IN WORDS
+   Row 0383, 2026-08-27. The Fleet room rendered a heartbeat age as raw seconds:
+   `hb 568362s · silent`. Measured on the operator's live console the same morning, the eleven
+   agent cards read 568347s, 568354s, 568355s, 568362s, 568363s, 568365s, 895263s and 928245s.
+   Nothing about that column tells a reader that two of those agents have been silent four days
+   longer than the other nine, and the two numbers that matter most -- ten days and ten and a
+   half days -- differ from the rest only in a digit at the front.
+
+   This is the surface half of row 0371. Lane B owns making `status` able to tell a live
+   heartbeat from a live agent; what this macro fixes is that even when the state word is
+   correct, the DURATION beside it was unreadable, so a reader could not see that the fleet had
+   been quiet for a week rather than for a shift.
+
+   The word never leaves. `colour never rides alone` is about colour, and the same reasoning
+   applies here: the number is rounded for reading, so the exact second count stays on the
+   element as a `title` for anyone who needs it, and nothing is lost by rounding. Rounds DOWN at
+   every step, so this never reports an agent as quieter than it is.
+
+   `none` is rendered as a word rather than as `0s`, because an agent that has never heartbeated
+   and an agent that heartbeated this instant are opposite facts and both render as zero. #}
+{% macro age_words(seconds) %}
+{%- if seconds is none -%}never
+{%- else -%}
+  {%- set s = seconds | int -%}
+  {%- if s < 90 -%}{{ s }}s
+  {%- elif s < 5400 -%}{{ s // 60 }}m
+  {%- elif s < 172800 -%}{{ s // 3600 }}h{{ '%02d' % ((s % 3600) // 60) }}
+  {%- else -%}{{ s // 86400 }}d {{ (s % 86400) // 3600 }}h
+  {%- endif -%}
+{%- endif -%}
+{% endmacro %}

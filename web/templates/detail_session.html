@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}session {{ s.id }}{% endblock %}
+{% block body %}
+<div class="card">
+  <div class="cid">session {{ s.id }} · {{ s.harness }} · {{ s.agent }}</div>
+  <div class="ctitle">{{ s.stated_goal or 'no stated goal recorded' }}</div>
+  <div class="cmeta"><span>role {{ s.role }}</span><span>host {{ s.host }}</span>
+    <span>{{ s.workdir }}</span>
+    <span>started {{ s.started_at.strftime('%m-%d %H:%M') if s.started_at }}</span>
+    <span>{{ 'ended ' ~ s.ended_at.strftime('%m-%d %H:%M') if s.ended_at else 'open' }}</span>
+    {% if s.parent_session_id %}<span>parent
+      <a href="/session/{{ s.parent_session_id }}">{{ s.parent_session_id }}</a></span>{% endif %}
+  </div>
+</div>
+<div class="blk"><h4>Transcript · a pointer and a hash, never a blob</h4>
+  {% for t in transcripts %}
+  <div class="ln">{{ t.pointer }} <span style="opacity:.7">on {{ t.pointer_host }}</span><br>
+    sha256 {{ t.sha256[:16] }}… · {{ t.bytes }} bytes ·
+    {% if t.verified_at %}verified {{ 'OK' if t.verified_ok else 'FAILED' }}
+    {% else %}never verified{% endif %}</div>
+  {% else %}<div class="ln">no transcript indexed</div>{% endfor %}
+</div>
+<div class="blk"><h4>Child sessions</h4>
+  {% for k in kids %}
+  <div class="ln"><a href="/session/{{ k.id }}">{{ k.id }}</a> · {{ k.agent }}</div>
+  {% else %}<div class="ln">none</div>{% endfor %}
+</div>
+{% endblock %}

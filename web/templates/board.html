@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Board{% endblock %}
+
+{# THE PROJECT BOARD. Bus row 0436, `web/board.py` carries the reasoning.
+
+   THE ONE OVERRULED PROHIBITION. `web/MUST-NOT-BUILD.md` item 3 forbids Kanban in any room and
+   was overruled by Andrew on 2026-08-28 for a project board ONLY, against his own incident:
+   work he thought was resting ran eight terminals wide and the bill was the notification.
+
+   His condition is a requirement: A COLUMN IS A PROJECT STATE, AND MOVING BETWEEN COLUMNS CALLS A
+   REGISTERED TRANSITION WHOSE ARGUMENT IS THAT STATE. So there is no coordinate in this template.
+   A card is rendered inside the column named by `brain.project.state`, read live; the move is a
+   `<form class="act-form" method="post" action="/board/act">` carrying the room-scoped CSRF token
+   and the action that names the state. Turn the script off and every move still works, because
+   the form is the mechanism and the drag is a shortcut into it.
+
+   MACROS ARE DELIBERATELY NOT IMPORTED. `macros.html` is owned by lane B1 while it runs and this
+   template must not force an edit there, so the three hidden inputs `hidden()` would have written
+   are written out by hand below. That is a duplication of five lines and it is recorded here
+   rather than hidden: when B1's lane closes, this template should import `hidden` and drop them.
+
+   NO PROGRESS BAR, NO SCORE, NO COUNTER OF ANYTHING BUT OPEN WORK. `open_items` is here because
+   it is the denominator of the hold -- "this project is on hold" is a state and "and 14 items are
+   still open under it" is the measurement that says whether the hold did anything. #}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='board.css') }}">
+<script defer src="{{ url_for('static', filename='board.js') }}"></script>
+{% endblock %}
+
+{% block body %}
+<h1 class="bdh">Projects</h1>
+
+{# THE HONEST BANNER, and it is the first thing on the page when it applies. A board over a store
+   whose claim path does not read `brain.project.state` shows four columns that record an
+   intention and stop nothing, which is item 2's disabled-affordance failure arriving through the
+   door item 3's overrule was meant to close. Amber and not red: this is a store that is behind,
+   not a store that is broken. #}
+{% if not board.present %}
+<p class="bdwarn"><b>waiting</b> &middot; this store has no <code>brain.project</code> (migration
+  44), so it holds no projects and these four columns can hold nothing. The operator applies
+  <code>migrations/0044_a_project_is_a_row.sql</code>. Nothing on this page is a promise until
+  then.</p>
+{% elif not throttle.wired %}
+<p class="bdwarn"><b>waiting</b> &middot; a move on this store RECORDS AN INTENTION AND THROTTLES
+  NOTHING.
+  {% if not throttle.claim_path %}<code>engine/swarm_engine/transitions.py</code> has no
+  <code>_PROJECT_BUDGET_CTE</code> (task 0430).{% endif %}
+  {% if not throttle.schema %}This database has no <code>brain.work_item_project()</code>
+  (<code>budget/schema/0045_project_is_a_hold_scope.sql</code>).{% endif %}
+  Moving a project to hold here will not stop an agent claiming its work.</p>
+{% else %}
+<p class="bdok"><b>armed</b> &middot; a project outside <i>in progress</i> is withheld from the
+  claim path in SQL, in the same statement that locks the row
+  (<code>_PROJECT_BUDGET_CTE</code>), and an agent cannot move work out from under it
+  (migration&nbsp;46). Moving a card stops the spending.</p>
+{% endif %}
+
+{# THE COLUMNS ARE A PATCH REGION, and without this the board is the one room whose screen
+   CANNOT agree with the store. Found by the human-path audit on 2026-08-29, watched twice:
+   the drop POSTs 200 in 254ms, a correct banner shows for about nine seconds, and then the
+   card sits in its OLD column for the full twenty second observation, through nine poll
+   cycles. One reload fixes it, which is exactly the shape of a surface that has stopped
+   listening rather than one that got the wrong answer.
+
+   Two halves were missing and only one of them is here. This template declared NO
+   `data-region` at all, alone among the rooms, and `GET /api/patch/board` had no branch
+   in `app.py` so it answered `{"regions": {}}` forever. Either half alone still repaints
+   nothing.
+
+   It matters more here than anywhere else on the surface. This board is the guardrail the
+   operator asked for against a real bill, his eight terminals running for eight hours on a
+   project he believed was resting. A board that shows a project still in progress after he
+   moved it to hold tells him the exact thing that incident already cost him. #}
+<div class="bdcols" data-region="bdcols"><!--region:bdcols-->
+  {% for c in columns %}
+  <section class="bdcol tone-{{ c.tone }}" data-state="{{ c.state }}"
+           data-action="{{ 'project_resume' if c.state == 'in_progress' else 'project_' + c.state }}"
+           aria-label="{{ c.label }}">
+    {# THE STATE WORD IS THE SIGNAL AND THE COLOUR IS THE ECHO. Every column carries its word,
+       so nothing here rides colour alone. `hold`, `ice` and `blocked` are AMBER: red means
+       damage, and a project the operator parked on purpose is not damage. #}
+    <header class="bdhd">
+      <span class="bdword">{{ c.label }}</span>
+      <span class="bdn">{{ c.cards|length }}</span>
+    </header>
+    <p class="bdmean">{{ c.meaning }}</p>
+
+    <div class="bddrop" data-drop="{{ c.state }}">
+      {% for p in c.cards %}
+      <article class="bdcard" draggable="true" data-slug="{{ p.slug }}"
+               data-state="{{ p.state }}" tabindex="0">
+        <b class="bdtitle">{{ p.title }}</b>
+        <code class="bdslug">{{ p.slug }}</code>
+        <div class="bdmeta">
+          {# THE DENOMINATOR OF THE HOLD, on the card. A hold over zero open items stopped
+             nothing and the operator should read that here rather than discover it later. #}
+          <span>{{ p.open_items }} open</span>
+          <span>{{ p.active_items }} active</span>
+          <span>of {{ p.all_items }}</span>
+        </div>
+        {% if p.state != 'in_progress' %}
+        <div class="bdsince">since {{ p.state_changed_at.strftime('%Y-%m-%d %H:%M') }}Z by
+          {{ p.state_changed_by }}: {{ p.state_reason }}</div>
+        {% endif %}
+      </article>
+      {% else %}
+      <p class="bdempty">nothing {{ c.label }}</p>
+      {% endfor %}
+    </div>
+
+    {# THE VERB, WRITTEN OUT. The drag fills this form in; the form is what runs. It is a real
+       POST to the one write door with the room-scoped token, and it works with the script dead,
+       which is why the drop can be an affordance rather than a mechanism.
+
+       THE REASON IS REQUIRED IN BOTH DIRECTIONS and the field says so: `project_rest_has_a_
+       reason` refuses a resting project without one and migration 44's trigger refuses a resume
+       without one. A board that discovered that after the card had appeared to move would be
+       showing a state the store does not hold. #}
+    {% if board.present %}
+    <form class="act-form bdmove" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action"
+             value="{{ 'project_resume' if c.state == 'in_progress' else 'project_' + c.state }}">
+      <label class="bdlab" for="bdsel-{{ c.state }}">move a project to {{ c.label }}</label>
+      <select class="bdsel" id="bdsel-{{ c.state }}" name="id" required>
+        <option value="">choose a project</option>
+        {% for other in columns %}{% if other.state != c.state %}
+          {% for p in other.cards %}
+          <option value="{{ p.slug }}">{{ p.slug }} &mdash; from {{ other.label }}</option>
+          {% endfor %}
+        {% endif %}{% endfor %}
+      </select>
+      <input class="bdwhy" type="text" name="text" required maxlength="200"
+             placeholder="why? required, and it is the record">
+      <button class="bdgo" type="submit">Move to {{ c.label }}</button>
+    </form>
+    {% endif %}
+  </section>
+  {% endfor %}
+<!--/region:bdcols--></div>
+
+<p class="bdfoot">
+  {{ board.total }} project{{ '' if board.total == 1 else 's' }} on the board{% if board.archived %},
+  and {{ board.archived }} archived, which are off it and NOT gone: the row keeps who archived it
+  and why, <code>swarm project list</code> still prints them, and the claim path withholds their
+  work exactly as it withholds a held project's. Archiving is not cancelling{% endif %}.
+  A column is a state and a move is <code>project rest</code> or <code>project resume</code>,
+  the same two verbs <code>swarm project</code> calls. There is no ordering here and no handle to
+  make one: <code>MUST-NOT-BUILD</code> item 2 is kept. There is no rename either, and that is
+  measured rather than omitted &mdash; see <code>engine/swarm_engine/projects.py</code>.
+  Work items on this board are read only; moving work between projects is
+  <code>swarm project attach</code> and migration&nbsp;46 refuses it to every non-human
+  connection off a resting project.
+</p>
+{% endblock %}

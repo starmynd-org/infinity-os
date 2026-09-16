@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Queue{% endblock %} · runtime console</title>
+{# Theme before first paint, so a themed operator never gets a flash of the other one.
+
+   FIRST VISIT IS LIGHT (W3-UX-INFINITY, 2026-09-15, ALPHA-COMMANDER-2's R21). The locked Infinity
+   style guide says it in one line: "First visit: light, whatever the device says, with a saved
+   Light, Dark, System switch" (`the product factory repository`,
+   `docs/style-infinity/ANSWER-FOR-ANDREW.md`, locked by Andrew 2026-09-15 at 0d026cc). This
+   fallback said `dark` and predated that lock by a month (`72a04c0`, 2026-08-16), so it was never
+   a decision against the guide, it is a product that had not caught up with one.
+
+   THE INVERSION IS SYMMETRIC AND DELIBERATE: anything that is not exactly `dark` is now light,
+   where anything not exactly `light` used to be dark. The stored value space is closed to those
+   two words (`console.js:23-24` is the only writer and writes the toggle's own output), so nobody
+   who has already chosen a theme is moved by this. Only the visitor who has chosen nothing is,
+   and moving that visitor is the whole point.
+
+   ANDREW WAS WARNED AND ACCEPTED IT, in the lock's own "costs you will feel" list: "Light on first
+   visit lands on you: you work in dark, so your own next cold load is light until you set the
+   switch once."
+
+   THE SWITCH IS STILL TWO-WAY, NOT THREE. The locked line also asks for a System option, which
+   does not exist here yet; `console.js` toggles light against dark. That half is unbuilt and is
+   not claimed by this change.
+
+   `stack.html` CARRIES A SECOND COPY OF THIS SCRIPT and was changed in the same commit. Two
+   surfaces booting the theme from two copies of one expression is how they come to disagree;
+   `web/tests/test_first_visit_is_light.py` asserts the two copies stay identical. #}
+<script>(function(){var t={{ theme|tojson }};try{if(!t)t=localStorage.getItem('vd-theme')}catch(e){}
+document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');})();</script>
+{# Row 0383. Without this line every cold load asked for /favicon.ico and took a 404, so
+   the one surface meant to stay open all day had a blank tab and a console error on first
+   paint. An SVG favicon also carries its own light/dark rule, which an .ico cannot. #}
+<link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+<link rel="stylesheet" href="{{ url_for('static', filename='console.css') }}">
+<style>
+  .skip-link{position:fixed;top:.75rem;left:.75rem;z-index:1000;transform:translateY(-200%);
+    padding:.65rem 1rem;background:var(--bg-raised);color:var(--ink);border:2px solid var(--focus)}
+  .skip-link:focus{transform:translateY(0);outline:2px solid var(--focus);outline-offset:2px}
+</style>
+{# One extra head slot, added by row 0437 and empty in every template but one.
+   `web/static/terminal.css` cannot go in `console.css`: that file is row 0431's and
+   is being edited in parallel, and a `<link>` in the body is a flash of unstyled
+   grid on the one surface where the grid IS the content. #}
+{% block head %}{% endblock %}
+</head>
+{# V-SHELL-2 (task 0176). THE ONE ATTRIBUTE THAT TURNS THE ROOM ON. `console.css` has carried
+   `body.deep` rules since V10-E (`::selection` at :117, the in-room motion law at :664, image
+   arrival at :730) and the whole `--deep-*` token block at :99-112 -- and NOTHING HAS EVER SET
+   THIS CLASS. Measured before this line existed: `curl -H 'Cookie: io_deep=1' /queue` and a
+   plain `curl /queue` returned the identical `<body data-room="queue" data-since="1191">`. Every
+   one of those rules was dead. The material of DS section 6.2 is not new CSS on top of that; it
+   is this class plus the token rebinding under this lane's banner.
+
+   `{% if %}` rather than `class="{{ 'deep' if deep_on }}"`: an empty `class=""` in the other
+   mode is deep-work chrome sitting in the markup with nothing in it, which is the reverse
+   direction of q0146 that DS section 6.2 [V10-E] closes. #}
+<body{% if deep_on %} class="deep"{% endif %} data-room="{{ room }}" data-since="{{ since|default(0) }}">
+<a class="skip-link" href="#main-content">Skip to main content</a>
+
+<header><div class="hrow">
+  <a class="logo" href="/">Infinity<span>OS</span></a>
+  {# ------------------------------------------------------- THE DEEP HEADER (DS section 6.3)
+     V-SHELL-2, task 0176. THE FRAME CHANGES, NOT A PILL ON THE FRAME. DS 6.3: *"The rooms nav
+     is not rendered."* Deep work is one room, and a nav bar is a menu of interruptions. The
+     five rooms are still one click away -- the same click that leaves deep work honestly,
+     rather than a side door that leaves it silently.
+
+     WHAT HAPPENED TO THE OLD `deeppill`. It is SUPERSEDED, not kept beside this, and the class
+     name rides here because THIS ELEMENT IS THAT ELEMENT GROWN UP. The pill's job was "a state
+     word and a count, in the chrome, on every room" and that is three of the four things in
+     this header; DS 6.3 adds the `since` clock and the exit. Leaving both would put two counts
+     of the same number in one header row, which is worse than either. Two consequences worth
+     stating plainly:
+
+       1. `.deeppill` is what task 0171's acceptance harness selects to prove deep mode actually
+          engaged on an entry path (`verify_serverside_0171.py:424,461`) AND what its reverse
+          direction requires to be ABSENT outside deep work (:525). Both still hold literally,
+          and they hold because the succession is real -- not because the harness was edited to
+          accept new markup. Editing the acceptance test to pass would be the tolerance-widening
+          the whole lane exists to refuse.
+       2. Orange does NOT ride the class here. `.deeppill` paints brand orange (`console.css`
+          :467); DS 6.3 spends orange on `leave` and nowhere else in this room, so `.deephd`
+          takes it back in this lane's CSS section. The rendered header is `--deep-ink-3` mono
+          with exactly one accent element in it.
+
+     `since` is a FACT, NOT A SCORE (DS 6.3, B section 3.4 and MUST-NOT-BUILD #8): no target, no
+     streak, no praise, and an honest dash when the entry timestamp is absent rather than a zero
+     or a guess. `deep_since` is sanitised in `web/app.py`'s `_deep_state`.
+
+     THE COUNT (DS section 6.4) SURVIVES AND IS PROTECTIVE: it answers "when should I leave"
+     without converting curiosity into an exit. It repaints silently on the poll -- never
+     animated, never coloured. The in-room motion law that keeps that promise is one rule in
+     this lane's CSS section, not a promise made here.
+
+     AND UNTIL 2026-08-27 IT DID NOT REPAINT AT ALL. Row `0390`'s lane, measured at the wire:
+     the sentence above was the design's intent and `console.css`'s `.deephd .dhc{transition:
+     none;animation:none}` was written to keep its promise, but nothing here was a
+     `data-region`, so `GET /api/patch/<room>` never carried the count and the client had
+     nothing to swap. `web/app.py:_dispatch_state` states the fact from the other side -- *"the
+     header is not a patched region, so the poll would be paying for markup it never swaps"* --
+     and the two sentences could not both be true. Measured consequence: on a phone left on a
+     table under deep work, `N waiting` was frozen at page load for the life of the tab, which
+     is the one scenario `web/tests/test_phone.py` exists to check.
+
+     THE COUNT SPAN ALONE IS THE REGION, not this whole header, and the narrowness is the point
+     three times over: `#deepleave` is never replaced (its click is delegated on `document`
+     anyway, `console.js:639`), `since` and the exit do not change on the clock so their bytes
+     stay out of the comparison `console.js` makes, and `role="status"` above announces the one
+     thing that actually changed rather than re-reading the whole header on every tick.
+
+     IT COSTS NOTHING NEW. `_render_regions` already renders this template in full on every
+     poll, so `deep_count()` was already being computed twenty times a minute and thrown away.
+     The marker keeps what the render already paid for. #}
+  {% if deep_on %}
+  <div class="deephd deeppill" id="deephd" role="status">
+    <span class="dhw">deep work</span>
+    <span class="dhs">since {{ deep_since or '—' }}</span>
+    {# ONE LINE, and it has to be: `test_browser.py:deep_work_absolute` reads this element's
+       `textContent` against `/\d+ waiting/`, and a newline between the number and the word is a
+       newline in `textContent`. #}
+    <span class="dhc" data-region="deepcount"><!--region:deepcount--><b>{{ deep_count() }}</b> waiting<!--/region:deepcount--></span>
+    {# THE ONLY EXIT (DS section 3.4, B section 4.2). Not a button and not a JS control: a plain
+       link to this same URL with the mode off, so the door works with the script dead -- the
+       swap is then instant and complete, which is DS:301's "the animation is theater over the
+       state change, never the state change" read from the other end. `console.js` upgrades this
+       click into the 420ms choreography and writes the cookie AT INITIATION; if it never runs,
+       the server still ends the mode on the next response. No confirmation dialog, ever: a toll
+       on leaving teaches people not to enter. #}
+    <a class="dhleave" id="deepleave" href="{{ mode_href(deep=0) }}">leave&nbsp;&#9656;</a>
+  </div>
+  {% else %}
+  <nav class="rooms" role="tablist">
+    {# --------------------------------------------------------- INTAKE, AND ITS AMBER BADGE
+       Row 0438, his ask 7, lane D1 2026-08-30. MUST-NOT-BUILD item 7 -- unread counts, red
+       badges, notification inboxes -- was OVERRULED BY THE OPERATOR on 2026-08-28 for the
+       intake surface only, in his own words: *"I do want intake to have a badge and an unread
+       count."* Four conditions came with it and all four are in this element.
+
+       1. AMBER, NEVER RED. `.gate` is `--wait` in both palettes and nothing here touches
+          `--dmg`. The incident behind item 7 is a RED count that described things merely
+          waiting, and that item's own sentence is "Red means damage and nothing else, shell
+          wide, or there is no colour left for a thing that is actually broken." An unsorted
+          intake item is waiting on a human, which is literally what amber means here. THIS
+          DECISION SPENDS NONE OF THE DAMAGE COLOUR.
+       2. IT COUNTS ONLY WHAT IS WAITING ON HIM. `brain.objective` where `state = 'inbox'`,
+          which is the store's own word for "arrived and not yet sorted by a human". Not every
+          row, not everything unprocessed: a badge that fires on low-value intake trains him to
+          stop seeing it.
+       3. THE STATE CARRIES A WORD. Never a bare amber number -- the dispatch strip below is
+          written under the same rule and says so in its own comment.
+       4. NO BADGE ANYWHERE BUT INTAKE, and nothing else about item 7 is overruled: no
+          notification, no push, no sound. The 7am moment is still "open the page".
+
+       FIRST IN THE NAV, and that is a placement decision rather than a default. `.rooms`
+       scrolls horizontally on a phone (`overflow-x:auto`, console.css:167), so tab ten is off
+       the right edge at 390px -- and a badge he has to scroll sideways to find is a badge that
+       does not work. It costs no chrome: the tabs are one 44px line at every width and a tenth
+       tab lengthens a strip that already scrolls.
+
+       ZERO IS AN ABSENCE, not a `0` in a pill: a mode with nothing waiting advertises nothing,
+       which is the rule the dispatch strip below is already built on. `None` is not zero -- it
+       means the count could not be READ, and it renders as a badge that says so rather than as
+       a quiet "nothing arrived" (`web/model.py::intake_waiting_count` argues that at length).
+       Behind `not patch_only` for the strip's reason: the header is not a patched region, so
+       the three-second poll would pay for a count it throws away. #}
+    {# ============================================ FIVE TABS (D-INFINITY-UX-RULINGS-1, 2026-09-14)
+       Andrew's ruling amends MUST-NOT-BUILD item 11's nav order: Inbox, Work, Projects, Agents,
+       More, each opening its group, with the group's rooms on a second row below. The badge's
+       four conditions above are unchanged; it now rides the INBOX tab, first in the strip, which
+       is the placement the phone reason above asks for, and it repeats on Intake in the sub-row.
+       Chats and Terminal stay HELD: neither is linked here. Pinned by
+       `web/tests/test_five_tab_nav.py`. The ten-link strip below this comment is superseded. #}
+    {% if not patch_only %}{% set iw = intake_waiting() %}{% else %}{% set iw = 0 %}{% endif %}
+    {% set nav_groups = [
+         ('inbox', 'Inbox', '/attention/', [('attention', 'Attention', '/attention/'), ('intake', 'Intake', '/intake')]),
+         ('work', 'Work', '/queue', [('queue', 'Queue', '/queue'), ('table', 'The board', '/queue/table')]),
+         ('projects', 'Projects', '/board', [('board', 'Board', '/board')]),
+         ('agents', 'Agents', '/fleet', [('fleet', 'Fleet', '/fleet'), ('live', 'Live', '/live'), ('sessions', 'Sessions', '/sessions')]),
+         ('more', 'More', '/brief', [('brief', 'Brief', '/brief'), ('scope', 'Scope', '/scope'), ('study', 'Study', '/study')]),
+       ] %}
+    {% set here_path = request.path if request else '' %}
+    {% set ns = namespace(group=None) %}
+    {% for key, label, href, members in nav_groups %}
+      {% for mkey, mlabel, mhref in members %}
+        {% if (room == mkey and not (mkey == 'queue' and here_path == '/queue/table')) or (mkey == 'table' and here_path == '/queue/table') %}{% set ns.group = key %}{% endif %}
+      {% endfor %}
+    {% endfor %}
+    {% for key, label, href, members in nav_groups %}
+    <a class="room" role="tab" href="{{ href }}" data-nav-group="{{ key }}"
+       aria-selected="{{ 'true' if ns.group == key else 'false' }}">{{ label }}{% if key == 'inbox' %}{% if iw is none %}
+      <span class="gate">? waiting</span>{% elif iw %}
+      <span class="gate">{{ iw }} waiting</span>{% endif %}{% endif %}</a>
+    {% endfor %}
+  </nav>
+  {% for key, label, href, members in nav_groups if key == ns.group and members|length > 1 %}
+  <nav class="subrooms" aria-label="{{ label }} rooms">
+    {% for mkey, mlabel, mhref in members %}
+    {% set on = (mkey == 'table' and here_path == '/queue/table') or (room == mkey and not (mkey == 'queue' and here_path == '/queue/table')) %}
+    <a class="subroom" href="{{ mhref }}"{% if on %} aria-current="page"{% endif %}>{{ mlabel }}{% if mkey == 'intake' %}{% if iw is none %}
+      <span class="gate">? waiting</span>{% elif iw %}
+      <span class="gate">{{ iw }} waiting</span>{% endif %}{% endif %}</a>
+    {% endfor %}
+  </nav>
+  {% endfor %}
+  {% if false %}{# the superseded ten-link strip, kept out of the markup until its comments are retired #}
+  <nav>
+    <a class="room" role="tab" href="/intake"
+       aria-selected="{{ 'true' if room == 'intake' else 'false' }}">Intake{% if iw is none %}
+      <span class="gate">? waiting</span>{% elif iw %}
+      <span class="gate">{{ iw }} waiting</span>{% endif %}</a>
+    {# ATTENTION, SECOND, WITH ITS OWN ANCHOR RATHER THAN A LOOP ENTRY. PROVING-UX finding UX-008
+       (2026-09-12): no shell nav entry reached the Attention inbox, so `/attention/`, its
+       inspector and its preparation pages were unreachable by clicking
+       (`web/tests/test_every_route_is_reachable.py`, 3 of its 6 failures at 928e1db).
+
+       ITS OWN ANCHOR because the route is the blueprint root, `/attention/`
+       (`web/views/blueprint.py`). The loop below writes `/{{ r }}`, and `/attention` only
+       arrives there by redirect, which the crawl does not count as the route and a person
+       should not have to pay for.
+
+       SECOND, straight after Intake. Intake keeps first place for its badge's phone reason
+       above, and the operator's recorded nav order leads with Attention (MUST-NOT-BUILD item
+       11, amended 2026-09-08). That also puts it beside Queue, the older view UX-008 names, so
+       the two read as neighbours. At 390px the strip wraps rather than scrolls
+       (`console.css`, row 0432), so a tenth tab adds a line instead of hiding a room.
+
+       `room` is already 'attention' on every attention page, so aria-selected follows the same
+       rule as every other tab.
+
+       NOT ADDED HERE: Terminal and Chats. Terminal was removed from this nav as held (Platform
+       F7, a73398f), and both wait on a ruling. #}
+    <a class="room" role="tab" href="/attention/"
+       aria-selected="{{ 'true' if room == 'attention' else 'false' }}">Attention</a>
+    {% for r in ['queue','board','brief','fleet','scope','study','sessions','live'] %}
+    <a class="room" role="tab" href="/{{ r }}"
+       aria-selected="{{ 'true' if room == r else 'false' }}">{{ r|capitalize }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}{# end of the superseded ten-link strip #}
+  {# ------------------------------------------------- DEEP WORK IS ON AND DOES NOT APPLY HERE
+     Row `0415`'s sibling, caught 2026-08-31 by
+     `test_phone.py:the_mode_is_visible_on_the_tier_a_phone_lands_on`.
+
+     His ruling of 2026-08-31 says deep work does not apply to Decide, and `_deep_applies`
+     implements it: no `body.deep`, no header, no exit, the nav above renders normally. Right
+     about this SURFACE, and it left the STATE invisible. `io_deep` is a ONE-YEAR cookie, and
+     Decide is the tier this console lands on, so the mode could run for a year with nothing
+     naming it and no way to leave it from where he actually stands. The surprise then arrives
+     on Judge, one click away, with the nav and the cards gone.
+
+     WHY THIS IS NOT THE HEADER ABOVE, and why that argument is not being reversed. A header
+     saying `deep work` over a page rendering its nav, its chips and its run strip would be two
+     surfaces disagreeing about one mode. This does not claim the mode is running here. It says
+     the true thing -- ON, and NOT APPLIED ON THIS TIER -- which is one surface telling the
+     whole truth instead of two telling halves of it.
+
+     A STATE WORD AND AN EXIT, AND DELIBERATELY NO COUNT. DS section 6.4's count is protective
+     of a mode in progress ("when should I leave"); there is no deep work in progress here to
+     leave, so a number would be decoration. MUST-NOT-BUILD item 7 is untouched: no badge, no
+     unread, nothing amber. The exit is the SAME `mode_href(deep=0)` link the real header uses,
+     for the same reason -- it works with the script dead. #}
+  {% if deep_here %}
+  {# NOT `.deeppill`, AND THAT WAS MY FIRST MISTAKE HERE. The class is not decoration: task
+     0171's acceptance harness selects `.deeppill` to prove deep mode ENGAGED on an entry path
+     and requires it ABSENT outside deep work, and `test_browser.py:deep_work_is_legible_in_all_
+     five_rooms` requires every `.deeppill` to carry a count. This element is deliberately
+     neither -- the mode is not engaged on this tier and a count here would be decoration -- so
+     borrowing the class made two committed checks assert their contract against an element that
+     was never promising it. Both went red on 2026-08-31 and both were right. #}
+  <div class="deepoff" id="deepoff" role="status">
+    <span class="dhw">deep work</span>
+    <span class="dhs">on &middot; not applied on decide</span>
+    <a class="dhleave" href="{{ mode_href(deep=0) }}">leave&nbsp;&#9656;</a>
+  </div>
+  {% endif %}
+  {% endif %}
+  {# THE MODE PILL (DS section 3.2). Two segments, one control, at the right of the rooms nav,
+     in every room. Four states, and TWO OF THEM ARE ABSENCES:
+
+       deep on           -- not rendered. The deep header above replaces BOTH the nav and this
+                            pill (DS section 6.3). V-SHELL-1 left that branch deliberately empty
+                            naming this task; V-SHELL-2 (0176) filled it. The pill is not a
+                            second door out of deep work and must never become one: DS 3.4 says
+                            the only exit is `leave` in that header.
+       inside the stack  -- not rendered. `stack.html` does not extend this template at all, so
+                            the full-screen surface is frozen by construction and no rule here
+                            has to remember to suppress anything.
+
+     ABSENT FROM THE MARKUP, never `display:none`. Operator ruling q0146, 2026-08-18, against
+     four candidate exceptions: "one stylesheet regression, one specificity accident, one devtools
+     toggle, and a CSS-hidden element is on screen. A markup-absent one cannot come back."
+     `dispatch_on` is already false under deep work (`web/app.py`, `_dispatch_state`), so the
+     strip below obeys the same rule through the same flag. #}
+  {% if not deep_on %}
+  <div class="modepill" id="modepill" role="group" aria-label="mode">
+    <a class="modeseg{{ ' on' if dispatch_on }}" id="seg-d" href="{{ dispatch_href() }}"
+       {% if dispatch_on %}aria-current="true"{% endif %}>Dispatch</a>
+    <span class="modesep" aria-hidden="true">·</span>
+    {# Ends Dispatch and opens the door. The STATE change is here because it is the mode
+       contract; the 560ms staged door and the `leave ▸` exit are DS section 3.4/6.3 and belong
+       to V-SHELL-2. Entering deep from here clears `io_dispatch` on this very response. #}
+    <a class="modeseg" id="seg-w" href="{{ mode_href(deep=1) }}">Deep work</a>
+  </div>
+  {% endif %}
+  {# THE THEME CONTROL LIVES IN THE HEADER ROW (A4 INFINITY-STREAMLINE, STREAMLINE item 10,
+     2026-09-14). It was `position:fixed` at the foot of the viewport and sat over cards at 375
+     (measured in STILLS\attention-inbox__375__dark.png). Same id, same `console.js` binding, in
+     every mode; in the sticky header it is always reachable and covers nothing. #}
+  <button class="themebtn" id="tb" type="button">theme</button>
+</div>
+{# THE THRESHOLD LINE (DS section 3.4, B section 4.3 and section 9). One `aria-live` line under
+   the header, announced once per crossing at the end of the 560ms door and then held.
+
+   IT SHIPS EMPTY AND `console.js` WRITES IT AT 560ms. That is what makes the announcement a
+   CROSSING rather than a page property: the region has to exist before its text arrives or a
+   polite live region does not announce at all, and if the words were server-rendered every
+   three-second poll and every navigation inside deep work would re-announce a mode the operator
+   has been in for an hour. Empty container inside the deep branch, words written once.
+
+   WHAT IT DOES NOT SAY, AND WHY. DS section 3.4 spells this line `Deep work. Nothing will reach
+   you.` and immediately makes it "subject to the honesty condition in section 8". Section 8
+   (DS:528-538) is a PENDING OPERATOR DECISION -- deep work either becomes real system state that
+   narrows the pager, or it is accepted as visual-only -- and it closes with the interim rule for
+   implementers in as many words: *"the dishonest middle -- muted room, live pager, no label --
+   is ruled out either way. Until he decides, implementers ship the honest label, not the
+   promise."* Under the visual-only branch it goes further: *"section 3.4's threshold line
+   `Nothing will reach you.` must not ship."* Today deep work is a console cookie and no paging
+   policy reads it, so the second sentence is a promise this system cannot keep. THE SECOND
+   SENTENCE IS NOT EMITTED. `console.js` writes `Deep work.` and stops there. When the operator
+   answers section 8, the sentence to restore lives in one string in this lane's JS section. #}
+{% if deep_on %}
+<div class="deepsay" id="deepsay" role="status" aria-live="polite"></div>
+{% endif %}
+{# THE DISPATCH STRIP (DS section 4.1). One pinned line under the header, in every room, while
+   the mode is on AND items remain. A COUNT MAY APPEAR ANYWHERE; CARDS MAY NOT -- so this is
+   counts and verbs and never an item title, exactly as the deep pill above is.
+
+   The third state is an absence again: mode on, stack empty, NO STRIP. A mode with nothing to
+   resume advertises nothing; the pill still shows the place.
+
+   `not patch_only` is a cost guard and not a rendering rule: the header is not a `data-region`,
+   so the three-second poll re-renders this markup and then throws it away. Behind that guard the
+   strip's queue read happens on full renders only. If a lane ever makes the header a patched
+   region, this guard is what it has to remove. #}
+{% if dispatch_on and not patch_only and dispatch_count() %}
+{% set dx = dispatch_extra() %}
+<a class="dstrip" id="dstrip" href="/queue/stack?from=decide" aria-label="resume dispatch">
+  <span class="dsg" aria-hidden="true">▶</span>
+  <span class="dsw">dispatch</span>
+  <span class="dsc rem"><b>{{ dispatch_count() }}</b><span class="w"> remaining</span></span>
+  {# Amber, and never a bare amber number: the count carries the word it is counting. #}
+  {% if dx.burning %}
+  <span class="dsc bn"><b>{{ dx.burning }}</b><span class="w"> burning</span></span>
+  {% endif %}
+  {% if dx.waiting %}
+  <span class="dsc opt"><b>{{ dx.waiting }}</b><span class="w"> agent{{ '' if dx.waiting == 1
+    else 's' }} waiting</span></span>
+  {% endif %}
+  <span class="go">resume ▸</span>
+</a>
+{% endif %}
+</header>
+
+{# ------------------------------------------------ THE CELEBRATION HOSTS (task 0235)
+   TWO NODES, ABSENT FROM THE MARKUP UNDER DEEP WORK, and the reason is the same reason
+   the rooms nav and the mode pill are absent above rather than hidden. `#celebrate` is the
+   receipt host the poller fills and `<canvas id="cf">` is a full-viewport surface
+   `console.js` sizes to `innerWidth/innerHeight` and paints with `requestAnimationFrame`.
+   Neither is an interruption today only because the poller happens to find nothing worth
+   drawing; MUST-NOT-BUILD #9 and DS section 6.1 are about what SHIPS, not about what
+   paints. A node in the DOM is read by assistive tech and is one line of JS away from a
+   burst across the reading surface.
+
+   NOT `display:none`, under the same q0146 ruling quoted at the mode pill above: all four
+   candidate exceptions were counted as violations and the stricter reading stands. Measured
+   before this branch existed, on all six surfaces with `Cookie: io_deep=1`: 26 bytes of
+   `#celebrate` and 25 bytes of `canvas#cf` in every one of them.
+
+   THE POLLER IS GUARDED IN THE SAME CHANGE, not left to fall through on a null lookup.
+   `console.js` ran `setInterval(celebrate, POLL_MS)` unconditionally, so deep work still
+   asked `/api/celebrate` every three seconds what there was to celebrate. Absenting the
+   host without stopping the ask would leave the mode's promise resting on code order. #}
+<main class="shell" id="main-content" aria-label="Main content" tabindex="-1">
+  <div id="saybar"></div>
+  {% if not deep_on %}
+  <div id="celebrate"></div>
+  {% endif %}
+  {% block body %}{% endblock %}
+</main>
+
+{# No page footer (D-INFINITY-UX-RULINGS-1, 2026-09-14): the served commit is read at
+   GET /api/health and in the X-Console-Commit header, not repeated under every room. #}
+
+{% if not deep_on %}
+<canvas id="cf"></canvas>
+{% endif %}
+<script src="{{ url_for('static', filename='console.js') }}"></script>
+<script>
+(function(){
+  var header=document.querySelector('body > header');
+  var main=document.getElementById('main-content');
+  var skip=document.querySelector('.skip-link');
+  function clearHeader(){main.style.scrollMarginTop=(header.getBoundingClientRect().height+8)+'px';}
+  clearHeader();
+  skip.addEventListener('click',clearHeader);
+  if(window.ResizeObserver)new ResizeObserver(clearHeader).observe(header);
+})();
+</script>
+</body>
+</html>

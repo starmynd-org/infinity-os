@@ -1,0 +1,143 @@
+#!/usr/bin/env python3
+"""Attach, list, verify and detach images from a terminal. A SECOND SURFACE, NOT A SECOND DOOR.
+
+Every write here is `store.apply` on one of the five verbs `web/images.py` registers -- the same
+five the console reaches through `web/rooms.py::dispatch`. There is no SQL in this file and there
+is no connection in this process that would accept any: `store.read()` hands out a session
+Postgres has put in READ ONLY mode. That is the narrow waist working, and this file exists partly
+to prove it: a lane whose only caller is its own UI has not demonstrated the property.
+
+    web/bin/image attach <subject_type> <subject_id> <path> [--by NAME] [--human]
+    web/bin/image show <subject_type> <subject_id>
+    web/bin/image verify [--all]
+    web/bin/image detach <attach_id> [--by NAME]
+    web/bin/image discard <attach_id> [--by NAME]
+
+`verify` is the one worth a cron: it re-stats and re-hashes every attached image and exits
+NON-ZERO if any of them is missing, changed or unreadable. A finding nobody looks at is a
+finding that has not been made, and `--all` prints the healthy ones too so the count of what was
+checked is visible beside the count of what failed -- V00's rule about asserting the number of
+things compared, not just the result.
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+for _p in (str(ROOT), str(ROOT / "engine"), str(ROOT / "queue")):
+    if _p not in sys.path:
+        sys.path.insert(0, _p)
+
+from web import images                                                # noqa: E402
+import store                                                          # noqa: E402
+
+
+def cmd_attach(a) -> int:
+    try:
+        out = images.attach(a.subject_type, a.subject_id, a.path, by=a.by,
+                            actor_type="human" if a.human else "ai",
+                            as_operator=bool(a.human))
+    except images.AttachFailed as exc:
+        # NON-ZERO, and the row is already `failed`. A CLI that printed a warning and exited 0
+        # here would be the swallow this lane is built to refuse.
+        print(f"attach FAILED at {exc.stage} · nothing was recorded", file=sys.stderr)
+        print(f"  attempt {exc.attach_id}: {exc}", file=sys.stderr)
+        return 2
+    except images.ImageError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return 3
+    print(f"{out['attach_id']}  {out['name']}  {out['bytes']} bytes  "
+          f"sha {out['sha256'][:7]}  on {out['pointer_host']}  ({out['elapsed_s']}s)")
+    print(f"  {out['pointer']}")
+    return 0
+
+
+def cmd_show(a) -> int:
+    img = images.for_subject(a.subject_type, a.subject_id)
+    if not img:
+        print(f"{a.subject_type} {a.subject_id} carries no image.")
+        return 0
+    print(f"{img['attach_id']}  state {img['state']}  row {img['row_state']}")
+    print(f"  {img['name']} · {img['size']} · sha {img['sha_short'] or '-'} · "
+          f"on {img['pointer_host'] or img['requested_host']}")
+    finding = images.finding_text(img)
+    if finding:
+        print("  " + finding)
+    return 0 if img["state"] == "ok" else 1
+
+
+def cmd_verify(a) -> int:
+    with store.read() as s:
+        rows = s.query("SELECT * FROM brain.image_attachment WHERE state = 'attached' "
+                       " ORDER BY id")
+    bad = 0
+    for r in rows:
+        img = images.render_fields(r)
+        if img["state"] == "ok":
+            if a.all:
+                print(f"ok        {img['attach_id']}  {img['name']}  {img['size']}  "
+                      f"sha {img['sha_short']}")
+            continue
+        bad += 1
+        print(f"{img['state'].upper():<9} {img['attach_id']}  {images.finding_text(img)}")
+    # THE COUNT OF THINGS COMPARED, not just the result. v1's restore verifier printed
+    # RESTORE VERIFIED after comparing one table of twenty.
+    print(f"\n{len(rows)} attached image(s) re-hashed, {bad} finding(s).")
+    return 1 if bad else 0
+
+
+def cmd_detach(a) -> int:
+    out = images.detach(a.attach_id, by=a.by)
+    print(f"pointer removed, file kept · {out['pointer']} stays on {out['pointer_host']}")
+    return 0
+
+
+def cmd_discard(a) -> int:
+    images.discard(a.attach_id, by=a.by)
+    print(f"failed attach {a.attach_id} discarded · nothing was ever recorded, and the attempt "
+          f"row stays")
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(prog="image", description=__doc__.splitlines()[0])
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    at = sub.add_parser("attach")
+    at.add_argument("subject_type", choices=images.SUBJECT_TYPES)
+    at.add_argument("subject_id")
+    at.add_argument("path")
+    at.add_argument("--by", default=os.environ.get("SWARM_AGENT", ""))
+    at.add_argument("--human", action="store_true",
+                    help="this is the operator's own attach; opens the operator's database login")
+    at.set_defaults(fn=cmd_attach)
+
+    sh = sub.add_parser("show")
+    sh.add_argument("subject_type", choices=images.SUBJECT_TYPES)
+    sh.add_argument("subject_id")
+    sh.set_defaults(fn=cmd_show)
+
+    ve = sub.add_parser("verify")
+    ve.add_argument("--all", action="store_true", help="print the healthy ones too")
+    ve.set_defaults(fn=cmd_verify)
+
+    de = sub.add_parser("detach")
+    de.add_argument("attach_id")
+    de.add_argument("--by", default=os.environ.get("SWARM_AGENT", ""))
+    de.set_defaults(fn=cmd_detach)
+
+    di = sub.add_parser("discard")
+    di.add_argument("attach_id")
+    di.add_argument("--by", default=os.environ.get("SWARM_AGENT", ""))
+    di.set_defaults(fn=cmd_discard)
+
+    a = p.parse_args()
+    return a.fn(a)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

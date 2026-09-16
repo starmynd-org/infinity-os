@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Sessions{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='study-sessions.css') }}">{% endblock %}
+{% block body %}
+{# SESSIONS CALLS ZERO VERBS, the same way Study does and enforced the same way:
+   `ROOM_VERBS['sessions']` is an empty frozenset, and the allowlist test dispatches every verb
+   registered anywhere in the runtime against this room and asserts each is refused before
+   `store.apply` is entered. A surface that cannot act cannot bias the thing it is reporting on,
+   which matters more here than anywhere: this room's whole job is to be believed.
+
+   NO PROGRESS BARS, ANYWHERE ON THIS PAGE. MUST-NOT-BUILD item 4 permits exactly one exception
+   in the whole console and it is the run-the-stack pips. A coverage percentage is precisely the
+   shape that wants to be a filled bar, and a filled bar is the thing that makes 93.8 percent feel
+   finished. Numbers with their denominators, and nothing that fills up. #}
+<div class="ro">Sessions · read only. This surface calls zero verbs, enforced server side. It
+  reports what has been logged and what has not, and it is the only screen in the console whose
+  denominators come from the disk rather than from the store.</div>
+
+<div data-region="sessions"><!--region:sessions-->
+
+{% if s.refused %}
+{# Trap 2. A refused report is not a zero report. Rendering 0 where the answer is `unknown` is the
+   exact lie this room was built against, so the reason is printed and no count is invented. #}
+<div class="blk"><h4>Coverage not read</h4>
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> withheld ·
+    no number is shown, on purpose</div>
+  <p>{{ s.refused }}</p>
+</div>
+{% else %}
+
+<div class="blk"><h4>What is logged</h4>
+  <div class="ln">sessions <b>{{ s.sessions_total }}</b>
+    {%- for role, n in s.by_role.items() %} · {{ role }} <b>{{ n }}</b>{% endfor %}</div>
+  <div class="ln">transcripts <b>{{ s.pointers }}</b> · <b>{{ s.mib }}</b> MiB
+    {%- for h, n in s.by_harness.items() %} · {{ h }} <b>{{ n }}</b>{% endfor %}</div>
+  <div class="ln">pointer and hash only. <b>No conversation is copied into the store</b>: a
+    transcript row carries the path, a sha256, a byte count and a line count, so the store can
+    prove a file is unchanged without ever holding what it said.</div>
+  <div class="ln">projects root <b>{{ s.root }}</b> · host <b>{{ s.host }}</b></div>
+</div>
+
+{# ------------------------------------------------------------------ THE DOOR, row D2, 2026-08-29
+   THE COUNT ABOVE HAD NOTHING BEHIND IT. Measured on the human path audit of 2026-08-29: this
+   room reported `sessions 1763 - main 964 - subagent 799` and `transcripts 1748 - 1731.4 MiB`,
+   and every distinct href on it was a room tab, the logo, the deep-work toggle or a static file.
+   `/session/<sid>` is a real route that renders the row, its transcripts and its subagents, and
+   **0 of 1763 sessions could be reached by clicking**. That is defect `0412`'s shape exactly: a
+   card that names a thing and does not link to it.
+
+   THE OPERATOR'S ASK IS WHAT MAKES IT A DEFECT RATHER THAN A MISSING NICETY. He asked for *proof
+   that all terminal conversations are being logged properly*. A count is proof that a number
+   exists. Opening one is the proof.
+
+   IT IS A DOOR AND NOT A BROWSER. Twelve rows, newest first, with the total printed beside them.
+   There is no page two and this page does not pretend there is one: `web/sessions.py::RECENT_N`
+   carries the reason. The full list is `ingest coverage`, which is already named on this page.
+
+   THE ID IS SHORTENED AND THE WHOLE OF IT IS ON THE ELEMENT. A session id is a uuid, and a uuid
+   in a table cell at 375px is horizontal scroll on the surface the operator says his morning
+   happens on. The short form is the link text, the full id is the `title`, and the rounding is
+   never in the direction of losing information: the same trade `age_words` makes in `macros.html`
+   and for the same reason. Measured after this block: 0px of horizontal overflow at 375 and 390,
+   and 0 controls under the 44px tap floor. #}
+<div class="blk"><h4 id="recent-sessions-heading">Open one, and see for yourself</h4>
+  {% if s.recent.why %}
+  {# Trap 2 again, one table further along: a read that failed is not a corpus that is empty. #}
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> withheld ·
+    {{ s.recent.why }}</div>
+  {% elif s.recent.rows %}
+  <p class="doc-scroll-hint" id="recent-sessions-hint">Scroll horizontally for every column.
+    The session column stays visible.</p>
+  <div class="doc-scroll" role="region" aria-labelledby="recent-sessions-heading"
+       aria-describedby="recent-sessions-hint" tabindex="0">
+  <table class="tbl doc-wide doc-recent">
+    <tr><th class="doc-key">session</th><th>role</th><th>started</th><th>where</th></tr>
+    {% for r in s.recent.rows %}
+    <tr>
+      {#- NO `opacity` ON ANY OF THESE CELLS, AND THAT IS A MEASUREMENT RATHER THAN A PREFERENCE.
+          They were written as `opacity:.75`, copying the two blocks below, and measured in the
+          LIGHT theme with the opacity folded into the colour they came out at **3.54:1 against
+          the 4.5 AA floor**; dark was 4.99:1 and passed, which is how a light-only failure hides.
+          `table.tbl td` is `--ink-2`, which B1 measured at 5.78:1 light and 8.71:1 dark, so the
+          secondary weight this column wants is already in the token and the opacity was spending
+          contrast to say something the colour had said. -#}
+      <td class="doc-key"><a href="/session/{{ r.id }}" title="{{ r.id }}">{{ r.id[:8] }}</a></td>
+      <td>{{ r.role or 'unset' }}{{ ' · ' ~ r.harness if r.harness }}</td>
+      <td>{{ r.started_at.strftime('%m-%d %H:%M') if r.started_at
+        else 'no start time' }}{% if not r.ended_at %} · no end observed{% endif %}</td>
+      <td style="word-break:break-all">{{ r.workdir or r.agent or '' }}</td>
+    </tr>
+    {% endfor %}
+  </table>
+  </div>
+  {# THE DENOMINATOR HERE IS THE DOOR'S OWN AND NOT THE ONE ABOVE, and the difference is a real
+     defect this block found rather than a subtlety. `s.sessions_total` is read by
+     `ingest coverage`, a subprocess that resolves its database from `BRAIN_DB` and defaults it to
+     `brain`; this console resolves its own from `BRAIN_PG_DB`. Nobody sets the first, so on any
+     console not attached to live the two numbers are counts of two different corpora. Printing
+     `12 of 1764` over twelve rows drawn from a store holding fourteen would be this room
+     committing the exact error it was built to end. So the door states what it is twelve OF, and
+     when the two disagree it names both databases instead of choosing one. #}
+  <div class="ln" style="border:0">the newest <b>{{ s.recent.rows|length }}</b> of
+    <b>{{ s.recent.total }}</b> session row{{ '' if s.recent.total == 1 else 's' }} in
+    <b>{{ s.recent.db }}</b>, by start time. There is no page two here: the whole list is
+    <code>ingest coverage</code>. A session with no observed end is not a lost session, it is one
+    whose end hook did not fire.</div>
+  {% if s.recent.total is not none and s.recent.total != s.sessions_total %}
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>the count above and
+    this list are reading two different databases.</b> `sessions {{ s.sessions_total }}` comes
+    from <code>ingest coverage</code>, which connects to <b>{{ s.recent.ingest_db }}</b> through
+    `BRAIN_DB`; this console is attached to <b>{{ s.recent.db }}</b> through `BRAIN_PG_DB`, which
+    holds {{ s.recent.total }}. On a console attached to the live store the two names are the same
+    and this line does not appear. Neither number is wrong; they answer different questions.</div>
+  {% endif %}
+  {% else %}
+  <div class="ln">No session row exists in <b>{{ s.recent.db }}</b>, the database this console is
+    attached to, so there is nothing here to open. That is not the same as nothing being logged:
+    the <b>{{ s.sessions_total }}</b> above is read by <code>ingest coverage</code> against
+    <b>{{ s.recent.ingest_db }}</b>, and those are two different databases whenever the two names
+    differ.</div>
+  {% endif %}
+</div>
+
+<div class="blk"><h4>The re-hash sweep</h4>
+  {# READ FROM THE STORE, NOT FROM SYSTEMD, and the reason is a mistake made on this page.
+     `systemctl --user show` answered `Result=success` for a unit that had crashed on every run,
+     because the user manager had restarted and holds no record of a unit this boot never ran.
+     A `verified_at` is written only by a sweep that got far enough to write one. #}
+  {% if not s.sweep.known %}
+  <div class="ln"><span class="sdot" style="background:var(--wait)"></span> unknown ·
+    {{ s.sweep.why }}</div>
+  {% else %}
+  <div class="ln"><span class="sdot" style="background:var(--{{ s.sweep.state }})"></span>
+    <b>{{ s.sweep.word }}</b> · last landed
+    <b>{% if s.sweep.last %}{{ s.sweep.last }}{% else %}never{% endif %}</b>
+    {% if s.sweep.hours %}· <b>{{ s.sweep.hours }}</b> hours ago{% endif %}</div>
+  {% if s.sweep.stale %}
+  <div class="ln">Every verified count below is <b>as of that date</b> and not as of now. The
+    sweep runs daily, so anything past 48 hours means the mechanism is not working rather than
+    that a run was missed.</div>
+  {% endif %}
+  {% endif %}
+</div>
+
+<div class="blk"><h4 id="coverage-heading">Coverage, every number against its denominator</h4>
+  {# THE WHOLE POINT OF THE ROOM IS THE SECOND COLUMN. Study renders `transcripts 1634 (1292
+     verified)`, which counts rows that exist, so a file the index never saw cannot appear on it
+     at any value. Row 0424. Every line below states what it is out of. #}
+  <p class="doc-scroll-hint" id="coverage-hint">Scroll horizontally for every column.
+    The measure column stays visible.</p>
+  <div class="doc-scroll" role="region" aria-labelledby="coverage-heading"
+       aria-describedby="coverage-hint" tabindex="0">
+  <table class="tbl doc-wide doc-coverage">
+    <tr><th class="doc-key">measure</th><th>count</th><th>of</th><th>state</th></tr>
+    {% for r in s.rows %}
+    <tr>
+      <td class="doc-key">{{ r.k }}</td>
+      <td><b>{{ r.n }}</b>{% if r.pct is defined and r.pct is not none %}
+          <span style="opacity:.7">{{ r.pct }}%</span>{% endif %}</td>
+      <td style="opacity:.7">{{ r.of }}</td>
+      <td><span class="sdot" style="background:var(--{{ r.state }})"></span> {{ r.word }}</td>
+    </tr>
+    <tr><td colspan="4" style="opacity:.75;font-size:.72rem;padding-bottom:.5rem">{{ r.note }}</td></tr>
+    {% endfor %}
+  </table>
+  </div>
+  <div class="ln" style="border:0">Red is damage and nothing else, shell wide. `on disk, not
+    indexed` stays amber because it has a floor of live sessions. The verification rows are red
+    only while the sweep is down: a backlog is amber when something is draining it and red when
+    nothing is.</div>
+</div>
+
+{% if s.sample %}
+<div class="blk"><h4>On disk, not indexed: {{ s.sample_of }} file{{ '' if s.sample_of == 1 else 's' }}</h4>
+  {# Named, not counted. A count alone is unactionable and a count is what let this sit unseen. #}
+  <p>Read this list before treating it as a defect list. Every session open right now appears
+    here, because the hook indexes at SessionEnd. Roughly one line per open terminal is expected
+    and is not a gap.</p>
+  <table class="tbl doc-fit">
+    <tr><th>path</th></tr>
+    {% for p in s.sample %}<tr><td style="font-size:.7rem">{{ p }}</td></tr>{% endfor %}
+  </table>
+  {% if s.sample_of > s.sample|length %}
+  <div class="ln" style="border:0">showing {{ s.sample|length }} of {{ s.sample_of }}. The full
+    list is <code>ingest coverage</code>, which is where this page reads from.</div>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="blk"><h4>What this page does not claim</h4>
+  {# The honesty section. Every other surface in this repo carries one and this room needs it
+     most, because a proof surface that overstates its own reach is worse than no proof surface. #}
+  <div class="ln">These are <b>this host's</b> transcripts. A pointer stored against another host
+    is counted separately and is never reported as dead just because this machine cannot see the
+    file.</div>
+  <div class="ln">Sessions with an observed end:
+    <b>{{ s.ended_observed.n }}</b> of <b>{{ s.ended_observed.of }}</b>. A session with no end is
+    not a lost session: its transcript is indexed either way. It means the end hook did not
+    fire, so <b>duration is unknown for the rest</b> and no duration is shown anywhere here.</div>
+  <div class="ln">Transcripts linked to a session row:
+    <b>{{ s.linked.n }}</b> of <b>{{ s.linked.of }}</b>. An unlinked transcript is stored and
+    hashed; what is missing is the session it belonged to.</div>
+  <div class="ln">This page reports <b>capture</b>, not content. It cannot tell you a
+    conversation was useful, only that it exists, is where it says it is, and has not
+    changed under the index.</div>
+</div>
+
+{% endif %}
+</div><!--/region:sessions-->
+{% endblock %}

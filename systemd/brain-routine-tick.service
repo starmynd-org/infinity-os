@@ -1,0 +1,37 @@
+[Unit]
+Description=One pass over due routines: dispatch each due slot exactly once
+Documentation=file://@REPO@/systemd/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+# ONE PASS AND THEN THE PROCESS EXITS. This is the whole scheduler, and it is a `oneshot` on
+# purpose: a resident scheduler would be a second thing with an opinion about what time it is,
+# which is the "no second source of truth" failure `PLAN.md` spends most of its rules preventing,
+# and it would also be a process that can be alive and not ticking, which is the supervision
+# failure `brain-health` exists for and would then have to grow a fourth check. A oneshot that
+# does not run is a timer that did not fire, and `systemctl --user list-timers` says so.
+#
+# The tick reads Postgres, so it must not run before Postgres answers. Same gate, same 120s, and
+# the same reason as brain-console.service and brain-transcript-verify.service: on a WSL start the
+# store unit is still waiting on dockerd and then on crash recovery.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+
+# `--fire` IS TYPED HERE, VISIBLY, AND THAT IS THE DESIGN. `swarm routine tick` with no flag is a
+# DRY RUN, for the reason queue/human_queue/checkpoints.py states about its own firing path: "a
+# scheduler that fires by default is one typo away from deciding the operator's open questions
+# during a test run". The one place in this system that actually dispatches unattended says so in
+# one word a reader of this file can see, rather than inheriting it from a default nobody can.
+ExecStart=/usr/bin/python3 @REPO@/engine/bin/swarm routine tick --fire
+
+# Letting the unit go `failed` is the point, exactly as in brain-health.service and
+# brain-transcript-verify.service. `swarm routine tick` exits non-zero ONLY when a routine
+# REFUSED: a tick with nothing due exits 0, because nothing due is a successful tick and a timer
+# that goes red every five minutes is a timer nobody reads. The refusals worth going red for are
+# `post` rejecting a routine's workdir and a parent that stopped resolving, and both of those are
+# a broken routine that will keep refusing until a hand disables it, which is exactly the case
+# `systemctl --user --failed` should name.
+StandardOutput=journal
+StandardError=journal

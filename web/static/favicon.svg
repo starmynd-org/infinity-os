@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Infinity OS console">
+  <!-- Row 0383, 2026-08-27. Every cold load of this console requested /favicon.ico and got a
+       404: one console error on first paint in every fresh browser context, and a blank glyph
+       in the tab strip of the one surface the operator is meant to keep open all day.
+
+       THREE BARS, DECREASING, WHICH IS THE QUEUE'S OWN SHAPE: Decide, Judge, Shape, in that
+       order and in that proportion. Not a logotype and not a mark anyone has to learn.
+
+       NO BRAND ORANGE. `console.css` deoranged the wordmark on purpose (orange is reserved for
+       operator causality and a wordmark is not causality), and a favicon is the wordmark's
+       smallest form. Ink on paper, and the media query flips it for a dark browser chrome, so
+       the tab reads in both. An SVG favicon carries its own theme; an .ico cannot. -->
+  <style>
+    .g { fill: #FFFFFF }
+    .b { fill: #1F2124 }
+    @media (prefers-color-scheme: dark) { .g { fill: #191919 } .b { fill: #EDEDEC } }
+  </style>
+  <rect class="g" width="32" height="32" rx="7"/>
+  <rect class="b" x="6"  y="8"  width="20" height="4" rx="2"/>
+  <rect class="b" x="6"  y="14" width="14" height="4" rx="2"/>
+  <rect class="b" x="6"  y="20" width="8"  height="4" rx="2"/>
+</svg>

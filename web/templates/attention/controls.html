@@ -1,0 +1,268 @@
+{# The per-row act controls for the Attention inbox, and the sentence a row gets INSTEAD of one.
+   Packet ATT-1d, author A3, 2026-09-10. Measured against
+   `_system/attention/RECEIPT-EXPECTATIONS-2026-09-10.md` (E7, E10, E11).
+
+   SIX RULES LIVE IN THIS FILE AND ALL SIX ARE LOAD-BEARING. (This line read THREE while four
+   were written below it, from the commit that added rule 4; a header count nobody re-counts is
+   how the file next to it ends up wrong too, so it is repaired here rather than left. Packet
+   ATT-1o added rules 5 and 6 and re-counted at the same time, for the same reason.)
+
+   1. EVERY FORM POSTS TO `/attention/act` AND NOWHERE ELSE. That is the one write door
+      (`web/app.py::act`, `@app.post("/<room>/act")`), which runs `guard.guard_write`, then
+      `rooms.assert_room_can_act`, then `_perform`. There is no second route, no direct store
+      call in `web/views/**`, and no write in a template. E7 is a test over the rendered page
+      and over this package's imports, not a promise made here.
+
+   2. THE CLASS IS `att-act` AND DELIBERATELY NOT `act-form`. `web/static/console.js:250` binds
+      every `form.act-form`, and on success it shows a nine-second toast and calls `patch()`.
+      `/api/patch/attention` falls through to the `else` branch and answers `{"regions": {}}`, so
+      on THIS page that binding would remove nothing, swap nothing and leave a receipt that
+      expires in nine seconds -- which is the timer E2 forbids. This page states its own receipt,
+      in the template's own script, and `console.js` is not edited to make that true.
+
+   3. A ROW WITH NO ACT SAYS SO, IN THE WORDS OF WHAT IS MISSING (E10, and R36's rule from the
+      term-2 handoff). A `recommendation` renders no control because the verbs that decide one
+      are not in this room; the row says that, and says where the act lives. An unreadable row
+      renders no control because its content was never indexed for this reader. `dismiss` appears
+      nowhere in this file, as a word or as a control.
+
+   4. EVERY ACT FORM CARRIES ITS ROW'S OWN INSPECTOR in `data-att-inspect`, rendered server-side
+      by `url_for('attention.inspect', item_id=item.item_id)`. That is E6-as-amended's requirement:
+      packet ATT-1f (author A5) put it on the `done` form, and packet ATT-1h (author A6,
+      2026-09-10 23:0xZ) widened it to every act form so that `reopen` and `unaccept work` stripes --
+      posted by forms this page BUILDS rather than forms the server rendered -- can carry the link
+      as well.
+
+      WHY THE LINK EXISTS AT ALL. T2 measured
+      (`artefacts/2026-09-10/ATTENTION-OS-admiral/evidence/ATT-1e-measurement-b3e1304.md`) that
+      after a `done` the store put the row under Accept work and THE DEFAULT VIEW STILL DID NOT
+      SHOW IT: this page renders a ranked window (7 of 99 on that fixture) and the row ranked
+      outside it. So no stripe on this page may promise that a reload will put the row in front of
+      the person. It states where the row now is in the store and hands over a link that does not
+      depend on the window instead.
+
+      WHY THE SERVER RENDERS IT. The act response carries no item id, and the form posts the BARE
+      `source_id`, so a browser assembling `/attention/<...>` would have to guess the `source_type`
+      prefix back on -- which is the same class of claim those sentences just stopped making.
+
+      The URL uses the FULL `item_id` (`<source_type>:<source_id>`), because that is what
+      `attention.inspect` resolves through `port.item`; the POSTED id stays the bare `source_id`,
+      because that is what the write door matches. The two are deliberately different, and every
+      act form is a place both appear on the same element. No filter, sort or dir is carried: the
+      whole point of this link is that it does not depend on the window the person was looking at.
+
+      The `answer` form carries it too, although no stripe renders it today (`amend` reports no
+      movement, so there is nowhere to put it). The rule is "every act control knows its own row",
+      and WHICH verbs show the link is decided in exactly one place -- `INSPECTABLE_AFTER` in
+      `attention/inbox.html` -- rather than by which forms happen to have been given an id.
+
+   5. EVERY CONTROL CARRIES ITS ROW'S TITLE IN ITS ACCESSIBLE NAME, AND ITS VISIBLE TEXT IS
+      UNCHANGED. Packet ATT-1o, author A15, holding Closure's F8 on the P14 pane pass: S4 of the
+      structure block asks that no name be shared by controls acting on DISTINCT rows, and MEASURED
+      on the loaded mount `Mark done` was the name of 5 buttons on 5 different rows,
+      `What you did, in one line` of 5 fields on 5 different rows, and `Accept work` of 2. Out of
+      the visual table a person hears "Mark done, button" five times with nothing to tell them
+      apart, and the control that writes to the store is the one whose name says least about what
+      it will write to. The surface named 65 of 65 focusables otherwise (S2 MET), so this is a gap
+      in exactly one place and it is the place where the writes happen.
+
+      `aria-label` AND NOT `aria-describedby` ON THE ROW TITLE, decided here once. A description is
+      read after the name and can be skipped by a reader's own settings; the row is the whole of
+      what distinguishes one of these buttons from the next, so it belongs in the NAME. The label
+      leads with the verb -- `Mark done: <title>` -- because a reader tabbing through a queue is
+      listening for the verb first and the row second, and a list of five names that all begin with
+      the same title would restore the problem in the other order.
+
+      THE VISIBLE TEXT DOES NOT MOVE. Every button still reads `Mark done`, `Accept work`,
+      `Answer`, `Accept objective`; every field still shows its own placeholder. An `aria-label`
+      overrides the visible text for assistive technology, so the two now differ by design, and the
+      visible words are a PREFIX of the spoken ones rather than something else entirely -- which is
+      what keeps "click the button that says X" true for a person using both channels.
+
+   THE ID IS THE BARE `source_id`, NOT THE ROW'S `item_id`. An Attention row's `item_id` is
+   `<source_type>:<source_id>` (`web/model.py::_StoreAttentionPort.queue`), and the write door
+   hands `_perform` the bare id, which `model.find_item` matches against `i["id"]` over the whole
+   open queue. Posting the prefixed form of it would be refused as a stale card on every row.
+   `partition(':')[2]` is empty when there is no colon, and then the id is used as it stands --
+   which is what a stub port supplies in the render tests. #}
+
+{# 6. EVERY ACT FORM SAYS WHERE THE INVERSE LIVES AFTER THIS PAGE IS GONE. Packet ATT-1o, author
+      A15, 2026-09-11, holding Closure's F5 on the P14 pane pass
+      (`INFINITY-CLOSURE-admiral/evidence/P14-RESULT-attention-actdoor-eb4c495.md`): after an act
+      and ONE reload, controls matching `undo|reopen|unaccept` measured **0** on the queue, 0 on the
+      99-row page and 0 on the row's own inspector, which is read-only by design. The inverse is
+      real and its only affordance was session-transient.
+
+      `data-att-task` IS THE DURABLE PAGE, and it is `/task/<bare source_id>` -- `web/app.py:998`,
+      `@app.get("/task/<tid>")`, view function `task`, which renders `detail_task.html`. That page
+      carries the two DURABLE inverses, each behind a TYPED reason: `Unaccept`
+      (`detail_task.html:118` to `:126`, the `w.accepted_at` branch) and `Send back`
+      (`detail_task.html:74` to `:86`, the `done and not accepted_at` branch). So the clause is true
+      for BOTH stripes that carry an inverse: after `accept work` the page holds `Unaccept`, the
+      exact inverse; after `done` it holds `Send back`, which rides the SAME `reopen`
+      (`web/actions.py:228`) that `undo_done` dispatches.
+
+      ATT-1s, A18R: the stripe now names these controls by their visible labels,
+      `Send back` after `done` and `Unaccept` after `accept work`. E2's lifetime and
+      thread sentence stays contiguous before that clause; the durable route is unchanged.
+
+      WHY THE PATH IS WRITTEN AND NOT `url_for('task', tid=bare)`. The endpoint exists and is named
+      `task`; the reason it is not called is that BOTH render harnesses that exercise this template
+      (`web/views/tests/test_act_door.an_app` and `web/tests/test_routines_and_attention_render.an_app`)
+      register the attention blueprint ALONE, so `url_for` would raise `BuildError` on every render
+      and the second of those files is not this seat's to edit. The literal path is also this
+      console's own convention rather than a shortcut invented here: 14 links in 9 templates write
+      the literal `/task/` path and none writes `url_for('task', ...)`.
+      `TheRowsOwnPageIsTheRouteTheAppDeclares` in `web/views/tests/test_act_door.py` reads
+      `web/app.py` and goes red the day the route moves, which is the guarantee `url_for` would
+      otherwise have given.
+
+      AND IT IS GATED ON THE SOURCE TYPE, never on the kind. `KIND_BY_ARM`'s `review` is emitted by
+      arms 3 and 4 as well (the correction of 2026-09-11 02:45Z to the receipt-expectations fact
+      table), and those need not be work items, so a kind test would hand a question row a
+      `/task/` link that 404s. Rows with no such page carry `data-att-no-home` instead: a fragment,
+      in the kind's own terms, that the stripe reads out where it would otherwise name the page. #}
+
+{% macro act_cell(item, min_reason) %}
+{% set bare = item.item_id.partition(':')[2] or item.item_id %}
+{% set on_its_own_page = item.item_id.partition(':')[0] == 'work_item' %}
+{% if not item.readable %}
+  <p class="att-cannot">No act here. This row's content was never indexed for your account, so
+    this page holds its metadata and nothing else; there is nothing here to act on. The
+    inspector says the same thing at greater length.</p>
+{% elif item.native_options %}
+  {% if item.kind == 'recommendation' %}
+    {# F-01 / P3-03: the row carries the argument's bounded form; the whole argument is in the
+       row's proposal disclosure and on the inspector. The inverse sentence is one sentence per
+       row, below, not one per option: both options share it and the repeat cost a line above
+       the first control on a phone. #}
+    <p class="att-aside" data-att-counter>Argument against: {{ item.counterargument_summary or 'No counterargument was recorded.' }}</p>
+    {# ONCE, AND ABOVE THE FIRST CONTROL, never below it: a person must read that the decision has
+       no inverse before Approve is in reach, which is the rule P3-01 set for Mark done. #}
+    <p class="att-aside" data-att-inverse-note>{{ item.native_options[0].inverse_note }}</p>
+  {% endif %}
+  {% for option in item.native_options %}
+  <form class="att-act" method="post" action="/attention/act" data-att-act="1"
+        data-att-verb="{{ option.verb }}"
+        data-att-inspect="{{ url_for('attention.inspect', item_id=item.item_id) }}"
+        {% if on_its_own_page %}data-att-task="/task/{{ bare }}"{% else %}data-att-no-home="a recommendation has no inverse decision verb"{% endif %}>
+    <input type="hidden" name="csrf" value="{{ csrf_for('attention') }}">
+    <input type="hidden" name="action" value="{{ option.action }}">
+    <input type="hidden" name="source_type" value="{{ option.source_type }}">
+    <input type="hidden" name="id" value="{{ option.source_id }}">
+    <p class="att-aside">{{ option.does }}{% if item.kind != 'recommendation' %} {{ option.inverse_note }}{% endif %}</p>
+    {% if option.min_text %}
+    {# F-02 / P3-04: THE RULE IS VISIBLE TEXT, NOT ONLY A PLACEHOLDER, and it is the field's
+       accessible description. The page script appends the remaining count as the person types.
+       The control below is gated with aria-disabled rather than disabled: it stays focusable and
+       a press on it is answered in words by the page script instead of swallowed. #}
+    <p class="att-hint" id="att-hint-{{ option.option_id }}-{{ bare }}" data-att-hint
+       data-att-hint-base="{{ option.label }} needs at least {{ option.min_text }} characters.">{{ option.label }} needs at least {{ option.min_text }} characters.</p>
+    <input class="att-field" type="text" name="text" data-att-min="{{ option.min_text }}"
+           aria-label="{{ option.text_label }} for {{ item.title }}"
+           aria-describedby="att-hint-{{ option.option_id }}-{{ bare }}"
+           placeholder="{{ option.text_label }} ({{ option.min_text }} characters or more)">
+    {% endif %}
+    <button class="att-btn" type="submit"{% if option.min_text %} aria-disabled="true" data-att-gated="1"{% endif %}
+            aria-label="{{ option.label }}: {{ item.title }}">{{ option.label }}</button>
+  </form>
+  {% endfor %}
+{% elif item.kind == 'review' %}
+  {# The inspector travels with this control so the UNACCEPT stripe can carry it: the undo form is
+     built in the browser from the act response, which has no item id in it. Rule 4 above. #}
+  <form class="att-act" method="post" action="/attention/act" data-att-act="1"
+        data-att-verb="accept work"
+        data-att-inspect="{{ url_for('attention.inspect', item_id=item.item_id) }}"
+        {% if on_its_own_page %}data-att-task="/task/{{ bare }}"{% else %}data-att-no-home="a row that is not a work item has no page with an inverse yet"{% endif %}>
+    <input type="hidden" name="csrf" value="{{ csrf_for('attention') }}">
+    <input type="hidden" name="action" value="accept_work">
+    <input type="hidden" name="id" value="{{ bare }}">
+    <button class="att-btn" type="submit" aria-label="Accept work: {{ item.title }}">Accept work</button>
+  </form>
+{% elif item.kind == 'human' %}
+  <p class="att-cannot">Task completion is unavailable for this row under the current guard.
+    Reload its current state before acting.</p>
+{% elif item.kind == 'question' %}
+  {# The inspector travels with this control too, though no stripe renders it after an `answer`
+     today. Rule 4 above says why the id is on every act form and not only on the ones that use
+     it. #}
+  <form class="att-act" method="post" action="/attention/act" data-att-act="1"
+        data-att-verb="answer"
+        data-att-inspect="{{ url_for('attention.inspect', item_id=item.item_id) }}"
+        data-att-no-home="an answered question has no page with an inverse yet">
+    <input type="hidden" name="csrf" value="{{ csrf_for('attention') }}">
+    <input type="hidden" name="action" value="answer">
+    <input type="hidden" name="id" value="{{ bare }}">
+    <p class="att-hint" id="att-hint-answer-{{ bare }}" data-att-hint
+       data-att-hint-base="Answer needs at least 1 character.">Answer needs at least 1 character.</p>
+    <input class="att-field" type="text" name="text" data-att-min="1"
+           aria-label="Your answer to {{ item.title }}" aria-describedby="att-hint-answer-{{ bare }}" placeholder="your answer">
+    <button class="att-btn" type="submit" aria-disabled="true" data-att-gated="1" aria-label="Answer: {{ item.title }}">Answer</button>
+  </form>
+{% elif item.kind == 'objective' %}
+  {# ARM 5, ANDREW'S D4. An intake item waiting for the person's triage. Packet ATT-8, author A10.
+
+     THE CONTROL POSTS THE BARE `source_id` LIKE EVERY OTHER FORM ON THIS PAGE, and it also
+     declares `source_type=objective`. That field is not decoration and it is not read as
+     authority: `web/app.py::_perform` uses it ONLY to decide which branch a `dispatch_option`
+     takes, and the branch then re-reads the row by its TYPED id through the attention port. A
+     crafted POST that lied about it would reach a keyed lookup that finds no objective and be
+     refused in words, which is why the id on the wire may stay the bare one.
+
+     WHY `accept_objective` IS ITS OWN ACTION NAME rather than riding `accept_work`: they are two
+     different verbs on two different tables, and `accept_work` carries an inverse while this one
+     does not. One action name per verb is what lets the receipt stripe below tell the truth about
+     undo without inspecting the row it just acted on.
+
+     NO INVERSE, AND THE STRIPE SAYS SO IN THE VERB'S OWN TERMS (E4). `brain.objective.state` is
+     CHECKed to ('inbox','accepted') -- there is no `unaccept` for an objective and no `declined`
+     state -- so the server sends `no_undo_reason` and the page renders it verbatim. NO INSPECTOR
+     LINK IS OFFERED AFTER THIS ACT, for exactly the reason `accept work` offers none: the row
+     leaves the arm the moment it is accepted, so a link to its inspector would point at a row the
+     inspector can no longer find. The `data-att-inspect` attribute is still on the form, because
+     rule 4 above is "every act control knows its own row" and `INSPECTABLE_AFTER` in
+     `attention/inbox.html` is the ONE place that decides which verbs show it. #}
+  <form class="att-act" method="post" action="/attention/act" data-att-act="1"
+        data-att-verb="accept"
+        data-att-inspect="{{ url_for('attention.inspect', item_id=item.item_id) }}"
+        data-att-no-home="an accepted objective has no page with an inverse yet">
+    <input type="hidden" name="csrf" value="{{ csrf_for('attention') }}">
+    <input type="hidden" name="action" value="accept_objective">
+    <input type="hidden" name="id" value="{{ bare }}">
+    <input type="hidden" name="source_type" value="objective">
+    <button class="att-btn" type="submit" aria-label="Accept objective: {{ item.title }}">Accept objective</button>
+  </form>
+  {# AND THE OPTIONS ARE NOT HERE, WHICH IS A MEASUREMENT AND NOT A CHOICE. An objective reaches
+     this page only because the store records an OPTION for it -- that is the only term in the
+     gate that can admit one -- so every objective rendered here has at least one. This template
+     still cannot draw them: the port hands the view a `QueueItem`
+     (`web/views/queue.py`), and the metadata query behind it carries the option as the boolean
+     `has_option` and never the rows. `web/model.py` is Platform's file on this branch, so the
+     honest surface is a sentence saying the proposals are recorded and not choosable yet, rather
+     than a rail assembled out of a boolean. The act door for it EXISTS and is server-side
+     complete: a `dispatch_option` POST with `source_type=objective` rides
+     `web/actions.py::dispatch_option` and `recommend accept` unchanged, which is what the
+     packet's integration proof drives.
+
+     AND THE SENTENCE NAMES NO DESTINATION, WHICH IS R2's F4 ON X7. It used to read "chosen one at
+     a time from the row's own inspector, not from here", and the inspector cannot render an
+     option either: measured, `grep -c "option"` over `attention/inspect.html` is 0 against a
+     control of 2 for "Result", and `web/views/queue.py` carries no option field. Sending a person
+     to a page with nothing on it for them is the same defect as the stripe phrase E6-as-amended
+     forbids and this surface scans itself for -- a sentence that promises a destination it has
+     not checked. (The phrase itself is not written here: the scan reads these comments too, for
+     the reason ATT-1h gives, and a comment quoting it is a comment the next author copies out.)
+     Until the option rail lands somewhere, the true
+     sentence is that they are recorded and not choosable on this page -- and it must not name a
+     page instead. #}
+  <p class="att-aside">Accepting this files it. Its proposals are recorded against it in the
+    store and are not shown on this page: this page is handed whether an option exists, never
+    which ones, so a rail drawn here would be a guess at the labels. Choosing one is not an act
+    this room offers yet.</p>
+{% elif item.kind == 'recommendation' %}
+  <p class="att-cannot">This row carries no available proposal decision. Reload its current state.</p>
+{% else %}
+  <p class="att-cannot">No act here. This room holds no verb for a row of kind
+    &ldquo;{{ item.kind }}&rdquo;, so there is nothing this page can honestly offer to press.</p>
+{% endif %}
+{% endmacro %}

@@ -1,0 +1,2426 @@
+/* House tokens, carried from `outputs/visual-docs/infinity-os-queue-mock.html`.
+ *
+ * Five semantic states, fixed forever: blue running, green finished, amber waiting on a human,
+ * red broken, grey resting. STATE NEVER RIDES COLOUR ALONE -- every coloured state on this
+ * surface also carries a word, because a colour-only state is unreadable to a colour-blind
+ * operator and invisible in a screenshot pasted into a thread.
+ *
+ * Questions are amber and never red, so that red means damage and nothing else, shell wide.
+ *
+ * THE BRAND ACCENT IS RESERVED FOR OPERATOR CAUSALITY: the accept control, the answer-to-wake
+ * trace, the Because-of-you block, promotion. Never decorative, never on agent-originated
+ * content. Scarcity is what gives it grammar: the accent on screen always means *you did this*.
+ *
+ * THE HUE IS NO LONGER ORANGE (row 0435, 2026-08-29). The operator said he dislikes the orange
+ * and wants neutrals, which collided with this rule, and `MUST-NOT-BUILD.md`'s coda records how
+ * he settled it: THE RULE IS KEPT AND THE HUE IS REPLACED. The grammar below is unweakened by
+ * one word and the four surfaces are the same four. Only the token VALUES moved, in the two
+ * palettes below, and reverting is therefore a token value and not a grammar restoration.
+ *
+ * No web fonts: nothing blocks first paint and nothing leaves this machine to render a label.
+ */
+:root{
+ color-scheme:light;
+ /* DISPATCH LIGHT -- paper, GROUND B SLATE. The values below are the Infinity style guide's
+  * section 3a, column B, mapped onto these names by its own section 3c; the guide is LOCKED by
+  * Andrew, 2026-09-15, QUOTED: "I like it a lot. Let's go with your suggestions and lock in this
+  * style guide", and section 3 records the ground as "LOCKED 2026-09-15: B Slate". They replace
+  * task 0170's copy of DS section 2.1 [V10-E], which is what the block above already says is
+  * supposed to happen when a spec moves: "the spec wins and this block is what moves". The
+  * STRUCTURE -- same names, same five state semantics, same reservation of the brand accent --
+  * is unchanged, and section 3b's seven state values are untouched below because the guide fixes
+  * them as laws rather than choices.
+  *
+  * THE PAGE AND THE SURFACE ARE NO LONGER THE SAME WHITE, which is the point of B over what was
+  * here: section 3c's note on `--bg-raised`, QUOTED, "today identical to --bg in light, so
+  * nothing lifts off the page". Every .card, .tier, .strip and .blk in this file already asks
+  * for --bg-raised and got no separation for it.
+  *
+  * --rule AND --rule-strong STOP BEING RGBA. They were an ink wash at .09 and .20, so their
+  * rendered colour depended on whatever they were drawn over; the guide authors rule and edge as
+  * ground-relative values and gives them hex. A border over a tint is the case that moves.
+  *
+  * Law 1 still holds: B's light ground reads luminance .937, above the .93 floor (guide section
+  * 3a, MEASURED 2026-09-14). Law 3 is untouched -- the 34px decorative grid is gone from all
+  * four palettes, which is why --grid is transparent and not a faint ink. */
+ --bg:#F6F8FB;--bg-raised:#FFFFFF;--bg-sunk:#E9ECF1;
+ --ink:#171A20;--ink-2:#515965;--ink-3:#636B78;
+ --rule:#D9DEE6;--rule-strong:#BFC6D1;--grid:transparent;
+ /* FIELD BORDER, NEW, and the reason the exercise was run: WCAG 1.4.11 wants 3.0 for the visible
+  * boundary of a control, and a field here was bounded by --rule-strong, an ink wash meant for
+  * decoration (T4's audit, C-12). This clears 3.0 on all three grounds it can land on, worst
+  * case 3.57 on the sunk fill (guide section 3a). Spent on the house fields below.
+  *
+  * SELECTED ROW, NEW, AND DELIBERATELY UNSPENT. The guide's section 3c says selection "today is
+  * carried by --tint-brand". MEASURED in this file: it is not. --tint-brand has exactly one
+  * consumer, `.steerband`, and the four things that render as selected are `.room[aria-selected]`,
+  * `.tier[aria-selected]` and `.who.sel` on --bg-sunk and `.orow.on` on --tint-run. Pointing all
+  * four at this token would be four design calls the guide does not make, so the value is
+  * declared at its locked hex and the question of which element is "the selected row" is routed,
+  * not answered here. Do not spend it to tidy this comment away. */
+ --field-border:#737C89;--selected-row:#EAE6EF;
+ /* THE ACCENT, row 0435. Hue 287, and 287 is not a taste: it is the angle that maximises the
+  * MINIMUM separation from every chromatic state, 76 deg from run blue and 77 deg from damage
+  * red, its two nearest neighbours, with wait amber at 115 and fin green at 136. The orange it
+  * replaces sat 18 deg from amber and 19 deg from red at delta-E 23, so it was not reliably
+  * separable from "waiting on a human" or from "broken" -- the accent was already failing the
+  * fifth-state constraint before anyone asked for a new hue. Saturation drops .86 -> .30, which
+  * is the part the operator asked for. White on this fill is 6.94:1, against 4.53:1 on the
+  * orange. Measured by `outputs/2026-08-29-commander/lane-B6b-accent-census.py`. */
+ --brand:#774785;--brand-text:#663B72;
+ --run:#3A6B9E;--fin:#1C7048;--wait:#7D5800;--dmg:#AC2318;--rest:#6B7280;
+ /* --focus is an ALIAS OF --run, the same hex, not a sixth hue: DS section 2.1's system law
+  * is one new *name*, no new *hue*. Change one of these two and you change both, or the law
+  * is broken. The brand accent is never spent on an affordance. */
+ --focus:#3A6B9E;
+ /* The tint ramp is a paper-stock wash of a hue its word already carried; it means nothing
+  * on its own, so a tint never appears without the word its hue already required. */
+ --tint-run:#F1F5FB;--tint-fin:#F0F6F2;--tint-wait:#FBF6EA;
+ --tint-dmg:#FCF1F0;--tint-brand:#F8F3F9;
+ --on-solid:#FFFFFF;  /* label on an ink or brand fill */
+ --font-display:'Avenir Next',Futura,'Century Gothic','Segoe UI',system-ui,sans-serif;
+ --font-sans:'Segoe UI','Avenir Next',system-ui,-apple-system,Arial,sans-serif;
+ --font-mono:ui-monospace,'Cascadia Mono','SF Mono',Consolas,monospace;
+ --ease:cubic-bezier(.2,.8,.2,1);
+}
+:root[data-theme="dark"]{
+ color-scheme:dark;
+ /* DISPATCH DARK -- GROUND B SLATE, the same locked source as the light block above: guide
+  * section 3a column B, dark half, mapped by section 3c.
+  *
+  * IT IS A COOL NEUTRAL NOW, NOT A PURE GREY, and that is a real change to what the operator
+  * sees, so it is named rather than buried. The greys here were authored after he asked for
+  * muted greys instead of the blue-black #05070D this once was; B pulls them a few points
+  * toward StarMynd navy, which the guide's section 3 argues for as "the same company, a
+  * different product" (line 121). It is NOT a return to #05070D -- that was a saturated
+  * blue-black, and B's page reads as grey beside it.
+  *
+  * The no-neon law is untouched: it governs the state rungs below, which do not move, and no
+  * value in this row is saturated at all. --rule and --rule-strong stop being rgba here for the
+  * same reason as in light. */
+ --bg:#14171C;--bg-raised:#1B1F26;--bg-sunk:#101317;
+ --ink:#E8EBEF;--ink-2:#AFB5BF;--ink-3:#8A919C;
+ --rule:#2A2F38;--rule-strong:#39404C;--grid:transparent;
+ /* New in both schemes; see the light block for what each is and why the second is unspent. */
+ --field-border:#78818F;--selected-row:#241E2B;
+ /* Same hue 287 on the dark ground, authored rather than inverted. The no-neon law holds:
+  * saturation .34, nowhere near the > .80 the law forbids at this brightness. (row 0435)
+  *
+  * RE-MEASURED when the ground moved to B, because the second of these two numbers was read off
+  * the OLD --bg and would otherwise be a false measurement sitting in a comment. `--on-solid`
+  * #191919 on this fill is 7.74:1, unchanged, because neither of those two values moved.
+  * `--brand-text` on --bg was 9.44:1 at #191919 and is 9.65:1 at #14171C; on --bg-raised
+  * #1B1F26 it is 8.88:1.
+  *
+  * `--on-solid` STAYS #191919 AND IS NO LONGER THE PAGE COLOUR. It was the old --bg's hex, and
+  * following the ground to #14171C would read as tidying: it would raise the label's contrast on
+  * the brand fill to 7.91 and thereby contradict the 7.74 the locked guide publishes for that
+  * exact pair in its section 3b. The guide's section 3c mapping table does not list --on-solid,
+  * and a token the lock does not name is not this change's to move. Routed, not decided. */
+ --brand:#C59FD0;--brand-text:#D2B4DA;
+ --run:#7FB3E8;--fin:#63C89B;--wait:#E0B75A;--dmg:#EE8078;--rest:#8E8D8A;
+ --focus:#7FB3E8;  /* alias of --run in this palette too */
+ --tint-run:#1D2530;--tint-fin:#1B2A24;--tint-wait:#2A2618;
+ --tint-dmg:#2C1E1D;--tint-brand:#271E29;
+ --on-solid:#191919;
+}
+/* SHELL-0 (task 0156): the V10 shared token layer, DESIGN-SYSTEM.md section 2, landed ONCE here
+ * so no build lane touches `:root` again. Tokens only: nothing below is consumed by any rule in
+ * this file yet, so nothing renders differently until a lane spends one.
+ *
+ * The sentence that stood here -- "the colour palette and the three font stacks above already
+ * match DS section 2.1/2.2 verbatim and are not restated" -- was TRUE when 0156 wrote it at
+ * 16:42 and FALSE forty-three minutes later: 0155 amended DESIGN-SYSTEM.md in place at 17:25
+ * ([V10-E], four palettes restated in full on the operator's visual direction). Task 0170
+ * re-derived all four palettes from the amended spec, so the two `:root` blocks above and the
+ * two `--deep-*` blocks below now match section 2.1 [V10-E] token for token. The FONT STACKS
+ * are the part of that sentence that survives: section 2.2 still says "the mock's stacks,
+ * verbatim" and they are unchanged. If you read this comment and the spec disagrees again,
+ * the spec wins and this block is what moves.
+ *
+ * Durations use the one `--t-` spelling (the 0099 fold: `--dur-in`/`--dur-settle` renamed,
+ * values unchanged). `--ease` above is DS's general easing, unchanged. */
+:root{
+ /* deep-work long-form face, DS section 2.2: content the operator reads or writes, never chrome */
+ --font-serif:'Charter','Iowan Old Style',Georgia,'Times New Roman',serif;
+ /* spacing and radii, DS section 2.3 (from C section 0.2). --pad-card opened from
+  * `.8rem .85rem` to `.95rem 1.05rem` by [V10-E]: whitespace is the instrument law 1 spends
+  * the correction on. Radii unchanged. */
+ --pad-card:.95rem 1.05rem;--radius-card:10px;--radius-inner:6px;--radius-row:9px;
+ /* THE TAP FLOOR, DS section 2.3 [V10-E] and section 9's sweep, landed here in the token
+  * layer where SHELL-0 says tokens live (task 0168/V8b). It was the one token section 2.3
+  * names that SHELL-0 did not carry, and two lanes had already routed around its absence
+  * with `var(--tap,44px)` -- a fallback per component is exactly the drift the token
+  * exists to stop, since the day the standard moves it moves in one place or in nine.
+  * Those fallbacks now resolve to this value and are correct either way. */
+ --tap:44px;
+ /* motion, DS section 2.4: every animation in the system uses these values and nothing else */
+ --ease-enter:cubic-bezier(.2,.8,.2,1);
+ --ease-exit:cubic-bezier(.4,0,1,1);
+ --ease-door:cubic-bezier(.33,0,.15,1);
+ --t-press:100ms;--t-skip:120ms;--t-exit:140ms;--t-settle:150ms;--t-enter:160ms;
+ --t-in:180ms;--t-pip:180ms;--t-receipt:180ms;--t-shift:200ms;--t-place:220ms;
+ --t-door-out:420ms;--t-converge:500ms;--t-door-in:560ms;
+ /* DEEP WORK LIGHT -- P2 Manila, LOCKED 2026-09-15 (`the product factory repository` docs/style-infinity/
+  * INFINITY-STYLE-GUIDE.md, 34dcc21, section 3d). The pre-lock warm-paper values below this
+  * comment (P1 Paper #FCFBF8 and its ink ladder, read out of the V10-E draft) are SUPERSEDED,
+  * not merely re-derived: T7 drew four warm stocks on Andrew's direction ("always a bit darker
+  * ... almost like a more softer brown hue") and P2 Manila #F3EEE4 was chosen, luminance .858,
+  * over P1's near-white .940. `IX-SG-07|W1440.TL/TD` (P14, e363020 and unmoved at fece8c3)
+  * measured this exact pair as the FAIL: built #FCFBF8/#0F1117 against the guide's #F3EEE4/
+  * #14120F. Section 3d's own gate is a BAND (13-15:1 on reading ink), not a floor, because in a
+  * reading room too much contrast is as wrong as too little -- MEASURED there at 14.38 light,
+  * 14.88 dark. `--deep-edge` and `--deep-field-border` are new roles the guide adds (its own
+  * table calls them "new"); declared here and deliberately unspent until a rule needs them, the
+  * same pattern SG-06 used for `--field-border`/`--selected-row` above. Four palettes means FOUR
+  * authored palettes, not two plus an inversion -- this one is not derived from the dark one
+  * below. `--deep-accent` is untouched: the guide's #663B72 already matches what shipped. */
+ --deep-bg:#F3EEE4;--deep-bg-raised:#F8F4EC;--deep-grid:transparent;
+ --deep-ink-read:#1D1A15;--deep-ink-2:#4D4A45;--deep-ink-3:#63605B;
+ --deep-rule:#DFD8C8;--deep-edge:#C6BDA9;--deep-field-border:#787266;--deep-accent:#663B72;
+}
+:root[data-theme="dark"]{
+ /* DEEP WORK DARK -- LOCKED 2026-09-15, same guide and section as the light block above. The
+  * pre-lock values below this comment were `starmynd-app`'s own material (its
+  * src/app/globals.css:234 ladder, read rather than recalled by task 0155) and are SUPERSEDED:
+  * section 3d calls that a "cool blue black adopted from starmynd-app's material" that the
+  * guide's own section 3 supersedes anyway, and proposes warm in both schemes so deep work reads
+  * as one room regardless of theme -- "a warm light and a cool dark make the mode mean two
+  * different things depending on the scheme". `IX-SG-07|W1440.TD` (P14) measured the built
+  * #0F1117 against the guide's #14120F; this is that fix. What is NOT superseded: the refusal of
+  * that app's Nordic teal accent #2B918E, a sixth hue with no sixth semantic behind it -- the
+  * exit still keeps the brand accent (DS section 6.3), so --deep-accent stays this palette's
+  * --brand-text, row 0435's identity, and the guide's own dark accent #D2B4DA already matches
+  * what shipped, untouched here. `--deep-edge` and `--deep-field-border` are new, declared and
+  * unspent, mirroring the light block. */
+ --deep-bg:#14120F;--deep-bg-raised:#1C1A16;--deep-grid:transparent;
+ --deep-ink-read:#E9E5DD;--deep-ink-2:#B2ADA3;--deep-ink-3:#8E887C;
+ --deep-rule:#2A2721;--deep-edge:#3A362E;--deep-field-border:#7E7870;--deep-accent:#D2B4DA;
+}
+/* The brand-tinted selection is deep-work material (B section 2.1), scoped to the `deep` body
+ * class the server will render when V-SHELL builds the mode contract (DS section 3). Inert until
+ * then: no element matches, so nothing changes today. Deliberately NOT global. */
+body.deep ::selection{background:color-mix(in srgb,var(--brand) 22%,transparent)}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+/* `.chips{display:flex}` beats the user-agent `[hidden]{display:none}` on specificity, so a
+ * collapsed block would render open. Checked by rendering, not by reading the cascade. */
+[hidden]{display:none!important}
+/* THE 34px GRID IS OFF, AND THE TOKEN IS HOW IT IS OFF. DS section 2.1 [V10-E] law 3 deletes the
+ * decorative grid from all four palettes, and the mechanism it names is `--grid:transparent`
+ * everywhere, not the removal of these two declarations. --grid is still a named token in every
+ * palette, so this rule is a conformant consumer of it and paints nothing. Kept, not deleted, so
+ * the grid stays governed from one place: delete the consumers and --grid becomes a token no rule
+ * spends, which is the drift the token layer exists to stop. Same rule at `.stackwrap` below.
+ * Read the `34px` here as the geometry the token would use if it were ever given a colour again,
+ * not as evidence a grid renders -- it does not, in any of the four palettes. (task 0170) */
+body{background:var(--bg);
+ background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+ background-size:34px 34px;color:var(--ink);font-family:var(--font-sans);line-height:1.5;
+ -webkit-font-smoothing:antialiased;padding-bottom:5rem}
+/* THE DEFAULT LINK IS INK, NOT BRAND. `a{color:var(--brand-text)}` was the single largest leak
+ * in the colour grammar: it painted every bare link on the surface orange, so an item id, an
+ * artifact path and the one control that means *you caused this* all read the same. Censused on
+ * one wide dark Judge screen before this change: 10 elements introduced orange and 5 of them
+ * were operator causality. A link is identified by its underline, which survives a screenshot
+ * and a colour-blind operator; orange is spent only where the token block says it is spent. */
+a{color:var(--ink);text-decoration-color:var(--rule-strong);text-underline-offset:2px}
+.shell{max-width:70rem;margin:0 auto;padding:0 .85rem}
+header{position:sticky;top:0;z-index:30;background:var(--bg);border-bottom:1px solid var(--rule)}
+.hrow{max-width:70rem;margin:0 auto;padding:.7rem .85rem;display:flex;align-items:center;gap:.7rem}
+.logo{font-family:var(--font-display);font-weight:700;font-size:.95rem;letter-spacing:-.01em;
+ text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;min-height:32px}
+/* The wordmark is not operator causality. It was orange, which is exactly the decoration the
+ * token block forbids: a logo cannot mean *you did this*. */
+.logo span{color:var(--ink-2)}
+.rooms{display:flex;gap:.15rem;margin-left:auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+.rooms::-webkit-scrollbar{display:none}
+.room{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);background:none;border:0;
+ padding:.35rem .55rem;border-radius:5px;cursor:pointer;white-space:nowrap;text-decoration:none;
+ display:inline-flex;align-items:center;min-height:32px;line-height:1.7}
+/* Which room you are in is state, not causality: it gets ink and the sunk fill, not the brand. */
+.room[aria-selected="true"]{color:var(--ink);background:var(--bg-sunk)}
+/* The group's rooms, on their own header line under the five tabs (D-INFINITY-UX-RULINGS-1,
+ * 2026-09-14). Same type and tokens as the tabs, one step quieter; the room you are in is state
+ * and takes ink and the sunk fill, exactly as a selected tab does. */
+.subrooms{display:flex;flex-wrap:wrap;gap:.15rem;flex-basis:100%;order:3;padding-top:.1rem}
+.subroom{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);text-decoration:none;
+ padding:.25rem .5rem;border-radius:5px;display:inline-flex;align-items:center;min-height:28px}
+.subroom[aria-current="page"]{color:var(--ink);background:var(--bg-sunk)}
+.tiers{display:flex;gap:.4rem;margin:1rem 0 .8rem}
+.tier{flex:1;background:var(--bg-raised);border:1px solid var(--rule);border-radius:9px;
+ padding:.55rem .5rem;cursor:pointer;text-align:left;color:inherit;font:inherit;
+ text-decoration:none;display:block}
+/* Same reasoning as the room tab: the tier you are reading is state. */
+.tier[aria-selected="true"]{border-color:var(--ink-3);background:var(--bg-sunk)}
+.tier .tn{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.tier .tc{font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1.1;margin-top:.1rem}
+.tier .tm{font-family:var(--font-mono);font-size:.64rem;color:var(--ink-2)}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--wait);margin-left:.3rem;vertical-align:middle}
+.strip{background:var(--bg-raised);border:1px solid var(--rule);border-left:3px solid var(--wait);
+ border-radius:0 8px 8px 0;padding:.55rem .75rem;margin-bottom:.8rem;font-size:.85rem;color:var(--ink-2);
+ display:flex;align-items:center;gap:.5rem}
+.strip b{color:var(--ink);font-weight:650;white-space:nowrap}
+.strip{flex-wrap:wrap}
+/* The stopwatch strip (task 0284). A RUNNING TIMER IS THE OPERATOR'S OWN ACT IN PROGRESS, which
+ * is the run token's meaning, so it is blue and not the amber of "waiting on a human" -- nothing
+ * is waiting on him here, he is the thing that is running. Over the cap it becomes damage,
+ * because the entry is already going to be recorded as abandoned and left out of every mean, and
+ * that is a fact about a measurement being lost rather than a state he can still be in.
+ * Idle keeps the default amber-free grey border: no timer running is not a warning. */
+.strip.timing{border-left-color:var(--run)}
+.strip.overcap{border-left-color:var(--dmg)}
+.strip.idle{border-left-color:var(--rule)}
+/* THE IDLE STOPWATCH IS ONE LINE AND NOT A BOX, row 0431, and this is a size change and not a
+ * content change. Measured at 1440x1200 on `/queue?tier=judge`, this region was 89px of the 506px
+ * standing between the operator and the first row of the queue he came to work, and every one of
+ * those pixels was a paragraph explaining that nothing has happened yet.
+ *
+ * WHAT IS NOT DONE HERE, BECAUSE IT WOULD BE THE DISHONEST VERSION. The sentence is not deleted
+ * and it is not truncated. `no timer running` and `nothing measured today` are still in the
+ * document, in full, which is what `test_stopwatch_at_the_surface.py` reads and, more to the
+ * point, what stops a null being rendered as a zero. It is set smaller and on one line, with the
+ * strip's own vertical padding halved, so that at 1440 it occupies a line rather than a card.
+ * A RUNNING timer is untouched: it carries the four-hour-cap warning and it keeps its box. */
+.strip.idle{padding:.3rem .75rem;font-size:.74rem;margin-bottom:.5rem;flex-wrap:nowrap;
+ align-items:baseline}
+.strip.idle span{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);min-width:0}
+.tmwarn{color:var(--dmg)}
+.card{background:var(--bg-raised);border:1px solid var(--rule);border-radius:10px;padding:.8rem .85rem;margin-bottom:.6rem}
+.cid{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2)}
+.cid a{color:var(--ink-2);text-decoration:none;border-bottom:1px dotted}
+.ctitle{font-family:var(--font-display);font-weight:650;font-size:1rem;margin:.15rem 0 .3rem;letter-spacing:-.005em}
+.cmeta{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:.15rem .6rem}
+.gate{color:var(--wait);border:1px solid var(--wait);border-radius:3px;padding:0 .28rem;font-size:.64rem;letter-spacing:.06em}
+/* `agent waiting 4m` is the amber state by the token block's own definition -- WAITING ON A
+ * HUMAN -- and it is agent-originated, which is the one thing brand orange may never be. This is
+ * not a removal, it is the colour that was always correct for it. */
+.live{color:var(--wait)}
+.cdef{font-size:.82rem;color:var(--ink-2);margin-top:.45rem;padding:.4rem .55rem;background:var(--bg-sunk);border-radius:6px}
+.cdef b{color:var(--ink);font-weight:650}
+.btns{display:flex;gap:.4rem;margin-top:.7rem;flex-wrap:wrap}
+/* THE LABEL ON A BRAND FILL IS `--on-solid`, NOT A HARDCODED HEX. Row 0375, fixed 2026-08-27.
+ *
+ * What this rule used to say, and it was true when it was written: "white on #E2621B is 3.50:1
+ * and fails AA; the same label at #0A0A0A is 5.65:1". BOTH numbers were measured against
+ * #E2621B, the brand orange this file shipped with. Task 0170 then replaced the palette with
+ * DISPATCH LIGHT and deepened --brand to #C2560F, and the hardcoded label did not move with it,
+ * because a literal cannot. Against today's --brand the pair inverted:
+ *
+ *     #0A0A0A on #C2560F  4.37:1  bar 4.5  FAIL   <- what shipped, on 11 labels
+ *     #FFFFFF on #C2560F  4.53:1  bar 4.5  PASS   <- --on-solid, which DESIGN-SYSTEM.md
+ *                                                    section 2.1 already declares as
+ *                                                    "label on an ink or brand fill"
+ *
+ * So the defect is not a colour anyone chose. It is a HARDCODE that could not follow the token
+ * it was paired with, and the fix is to consume the token by name. The bar did not move and
+ * cannot: `outputs/2026-08-27-D-0383-ux-pass/pw_wcag.py` recomputes every rendered text node
+ * against 4.5 / 3.0 and `check_brand_pairs.py` recomputes this pair from the token block itself,
+ * so the next change to --brand fails a check instead of shipping. */
+button.act{flex:1;min-width:8.5rem;min-height:44px;border-radius:8px;border:1px solid var(--brand);
+ background:var(--brand);color:var(--on-solid);font-family:var(--font-sans);font-weight:650;font-size:.9rem;cursor:pointer;
+ transition:transform .1s var(--ease)}
+button.act:active{transform:scale(.985)}
+button.act[disabled]{opacity:.4;cursor:not-allowed}
+.sec{min-height:44px;padding:0 .8rem;display:inline-flex;align-items:center;
+ justify-content:center;text-decoration:none;border-radius:8px;border:1px solid var(--rule-strong);
+ background:transparent;color:var(--ink-2);font-family:var(--font-mono);font-size:.78rem;cursor:pointer}
+.sec:hover{color:var(--ink)}
+.sec.danger{border-color:var(--dmg);color:var(--dmg)}
+/* THE TWO REAL VERBS CARRY THE SAME WEIGHT, for the reason the card already renders the
+ * counterargument beside the recommendation: showing the recommendation alone is how a review
+ * queue becomes a rubber stamp, and a row where the accept verb is four times the size of the
+ * reject verb makes the same argument in geometry before a word is read. Measured at 1440 before
+ * this rule: Accept work 412x44 = 18106px2 at weight 650 against Send back 95x44 = 4187px2 at
+ * weight 400, 4.32:1. `flex:1` on both with the same basis is what makes them equal, and the
+ * remaining difference -- the fill -- is the one the colour grammar is entitled to keep, because
+ * orange is reserved for the act the operator is being asked to cause.
+ * `Open`, `Defer` and `Bump` are not verbs on the work: they stay at their content width. */
+/* `padding:0` is load-bearing and not tidiness. `flex-basis:0` under `box-sizing:border-box`
+ * floors an item's base size at its own padding, so a padded button and an unpadded form -- and
+ * the primary verb IS wrapped in a form, because it posts -- do not split the free space evenly:
+ * measured 240px against 267px, which is exactly the 25.6px of horizontal padding. The label is
+ * centred by the flex box, so the padding was never doing anything the growth does not. */
+.sec.counter{flex:1;min-width:8.5rem;padding:0;font-family:var(--font-sans);font-size:.9rem;
+ font-weight:650;color:var(--ink);border-color:var(--ink-3)}
+.sec.counter:hover{border-color:var(--ink-2)}
+.sec.counter.danger{color:var(--dmg);border-color:var(--dmg)}
+.chips{display:flex;flex-wrap:wrap;gap:.35rem;margin-top:.55rem;padding-top:.55rem;border-top:1px dashed var(--rule)}
+.chip{border:1px solid var(--rule-strong);background:transparent;color:var(--ink-2);border-radius:16px;
+ padding:.3rem .6rem;font-family:var(--font-mono);font-size:.72rem;cursor:pointer;min-height:32px}
+.chip:hover{color:var(--ink);border-color:var(--ink-3)}
+.chip.warn{border-color:var(--wait);color:var(--wait)}
+/* A control that cannot work is worse than one that does not exist -- so where the runtime has
+ * no home for a behaviour, the chip is present, visibly dead, and carries the reason. */
+.chip[disabled]{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+.chip[disabled]:hover{color:var(--ink-2);border-color:var(--rule-strong)}
+.chipnote{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);width:100%;margin-top:.2rem}
+.chipnote.warn{color:var(--wait)}
+.exp{margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--rule);font-size:.88rem;color:var(--ink-2)}
+.exp h5,.rev h5{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2);margin:.7rem 0 .2rem}
+.exp h5:first-child{margin-top:0}
+.receipt{background:var(--bg-raised);border:1px solid var(--rule);border-left:3px solid var(--fin);
+ border-radius:0 8px 8px 0;padding:.55rem .75rem;margin-bottom:.6rem;font-family:var(--font-mono);font-size:.76rem;
+ color:var(--ink-2);display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.receipt.noundo{border-left-color:var(--rest)}
+.receipt b{color:var(--fin)}
+.receipt form{margin-left:auto}
+.receipt button{background:none;border:0;color:var(--ink);font-family:var(--font-mono);
+ font-size:.76rem;cursor:pointer;text-decoration:underline;min-height:32px}
+.receipt .why{margin-left:auto;opacity:.75}
+.receipt .note{width:100%;color:var(--wait);font-size:.72rem;margin-top:.2rem;background:none;border:0;padding:0}
+.empty{text-align:center;padding:2.4rem 1rem;color:var(--ink-2)}
+.empty .big{font-family:var(--font-display);font-weight:700;font-size:1.35rem;color:var(--ink);margin-bottom:.5rem}
+.empty .sub{font-family:var(--font-mono);font-size:.78rem;line-height:1.8}
+.foot{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);text-align:center;padding:1.2rem 0 0}
+.panel{padding:1rem 0}
+.blk{background:var(--bg-raised);border:1px solid var(--rule);border-radius:10px;padding:.85rem;margin-bottom:.7rem}
+.blk h4{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);margin-bottom:.5rem}
+.blk p{font-size:.86rem;color:var(--ink-2);margin:.3rem 0}
+.blk .ln{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-2);padding:.3rem 0;border-bottom:1px solid var(--rule)}
+.blk .ln:last-child{border:0}
+/* A counter that is a link is a tap target, so it gets a tap target's height. Checked at 375px
+ * by web/tests/test_browser.py rather than assumed from the font size. */
+.blk .ln a{color:var(--ink);text-decoration:none;border-bottom:1px dotted;
+ display:inline-block;min-height:34px;line-height:34px;padding:0 .1rem}
+@media(max-width:520px){.blk .ln a{min-height:44px;line-height:44px}}
+.ro{font-family:var(--font-mono);font-size:.68rem;color:var(--rest);border:1px dashed var(--rule-strong);
+ border-radius:6px;padding:.4rem .6rem;margin-bottom:.8rem}
+.fcard{background:var(--bg-raised);border:1px solid var(--rule);border-radius:9px;padding:.6rem .7rem;margin-bottom:.5rem;
+ font-family:var(--font-mono);font-size:.76rem}
+.fcard .l1{display:flex;gap:.5rem;align-items:center;color:var(--ink);flex-wrap:wrap}
+.fcard .l4{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:.2rem}
+.fcard a{text-decoration:none}
+.sdot{width:7px;height:7px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.dodrow{display:flex;gap:.5rem;align-items:flex-start;padding:.5rem 0;border-bottom:1px solid var(--rule);font-size:.84rem}
+.dodrow:last-child{border:0}
+.gh{font-family:var(--font-mono);font-size:.7rem;color:var(--wait);margin-top:.2rem}
+/* Grid off via the token, same as `body` above: see the note there. (task 0170) */
+.stackwrap{position:fixed;inset:0;z-index:45;background:var(--bg);
+ background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+ background-size:34px 34px;display:flex;flex-direction:column;padding:1rem .9rem;overflow-y:auto}
+.stackhd{display:flex;align-items:center;gap:.6rem;font-family:var(--font-mono);font-size:.74rem;color:var(--ink-2)}
+.stackhd a,.stackhd button{margin-left:auto;background:none;border:1px solid var(--rule-strong);color:var(--ink-2);
+ border-radius:16px;padding:.35rem .7rem;font-family:var(--font-mono);font-size:.72rem;cursor:pointer;min-height:36px;
+ text-decoration:none;line-height:1.9}
+.stackbody{flex:1;display:flex;flex-direction:column;justify-content:center;max-width:34rem;margin:0 auto;width:100%}
+.stackcard .ctitle{font-size:1.35rem;margin:.3rem 0 .5rem}
+.stackcard .rec{font-size:.95rem;color:var(--ink-2);margin:.6rem 0}
+.stackcard .ctr{font-size:.88rem;color:var(--ink-2);border-left:2px solid var(--wait);padding-left:.7rem;margin:.7rem 0}
+.stackbtns{margin-top:1.4rem;display:flex;flex-direction:column;gap:.5rem}
+.stackbtns button.act{min-height:56px;font-size:1rem}
+.stackrow{display:flex;gap:.5rem}
+.stackrow button,.stackrow a{flex:1}
+/* The ONE permitted progress indicator in the product, and only because the denominator is known
+ * and fixed. An agent run has no honest denominator, which is why there is no other. */
+.pips{display:flex;gap:.25rem;margin-top:.9rem;justify-content:center}
+.pip{width:7px;height:7px;border-radius:50%;background:var(--rule-strong)}
+.pip.on{background:var(--ink)}
+.pip.gone{background:var(--fin)}
+.stackdone{text-align:center;padding:2rem 0}
+.stackdone .big{font-family:var(--font-display);font-weight:700;font-size:1.5rem;margin-bottom:.4rem}
+/* An entry point is not causality. Pressing `Run the stack` has not decided anything yet, so it
+ * carries ink and a dashed edge rather than the brand: orange is what the surface says AFTER an
+ * act, on the act itself. */
+.runbtn{width:100%;min-height:48px;border-radius:9px;border:1px dashed var(--rule-strong);background:transparent;
+ color:var(--ink);font-family:var(--font-mono);font-size:.82rem;cursor:pointer;margin-bottom:.7rem;
+ text-decoration:none;display:flex;align-items:center;justify-content:center;text-align:center;
+ padding:.4rem .6rem;line-height:1.35}
+@media(max-width:520px){.runbtn{font-size:.74rem}}
+.runbtn.collapsed{border-style:solid;border-color:var(--rule-strong);color:var(--ink-2);min-height:40px;
+ justify-content:flex-start;gap:.55rem;padding:.35rem .75rem;text-align:left;flex-wrap:wrap;margin-bottom:0}
+.runbtn.collapsed b{color:var(--ink);font-weight:650}
+.runbtn.collapsed .go{margin-left:auto;color:var(--ink);white-space:nowrap}
+/* Amber, not brand: an agent that has stopped and is waiting on a human is the amber state, and
+ * the burning line is that state made specific. */
+.runbtn.collapsed .hot{color:var(--wait)}
+.runbtn.collapsed.urgent{border-color:var(--wait)}
+/* The burning item, when it is folded into the lane bar rather than given a bar of its own. */
+.runbtn.collapsed .bt{color:var(--ink-2);flex:1 1 8rem;min-width:0;overflow:hidden;
+ text-overflow:ellipsis;white-space:nowrap}
+/* THE COLLAPSED STRIP IS THE FAST PANE AT PHONE WIDTH, NOT A SECOND COPY OF IT. Row 0415,
+ * 2026-08-28, from the operator driving the demo: "if I click on shape, I see shape, and then I
+ * see decide to the right." Measured at 1440px on /queue?tier=judge before this rule, the Decide
+ * tier stated itself THREE TIMES on a screen he had opened to judge -- chip `DECIDE 8`, this
+ * strip `Decide 8 run them`, pane head `DECIDE 8` -- with two `run them` calls to action. Above
+ * 900px `.pane-fast` is on the screen carrying the same count, the same items and the same act,
+ * so the strip is the copy and it goes. Below 900px the pane is `display:none` and the strip is
+ * the only fast lane there is, which is why this is the exact mirror of that rule and lives
+ * beside it rather than in the template.
+ *
+ * CSS AND NOT MARKUP, ON PURPOSE, AND IT IS NOT THE DEEP-WORK MECHANISM. MUST-NOT-BUILD #9 makes
+ * deep work absolute in the MARKUP, and it still is: `queue.html`'s `not (deep and tier !=
+ * 'decide')` renders no strip at all under deep work, and `test_browser.py:deep_work_absolute`
+ * still measures the region at 0 characters. This rule is the RESPONSIVE collapse, whose two
+ * halves have to be one document served at both widths, and `display:none` takes the strip out
+ * of the accessibility tree too, so nothing is announced twice.
+ *
+ * `urgent` STAYS AT EVERY WIDTH, and it is the reason this is a `:not()` and not a blanket hide.
+ * Urgent means a Decide item has an agent idle on it. That costs fleet wall clock by the minute
+ * wherever the operator is standing, and it is the one thing on this strip that earns a place on
+ * a tier he did not open. A count he already has twice on the same screen does not. */
+@media(min-width:900px){.lanebar .runbtn.collapsed:not(.urgent){display:none}}
+.burn{display:flex;align-items:center;gap:.5rem;background:var(--bg-raised);border:1px solid var(--wait);
+ border-radius:9px;padding:.5rem .75rem;margin-bottom:.7rem;font-family:var(--font-mono);font-size:.76rem;
+ color:var(--ink-2);text-decoration:none}
+.burn b{color:var(--wait)}
+.burn .go{margin-left:auto;color:var(--ink)}
+.rev{margin-top:.7rem;padding-top:.7rem;border-top:1px solid var(--rule)}
+.claim{display:flex;gap:.55rem;align-items:flex-start;padding:.4rem 0;border-bottom:1px solid var(--rule);font-size:.86rem}
+.claim:last-child{border:0}
+.claim .mk{font-family:var(--font-mono);font-size:.8rem;line-height:1.5;flex:0 0 1rem}
+.claim .bd{flex:1}
+.claim .ev{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);margin-top:.12rem;word-break:break-all}
+.claim .ev a{color:var(--ink-2);text-decoration:none;border-bottom:1px dotted}
+.claim.naked{background:var(--bg-sunk);border-radius:6px;padding:.45rem .55rem;border-bottom:0;margin:.2rem 0}
+.claim.naked .mk,.claim.naked .ev{color:var(--wait)}
+.claim.ok .mk{color:var(--fin)}
+.claim.bad .mk{color:var(--dmg)}
+.nakedcount{font-family:var(--font-mono);font-size:.72rem;color:var(--wait);margin-top:.4rem}
+.art{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-2);background:var(--bg-sunk);
+ border-radius:6px;padding:.5rem .6rem;display:flex;gap:.5rem;align-items:center;margin-bottom:.3rem;flex-wrap:wrap}
+.art a{margin-left:auto;color:var(--ink-2);text-decoration:none}
+.art .drift{color:var(--dmg)}
+.trail{font-family:var(--font-mono);font-size:.76rem}
+.trail .rd{padding:.45rem 0;border-bottom:1px solid var(--rule)}
+.trail .rd:last-child{border:0}
+.stamp{border:1.5px solid;border-radius:3px;padding:0 .3rem;font-size:.66rem;letter-spacing:.06em}
+.stamp.acc{color:var(--fin);border-color:var(--fin)}
+.stamp.rej{color:var(--dmg);border-color:var(--dmg)}
+.stamp.q{color:var(--wait);border-color:var(--wait)}
+.trail .sub{color:var(--ink-2);padding-left:1.1rem;margin-top:.15rem;white-space:pre-wrap}
+.sbwrap{margin-top:.6rem}
+/* The field boundary is --field-border and not --rule-strong: --rule-strong is the decorative
+ * edge, and WCAG 1.4.11 wants 3.0 for the visible boundary of a control (T4's C-12). On the sunk
+ * fill this field sits on, that is 3.57 light and 4.73 dark. Same swap on the two rules below. */
+textarea,input[type=text]{width:100%;background:var(--bg-sunk);border:1px solid var(--field-border);
+ border-radius:8px;color:var(--ink);font-family:var(--font-sans);font-size:.88rem;padding:.5rem .6rem;resize:vertical}
+textarea{min-height:66px}
+.hint{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);margin-top:.25rem}
+.bhead{background:var(--bg-raised);border:1px solid var(--rule);border-radius:11px;padding:1rem;margin-bottom:.75rem}
+.bkick{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2)}
+.bratio{display:flex;align-items:baseline;gap:.9rem;margin:.35rem 0 .1rem;flex-wrap:wrap}
+.bratio .n{font-family:var(--font-display);font-weight:700;font-size:clamp(2.2rem,11vw,3.2rem);line-height:1;letter-spacing:-.03em}
+.bratio .side{font-family:var(--font-mono);font-size:.78rem;color:var(--ink-2);line-height:1.5}
+/* The leverage ratio is emphasised and its coverage is NOT allowed to be smaller than it. Same
+   size, same weight, one line: the figure is quotable and the fraction of his time it actually saw
+   is what stops it being quoted as more than it is. A `.cov` set in fine print would be a coverage
+   statement designed to be skipped. */
+.bratio .lev{color:var(--ink);font-weight:650}
+.bratio .lev .cov{color:var(--wait);font-weight:650}
+.bcount{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-2);margin-top:.5rem;
+ padding-top:.5rem;border-top:1px solid var(--rule);display:flex;gap:1rem;flex-wrap:wrap}
+.sec2{margin-bottom:.75rem}
+.sec2 > h3{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;
+ color:var(--ink-2);margin:0 0 .4rem;display:flex;align-items:baseline;gap:.5rem;flex-wrap:wrap}
+.sec2 > h3 .sub{letter-spacing:0;text-transform:none;font-size:.7rem;opacity:.8}
+.brow{background:var(--bg-raised);border:1px solid var(--rule);border-radius:9px;padding:.6rem .75rem;
+ margin-bottom:.4rem;display:flex;gap:.6rem;align-items:center;flex-wrap:wrap}
+.brow .bid{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);flex:0 0 auto}
+.brow .btx{flex:1;min-width:9rem;font-size:.9rem}
+.brow .btx b{font-weight:650}
+.brow .bwhen{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2)}
+.brow button{min-height:38px;padding:0 .75rem;border-radius:7px;border:1px solid var(--rule-strong);
+ background:transparent;color:var(--ink-2);font-family:var(--font-mono);font-size:.74rem;cursor:pointer}
+.brow button[disabled]{opacity:.5;cursor:default}
+.brow.def,.brow.gate{border-left:3px solid var(--wait);border-radius:0 9px 9px 0}
+.brow.auto{border-left:3px solid var(--fin);border-radius:0 9px 9px 0;opacity:.9}
+.bmeta{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);padding:.1rem .2rem .4rem}
+.bmeta.hot{color:var(--wait)}
+.bcause{background:var(--bg-raised);border:1px solid var(--rule);border-left:3px solid var(--brand);
+ border-radius:0 9px 9px 0;padding:.75rem .85rem;margin-bottom:.4rem}
+.bcause .l1{font-size:.9rem}
+.bcause .l2{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-2);margin-top:.3rem}
+/* Same label token as `button.act`, and for the same measured reason, restated because this
+ * comment carried the same stale number: the 3.50:1 was white on #E2621B, the brand orange
+ * before task 0170, and this rule is the Brief's one primary control. On today's --brand
+ * (#C2560F) the near-black it used to hardcode measures 4.37:1 and FAILS, and --on-solid
+ * measures 4.53:1 and passes. Row 0375, fixed 2026-08-27. */
+.bcta{width:100%;min-height:52px;border-radius:10px;border:1px solid var(--brand);background:var(--brand);
+ color:var(--on-solid);font-family:var(--font-sans);font-weight:650;font-size:.98rem;cursor:pointer;margin-top:.4rem;
+ display:flex;align-items:center;justify-content:center;text-decoration:none}
+.ctwrap{background:var(--bg-raised);border:1px solid var(--rule);border-radius:11px;overflow:hidden;margin-bottom:.75rem}
+.ctbar{display:flex;align-items:center;gap:.5rem;padding:.55rem .7rem;border-bottom:1px solid var(--rule);flex-wrap:wrap}
+.ctbar .lbl{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;
+ border:1px solid var(--rule-strong);border-radius:12px;padding:.12rem .5rem;color:var(--ink-2)}
+.ctbar .lbl.replay{color:var(--rest);border-color:var(--rule-strong)}
+.ctbar .lbl.live{color:var(--fin);border-color:var(--fin)}
+.ctbar button{background:transparent;border:1px solid var(--rule-strong);border-radius:7px;color:var(--ink-2);
+ font-family:var(--font-mono);font-size:.72rem;padding:.3rem .6rem;cursor:pointer;min-height:34px}
+.ctbar button.on{border-color:var(--ink-3);color:var(--ink)}
+.ctrail{display:flex;gap:.35rem;padding:.5rem .7rem;border-bottom:1px solid var(--rule);overflow-x:auto;scrollbar-width:none}
+.ctrail::-webkit-scrollbar{display:none}
+.who{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:.15rem;cursor:pointer;
+ padding:.25rem .35rem;border-radius:7px;border:1px solid transparent;background:none}
+.who.sel{border-color:var(--ink-3);background:var(--bg-sunk)}
+.who svg{display:block}
+.who .nm{font-family:var(--font-mono);font-size:.62rem;color:var(--ink-2)}
+.ctfeed{padding:.6rem .7rem;max-height:26rem;overflow-y:auto}
+.ev{padding:.45rem 0;border-left:2px solid transparent;padding-left:.6rem;margin-bottom:.15rem}
+.ev .hd{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);display:flex;gap:.45rem;align-items:center;flex-wrap:wrap}
+.ev .hd b{color:var(--ink)}
+.ev .bd{font-size:.9rem;margin-top:.15rem;white-space:pre-wrap}
+.ev.cmd{border-left-color:var(--run)}
+.ev.rep{border-left-color:var(--rest)}
+.ev.acc{border-left-color:var(--fin)}
+.ev.rej{border-left-color:var(--dmg)}
+.ev.ask{border-left-color:var(--wait);background:var(--bg-sunk);border-radius:0 8px 8px 0;padding:.55rem .7rem}
+.ev.ans{border-left-color:var(--brand)}
+.stmp{border:1.5px solid;border-radius:3px;padding:0 .3rem;font-size:.64rem;letter-spacing:.07em;
+ font-family:var(--font-mono);animation:st .15s var(--ease)}
+@keyframes st{from{transform:scale(1.06)}to{transform:scale(1)}}
+.stmp.acc{color:var(--fin);border-color:var(--fin)}
+.stmp.rej{color:var(--dmg);border-color:var(--dmg)}
+.stmp.ask{color:var(--wait);border-color:var(--wait)}
+.fold{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);opacity:.75;cursor:pointer;
+ padding:.55rem 0 .55rem .6rem;border-left:2px dashed var(--rule-strong);margin-bottom:.15rem;
+ background:none;border-top:0;border-right:0;border-bottom:0;text-align:left;width:100%;
+ min-height:34px}
+/* The fold is the control that turns ninety collapsed records into ninety readable ones, so on a
+ * phone it is a real tap target and not a 25px sliver. Measured at 375px, not eyeballed. */
+@media(max-width:520px){.fold{min-height:44px}}
+.fold:hover{opacity:1}
+.foldout{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);padding-left:1rem;line-height:1.7;
+ white-space:pre-wrap}
+.split{display:block}
+.pane-fast{display:none}
+/* ------------------------------------------------------------------ the lane bar
+ * THE FAST LANE WAS ANNOUNCED THREE TIMES AND RENDERED ONCE. Measured at 390px before this rule:
+ * four full-width bars stood between the top of the page and the first queue card, which began
+ * at y=379 of an 844px viewport, and three of the four were about the Decide lane -- the
+ * collapsed count strip, the burning-item line, and a deep-work note whose entire content was
+ * "fast lane visible on the right". The guide's argument for the right panel is that "a strip
+ * beside a reading column is one queue and one workspace"; announcing that strip three times
+ * above the workspace is what undoes it.
+ *
+ * The three become one row. The regions survive as regions because the poll patches by region
+ * name and each of these still changes independently. */
+.lanebar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.7rem}
+.lanebar>div[data-region]{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.lanebar>div[data-region="runbtn"]{flex:1 1 0;min-width:0}
+.lanebar .runbtn{margin-bottom:0}
+.deepbar{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.deepbtn{background:transparent;border:1px solid var(--rule-strong);border-radius:20px;color:var(--ink-2);
+ font-family:var(--font-mono);font-size:.72rem;padding:.35rem .75rem;cursor:pointer;min-height:36px;
+ text-decoration:none;line-height:1.9}
+.deepbtn.on{border-color:var(--brand);color:var(--brand-text);background:var(--bg-sunk)}
+.deepnote{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2)}
+/* DEEP WORK IS A ONE-YEAR COOKIE THAT WAS LEGIBLE ON ONE OF THE FIVE PLACES YOU CAN BE. It is an
+ * absolute mode -- the fast pane, the burning line and every card outside the tier are not
+ * rendered, not hidden -- and /brief, /fleet, /study and /queue?tier=decide said nothing about
+ * it at all. The guide's own rule is what permits the fix rather than forbidding it: "A count
+ * may appear anywhere. Cards may not. Nothing interrupts deep work." A state pill plus a count
+ * is a count, so it lives in the shell chrome, on every room, and it is not a control: the
+ * toggle stays on the Queue, because a mode this absolute should not be switchable by a stray
+ * tap from a room that cannot show you what it is hiding.
+ * Orange, and this one earns it: deep work is a mode the operator turned on. */
+.deeppill{font-family:var(--font-mono);font-size:.7rem;color:var(--brand-text);
+ border:1px solid var(--brand);border-radius:20px;padding:.2rem .65rem;display:inline-flex;
+ align-items:center;gap:.4rem;min-height:32px;white-space:nowrap;flex:0 0 auto}
+.deeppill b{color:var(--ink);font-weight:650}
+/* DEEP WORK IS ON AND DOES NOT APPLY ON THIS TIER. Row 0415's sibling, 2026-08-31.
+ *
+ * QUIET ON PURPOSE, AND IT TAKES THE ORANGE BACK OFF `.deeppill`. The pill above paints
+ * `--brand` because it marks a mode that is RUNNING on the surface you are reading. This marks
+ * a mode that is running SOMEWHERE ELSE, one click away, and spending the brand colour on that
+ * would rank it beside the acts this room exists to press. Neutral rule, `--ink-2` text.
+ *
+ * NOT AMBER AND NOT RED. MUST-NOT-BUILD item 7: red is damage, shell wide. This is neither
+ * damage nor waiting-on-a-human -- it is a true statement about a cookie -- so it takes the
+ * same neutral the rest of the chrome uses and earns attention by being legible, not coloured. */
+.deepoff{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);
+ border:1px solid var(--rule-strong);border-radius:20px;padding:.2rem .65rem;
+ display:inline-flex;align-items:center;gap:.4rem;min-height:44px;flex:0 0 auto;
+ margin-left:auto}
+.deepoff .dhs{color:var(--ink-3)}
+.deepoff .dhleave{color:var(--ink);text-decoration:underline;text-underline-offset:2px}
+@media(max-width:560px){.deepoff .dhs{display:none}}
+/* A LINK ON A FLEET CARD LOOKS LIKE A LINK. Lane D2, 2026-08-29.
+ *
+ * The agent's name became a door to `/agent/<name>` tonight, and measured on the rendered page it
+ * carried no mark at all: `text-decoration none`, `border-bottom 0px none`, and the name itself
+ * painted `--ink-2` inside it, so a working link was indistinguishable from the label it replaced.
+ * The card's OTHER link, the work item id, was already in that state, so this rule marks both
+ * rather than giving one card two treatments.
+ *
+ * `1px dotted` and `--ink-2` are the house's own id-link mark, copied by name from `.cid a` twenty
+ * lines above rather than invented here. The 520px block already swaps this shape for
+ * `text-decoration: underline dotted` on the same kind of element, for the reason written there:
+ * at a 44px line box a border marks the box and the text is 20px away from it. `.fcard a` is
+ * already in that block's tap-target list, so the phone keeps its 44px and this adds no height.
+ * Re-measured at 375 and 390 after this rule: 0 controls under the floor, 0px of overflow. */
+.fcard a{border-bottom:1px dotted var(--ink-2)}
+@media(max-width:520px){.fcard a{border-bottom:0;text-decoration:underline dotted;
+  text-underline-offset:2px}}
+.panehd{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.13em;text-transform:uppercase;
+ color:var(--ink-2);margin-bottom:.45rem;display:flex;align-items:center;gap:.4rem}
+.panehd .ct{color:var(--ink);font-weight:650}
+.mini{background:var(--bg-raised);border:1px solid var(--rule);border-radius:9px;padding:.55rem .65rem;margin-bottom:.4rem}
+.mini .mid{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-2)}
+.mini .mt{font-size:.86rem;font-weight:600;margin:.1rem 0 .3rem;line-height:1.32}
+.mini .mm{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-2);margin-bottom:.4rem}
+.mini button.act,.mini .sec{width:100%;min-height:40px;font-size:.84rem;min-width:0}
+.mini form{width:100%}
+.mini .mrow{display:flex;gap:.35rem;margin-top:.3rem}
+.mini .mrow a,.mini .mrow button{flex:1;min-height:32px;padding:0 .4rem;border-radius:6px;border:1px solid var(--rule-strong);
+ background:transparent;color:var(--ink-2);font-family:var(--font-mono);font-size:.66rem;cursor:pointer;
+ text-decoration:none;text-align:center;line-height:2.1}
+/* THE PANE IS A SIDEBAR AND IT WAS SETTING THE HEIGHT OF THE PAGE. Row 0434 follow-on, lane D2,
+ * 2026-08-29, from the human path audit's second finding.
+ *
+ * MEASURED at 1440x900 on `/queue?tier=judge` and `?tier=shape`, both themes, before this rule:
+ * the seven Judge rows end at y=685, the fast pane is 1592px tall, and because a grid row is as
+ * tall as its tallest column the DOCUMENT is 2166px. So the page scrolls 1481px below the last
+ * row, and 1269px of that is nothing at all: the next thing in the left column, `+ my own work`,
+ * does not start until y=1954. Scrolled to the bottom, 0 of 7 rows are on the screen. A screen
+ * that ends in half a metre of blank reads as broken whatever is on the right of it.
+ *
+ * `position:sticky` WAS ALREADY HERE AND COULD NOT WORK. Sticky pins an element inside its
+ * scrollport only while the element is SHORTER than the scrollport; at 1592px against 900px
+ * there was never anything for it to do. Bounding the pane to the viewport is what makes the
+ * rule that was already written true, and it is why this is two properties rather than a
+ * redesign.
+ *
+ * NOTHING IS DROPPED AND NOTHING IS PAGINATED. Every mini the pane rendered before is still in
+ * the markup and still reachable: the pane scrolls. `overscroll-behavior:contain` stops a wheel
+ * that reaches the end of the pane from carrying on into the page under it, which is the one
+ * way a bounded sidebar can steal a scroll the reader meant for the list.
+ *
+ * DESKTOP ONLY, DELIBERATELY. Below 900px `.pane-fast` is `display:none` and the collapsed strip
+ * is the fast lane instead, so this block cannot touch the phone. The phone geometry lane C2
+ * rebuilt tonight is measured unchanged at 375 and 390 in `lane-D2-report.md`. */
+@media(min-width:900px){
+ .split.two{display:grid;grid-template-columns:1fr 20rem;gap:1rem;align-items:start}
+ .pane-fast{display:block;position:sticky;top:4.2rem;
+  max-height:calc(100vh - 5.4rem);overflow-y:auto;overscroll-behavior:contain}
+ /* THE PANE'S OWN ACT STAYS ON THE SCREEN. Bounding the pane put `run them full screen` below
+  * its own fold, which would have traded an empty page for a control that has to be hunted for.
+  * It is sticky to the FOOT of the pane, opaque on the page ground so the strip does not read
+  * through it, and it is the same anchor with the same href: nothing here is a new affordance. */
+ .pane-fast>.runbtn{position:sticky;bottom:0;background:var(--bg);margin-bottom:0}
+}
+/* In the header row since A4 (STREAMLINE item 10): a fixed button at the viewport foot covered
+ * cards at 375. A flex item now, so it takes space instead of floating over content. */
+.themebtn{flex:0 0 auto;background:var(--bg-raised);border:1px solid var(--rule-strong);
+ color:var(--ink-2);border-radius:20px;padding:.45rem .8rem;font-family:var(--font-mono);font-size:.7rem;cursor:pointer;
+ min-height:36px}
+canvas#cf{position:fixed;inset:0;pointer-events:none;z-index:50}
+.note{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);background:var(--bg-sunk);
+ border:1px dashed var(--rule-strong);border-radius:6px;padding:.5rem .65rem;margin:.8rem 0}
+.note.gap{border-color:var(--wait);color:var(--wait)}
+/* Red means damage, shell wide. Never a badge, never an unread count. */
+.banner{border:1px solid var(--dmg);color:var(--dmg);background:var(--bg-raised);border-radius:8px;
+ padding:.55rem .75rem;margin:.6rem 0;font-family:var(--font-mono);font-size:.76rem}
+.banner.refusal{border-color:var(--wait);color:var(--wait)}
+/* A statement of what just landed. It takes the finished colour and NOT the brand orange, which
+   this shell reserves for operator causality about to happen, nor red, which means damage. */
+.banner.ok{border-color:var(--fin);color:var(--fin)}
+/* A STATE THE OPERATOR CHOSE AND CAN UNCHOOSE. Row 0383, 2026-08-27.
+ *
+ * `.banner` with no modifier is red, and the Fleet room's paused banner carried exactly that:
+ * measured in both themes, `The fleet is PAUSED. No agent will claim.` rendered at #AC2318 in
+ * light and #EE8078 in dark, both `--dmg`. A paused fleet is not damage. It is a deliberate,
+ * reversible operator setting, and MUST-NOT-BUILD #7's own sentence is the argument against it:
+ * "Red means damage and nothing else, shell wide, or there is no colour left for a thing that is
+ * actually broken."
+ *
+ * AMBER RATHER THAN GREY, of the two candidates. The five states are blue running, green
+ * finished, amber waiting on a human, red broken, grey resting, and a paused fleet is waiting on
+ * a human by construction: it was paused by one and only one can resume it. Grey would also be
+ * defensible as resting and it would be quieter, which is the wrong direction for a banner whose
+ * whole job is that the operator must not forget it is on.
+ *
+ * The word is untouched. `PAUSED` was on the banner before this rule and is on it after, so the
+ * colour change is a colour change and not a change to what the surface says. */
+.banner.held{border-color:var(--wait);color:var(--wait)}
+table.tbl{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:.74rem}
+table.tbl th{text-align:left;color:var(--ink-2);font-weight:400;letter-spacing:.08em;text-transform:uppercase;
+ font-size:.64rem;padding:.3rem .4rem;border-bottom:1px solid var(--rule)}
+table.tbl td{padding:.3rem .4rem;border-bottom:1px solid var(--rule);color:var(--ink-2);vertical-align:top}
+table.tbl td a{text-decoration:none}
+/* One bar per day, no smoothing, no projection, no forecast segment, no percentage. */
+.bars{display:flex;align-items:flex-end;gap:3px;height:44px;margin:.4rem 0}
+.bars .b{flex:1;background:var(--rest);border-radius:2px 2px 0 0;min-height:2px}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* --------------------------------------------------- the Scope elicitation flow
+   A demolition surface, not an authoring one. The row reads label-left, value-right so the
+   operator's eye runs down the values looking for the one that is wrong, which is the only
+   thing he is here to do. `input` is styled to match `textarea` because the guide's row is a
+   mix of both and a row that changes texture halfway down reads as two rows. */
+input:not([type]),input[type=text]{width:100%;background:var(--bg-sunk);
+  border:1px solid var(--field-border);border-radius:6px;padding:.42rem .55rem;color:var(--ink);
+  font-family:var(--font-mono);font-size:.78rem}
+.dodrow{border-left:2px solid var(--rule-strong)}
+.dodhead{display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem}
+.dodhead .rowno{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--ink-3)}
+.dodhead .chip{display:inline-flex;align-items:center;gap:.35rem;min-height:32px}
+.dodhead .chip.off{opacity:.5}
+.dodf{display:grid;grid-template-columns:minmax(0,11rem) 1fr;gap:.6rem;align-items:start;
+  margin-bottom:.4rem}
+.dodf>span{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);padding-top:.5rem}
+.dodf.wide>span{color:var(--ink-2)}
+.dodf textarea{min-height:44px}
+/* The one field the machine may not skip. Marked in the house language rather than with a red
+   asterisk: red means damage, shell wide. */
+.dodf.req>span{color:var(--wait)}
+.dodf.req textarea{border-color:var(--wait)}
+.warnln{color:var(--wait)}
+@media(max-width:640px){.dodf{grid-template-columns:1fr;gap:.2rem}
+  .dodf>span{padding-top:.3rem}}
+
+/* ------------------------------------------------------- 44px, on a phone, everywhere
+   THE GUIDE'S OWN TAP-TARGET LINE IS 44px AND THIS SHEET WAS KEEPING IT IN THREE PLACES.
+   Measured by rendered height at 375px before this block: /queue?tier=judge 13 of 34 interactive
+   elements under 44px, /queue?tier=decide 8 of 17, and /brief 19 OF 20 -- the Brief being the
+   worst because its offenders are its actual verbs, `reopen` at 38px, `walk the lineage` at
+   31.8px, the room links at 32px and the item-id links at 14px.
+
+   The threshold is the one already established twice in this file, at `.blk .ln a` and `.fold`:
+   44px below 520px, content height above it, because 44px is a fingertip and a pointer is not a
+   fingertip. An id link is an inline-block with its line-height raised rather than a padded box,
+   so the line it sits on grows to the target rather than the target overflowing the line.
+
+   Checked by rendering at 375 and 390 in web/tests/test_browser.py, not read off the cascade.
+
+   AND IT WAS KEEPING IT IN ONE DIMENSION. W3-INFINITY-TEST, 2026-09-15: the shared nav tabs are
+   44px TALL and 39.8px WIDE, and 68 of 72 driveable matrix keys fail on that. A fingertip is round;
+   a target 44 tall and 39.8 wide is a miss in the direction nobody was checking, and a height-only
+   probe reports it clean on every route. Note the sentence above this one: "Measured by rendered
+   HEIGHT at 375px". The block did exactly what it said, and what it said was half the property.
+
+   THE CAUSE IS THE ITEM, NOT THE LAYOUT, and that was measured rather than assumed. Every tab's
+   width is EXACTLY its text plus its padding (Work 27.0 + 12.8 = 39.8, More the same, Agents 53.3,
+   Projects 66.8), `min-width` is `auto` on every one, and at 375 the nav is 347.8px wide against
+   316.6px of items, so there are 31px of SPARE ROOM. A nav compressing its children has none. So
+   the floor goes on the item and no layout changes.
+
+   `justify-content:center` comes with it: a short label in a box widened to 44 should sit in the
+   middle of its target rather than at the left edge of it.
+
+   ONLY THE TWO NAVS ARE WIDENED HERE. The other thirteen selector groups in this list carry the
+   same one-dimension floor and are NOT changed by this rule, because several of them are inline
+   links inside running text where a width floor would break the line rather than the target. That
+   is a separate measurement and a separate owner's call; it is recorded in the seat report rather
+   than fixed quietly here. */
+@media(max-width:520px){
+  a.logo,.room,.subroom,.deepbtn,.deeppill,.themebtn,.chip,.dodhead .chip,.receipt button,.brow button,
+  .runbtn.collapsed,.mini .mrow a,.mini .mrow button,.ctbar button,.stackhd a,.stackhd button,
+  .fold{min-height:44px}
+  .room,.subroom{min-width:44px;justify-content:center}
+  /* Inline links inside a running line: the box has to grow with the line, not through it. */
+  .cid a,.brow .bid a,.bcause a,.claim .ev a,.art a,.fcard a,table.tbl td a,.trail a,.blk .ln a{
+    display:inline-block;min-height:44px;line-height:44px}
+  /* AND THE BOARD'S ROW ID IS NOT ONE OF THOSE (W3-UX-INFINITY, 2026-09-16). It is a whole cell
+     of its own, not a link inside a sentence, so it can take the width floor the list above must
+     not. MEASURED at 375 before this rule: every id link 44px tall and 27.8px wide. Scoped to
+     `td.tid`, which `table.html` is the only template to render, so it reaches one column in one
+     room and leaves every other `table.tbl td a` exactly as the line above sets it. */
+  .tbl td.tid a{min-width:44px;text-align:center}
+  /* ROW 0432, 2026-08-29. THE GRID'S TWO LINKS ARE UNDER THE FLOOR AND THE FIX IS NOT FREE, SO
+   * IT IS FILED RATHER THAN SLIPPED IN. Row 0431's spreadsheet row carries the id link in
+   * `.qcid` and 0412's `blocks <id>` route in `.qcstate`, and neither matches `.cid a` above:
+   * measured by `test_browser.py` at 375px, `A:14` and `qblocks:17` against this block's 44px
+   * floor. It surfaced only once the page-level horizontal scroll was fixed, because that
+   * assertion fired first -- the same shape as `test_phone_surface`'s.
+   *
+   * ADDING `.qcid a,.qblocks{min-height:44px;line-height:44px}` here does clear the floor and
+   * was measured doing it: the phone row goes from 71px to 100px and the Shape tier goes from 3
+   * rows on a 390x844 screen to 2. That is a 40 percent cut in what he sees at 7am to raise two
+   * SECONDARY routes, inside a row whose PRIMARY target is the whole 71px of it. The two are in
+   * tension and which one wins is his call about his own screen, so the measurement is written
+   * here and the rule is not applied. Lane B4 decision D-B4-6.
+   *
+   * ANSWERED 2026-09-01: HE KEPT THE ROWS. Put to him with both costs on screen, his choice was
+   * to leave the id link under the floor rather than lose a row. His reasoning is the one this
+   * note already contained and it is sound: the row's PRIMARY tap target is the whole 71px of
+   * it, and the id link is a SECONDARY route to the page that row already opens.
+   *
+   * SO THIS RULE STAYS OUT, and it is now a RULING rather than an open question. The check that
+   * was reporting it -- `test_browser.py:no_page_level_horizontal_scroll` -- carries a declared
+   * exception naming this one selector on this one surface, with his reasoning, so it stops
+   * reading as an unfixed defect. Everything else under 44px still fails there, including a
+   * second small target on this same row, so the exception cannot spread.
+   *
+   * ONE THING CHANGED SINCE THE FILING: it recorded `A:14` AND `qblocks:17`. Only the id link
+   * is under the floor today, so `qblocks` was fixed in the meantime rather than ruled on. If
+   * he ever reverses this, the rule below and that declared exception come out together. */
+  /* A `border-bottom` marks the BOX and a text-decoration marks the TEXT, and at a 44px line
+     box those are 20px apart: seen rendered at 390px, the dotted rule detached from the item id
+     and read as a stray line under the card. Same mark, attached to the glyphs. */
+  .cid a,.claim .ev a,.blk .ln a{border-bottom:0;text-decoration:underline dotted;
+    text-underline-offset:2px}
+  /* `.brow` wraps its button in an anchor, so the anchor is the thing a finger lands on. */
+  .brow a{display:inline-flex;align-items:center;min-height:44px}
+  .brow a .bid a,.brow .bid a{line-height:44px}
+}
+
+/* =========================================================================================
+ * V10 lane sections (SHELL-0, task 0156). Each build lane appends its component styles inside
+ * its own banner below and never edits another lane's section or the token blocks above.
+ * ========================================================================================= */
+/* ---- V3: multi-option card -- rail, focus, degraded states (C sections 1.3-1.6) ---- */
+/* Task 0165. EVERY VALUE BELOW IS A TOKEN BY NAME. Where a token DESIGN-SYSTEM.md section 2.1
+ * names has not been landed in `:root` yet -- `--focus`, `--tint-*`, `--tap` are V-SHELL's, and
+ * no lane but V-SHELL touches `:root` (SHELL-0) -- it is consumed by name WITH the fallback the
+ * design system itself states: `--focus` is defined there as an alias of the existing `--run`
+ * hue, so `var(--focus,var(--run))` is the same colour today and becomes the shared token the
+ * moment V-SHELL lands it, with no edit here. A hex literal would survive neither revision. */
+.opts{margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--rule)}
+/* THE RAIL: aligned columns, not cells. Four rows compare vertically at a glance, and the same
+ * markup reflows to two lines at 390px with nothing truncated (section 9). */
+.rail{display:flex;flex-direction:column;gap:.3rem}
+.orow{display:grid;grid-template-columns:auto minmax(7rem,1.2fr) minmax(9rem,1.4fr) auto auto;
+ align-items:center;gap:.5rem .7rem;min-height:var(--tap,44px);padding:.45rem .6rem;
+ background:var(--bg-sunk);border:1px solid var(--rule);border-radius:var(--radius-row);
+ cursor:pointer}
+.orow:hover{border-color:var(--rule-strong)}
+/* The selected row is the one place the functional accent appears on this component. It carries
+ * AFFORDANCE and never a semantic state, which is why it is the focus hue and not one of the
+ * five state colours -- and never brand orange, which is reserved for operator causality. */
+.orow.on{border-color:var(--focus,var(--run));background:var(--tint-run,var(--bg-sunk))}
+.orow input[type=radio]{width:1rem;height:1rem;accent-color:var(--focus,var(--run));margin:0}
+.orow:focus-within{outline:2px solid var(--focus,var(--run));outline-offset:2px}
+.olabel{font-family:var(--font-sans);font-weight:650;font-size:.9rem;color:var(--ink)}
+.oax,.ocost{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2)}
+.ocost{text-align:right;white-space:nowrap}
+/* The tags column carries the rail's own mono size. Without this the inline `no counterargument`
+ * finding inherits the card's body size and renders LARGER than the row it is a note on --
+ * measured in the 1440 light shot -- which is a finding shouting over the fact it qualifies. */
+.otags{display:flex;gap:.35rem;align-items:center;flex-wrap:wrap;
+ font-family:var(--font-mono);font-size:.66rem}
+/* `recommended` is a NEUTRAL OUTLINED WORD. Not orange (brand is operator causality, and a
+ * machine's recommendation is not the operator's act) and not green (a recommendation is not a
+ * finished thing). It buys no other privilege: same row height, same single tap. */
+.otag{font-family:var(--font-mono);font-size:.64rem;letter-spacing:.06em;color:var(--ink-2);
+ border:1px solid var(--rule-strong);border-radius:3px;padding:0 .28rem;white-space:nowrap}
+.otag.on{color:var(--fin);border-color:var(--fin)}
+/* Amber, and the word travels with it: colour never carries meaning alone, shell wide. Red is
+ * damage and nothing else, and a thin drafted option is not damage. */
+.owarn{color:var(--wait)}
+.orow.spent{opacity:.72;cursor:default;grid-template-columns:minmax(7rem,1.2fr) minmax(9rem,1.4fr) auto auto}
+.orow.spent.chosen{opacity:1;border-color:var(--fin)}
+/* THE FOCUS: prose for exactly one option. Order is fixed and none of it collapses --
+ * plan, then counterargument, then the commitment line, then the verb. */
+.ofocus{margin-top:.55rem;padding:.6rem .7rem;background:var(--bg-sunk);
+ border-radius:var(--radius-inner);animation:optin var(--t-settle,150ms) var(--ease-enter,var(--ease))}
+.ofocus h5{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.12em;
+ text-transform:uppercase;color:var(--ink-2);margin:.6rem 0 .2rem}
+.ofocus h5:first-child{margin-top:0}
+.oplan{font-size:.88rem;color:var(--ink-2)}
+/* The counterargument's own treatment, the same one the stack card already uses: 2px amber left
+ * border, padded, IN THE ACTION PATH between the plan and the verb. It has no disclosure control
+ * because there is nothing to learn to skip. */
+.ofocus .ctr{font-size:.88rem;color:var(--ink-2);border-left:2px solid var(--wait);
+ padding-left:.7rem;margin:.2rem 0 .5rem}
+/* Cost appears TWICE on the path to dispatch -- once on the rail, once here. An option that
+ * hides its price is a trap and one glance-past is cheap. */
+.ocommit{font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);margin:.5rem 0 .6rem}
+.ofocus a.act{flex:0 0 auto;min-height:var(--tap,44px);display:inline-flex;align-items:center;
+ padding:0 .9rem;border-radius:8px;border:1px solid var(--brand);background:var(--brand);
+ /* `--on-solid` is DESIGN-SYSTEM.md section 2.1's name for a label on an ink or brand fill,
+  * and this rule was the only one of the three that already consumed it by name. THE FALLBACK
+  * IS GONE (row 0375, 2026-08-27): it was #0A0A0A, chosen against the pre-0170 brand #E2621B,
+  * and against today's #C2560F that value measures 4.37:1 and fails AA. A fallback that fires
+  * only when the token block is missing would restore the exact failing pair on the one render
+  * where nobody is looking, so there is no fallback rather than a wrong one. Consumed by name
+  * so that if V-SHELL ever lands section 2.1 [V10-E]'s ruling -- the primary's fill becomes
+  * --ink rather than --brand -- this label follows without an edit here. */
+ color:var(--on-solid);font-family:var(--font-sans);font-weight:650;font-size:.9rem;
+ text-decoration:none}
+.ofocus .why{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);margin-top:.35rem}
+/* Degraded, C section 1.6b: drafting failed. AMBER, not red -- the queue item is intact and
+ * resolvable, and nothing recorded as present is gone. Loud, and still a card rather than damage. */
+.optfail{margin-top:.6rem;padding:.5rem .6rem;border:1px solid var(--wait);
+ border-radius:var(--radius-inner);color:var(--wait);font-size:.84rem}
+.optfail .why{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);margin-top:.25rem}
+.optsame{margin-bottom:.5rem;padding:.4rem .55rem;border-left:2px solid var(--wait);
+ color:var(--wait);font-size:.8rem}
+.optdone{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-2);margin-bottom:.45rem}
+.optdone a{color:var(--ink-2)}
+@keyframes optin{from{opacity:0}to{opacity:1}}
+/* 390px is a real target, not a port. Two lines per row, nothing truncated, cost never elided. */
+@media (max-width:900px){
+  .orow{grid-template-columns:auto 1fr;grid-template-areas:"sel label" "ax ax" "cost cost" "tags tags";
+   row-gap:.25rem}
+  .orow input[type=radio]{grid-area:sel}
+  .olabel{grid-area:label}
+  .oax{grid-area:ax}
+  .ocost{grid-area:cost;text-align:left;white-space:normal}
+  .otags{grid-area:tags}
+  .orow.spent{grid-template-columns:1fr;grid-template-areas:"label" "ax" "cost" "tags"}
+}
+/* In deep work in-room motion is none (section 2.4, the law). The card and its rail are guests
+ * in both modes, so the guest turns its own entry off rather than relying on the room. */
+body.deep .ofocus{animation:none}
+@media (prefers-reduced-motion:reduce){.ofocus{animation:none}}
+/* ---- V4: runfeed -- vitals, seams, steering band, picker, folds (C sections 2.3-2.7) ---- */
+/* ---- V5: images in place -- image block, caption, MISSING/CHANGED (C sections 3.2-3.4) ----
+ * Task 0167. Tokens by name throughout, no hex literal and no bare millisecond value.
+ *
+ * `--tap` IS CONSUMED WITH A FALLBACK AND THAT IS DELIBERATE. DESIGN-SYSTEM section 9 (V10-E)
+ * makes `--tap` the one token carrying the 44px standard, and SHELL-0's token block above does
+ * not define it -- the prototype does (synthesis/prototype.html:61) and console.css never got
+ * it. Adding it to `:root` here would be this lane editing the shared token block SHELL-0 landed
+ * so that no build lane would. So every control below says `var(--tap, 44px)`: it measures 44
+ * today and picks up the shared token the moment V-SHELL lands one, with no edit here. Raised to
+ * the fleet rather than fixed quietly -- see V-CROSSTALK slot 8.
+ *
+ * `.imgfind` and NOT `.finding`: the prototype's finding block is a shared name that V3 (drafting
+ * failed, missing counterargument), V4 (MISSING stream, two clocks) and V5 all render, and no
+ * lane owns it. Three lanes appending three definitions of one class is the collision SHELL-0
+ * exists to prevent, so this lane scopes its own and says so.
+ */
+.imgblock{margin-top:.75rem}
+.imgbox{background:var(--bg-sunk);border-radius:var(--radius-inner);display:flex;
+  align-items:center;justify-content:center;overflow:hidden;max-height:320px}
+.imgbox img{max-width:100%;max-height:320px;object-fit:contain;display:block}
+/* Fit -> full is IN FLOW: the page grows and the image stays on the card it belongs to. There is
+ * no overlay, no lightbox and no modal anywhere in this lane -- "in place" has to survive the
+ * interaction or it was never in place. */
+.imgbox.full,.imgbox.full img{max-height:none}
+/* CHANGED renders the current bytes at 60%, per DESIGN-SYSTEM section 7.3. Not hidden: hiding
+ * them helps nobody. Not full strength: that would present them as the attested bytes. */
+.imgbox.dim{opacity:.6}
+/* MISSING holds the layout slot the image claimed. `min-height` and not a fixed height, so a
+ * long pointer wraps instead of being clipped -- a finding that truncates its own evidence is
+ * half a finding. */
+.imgbox.gone{min-height:140px;align-items:stretch;background:transparent;
+  border:1px solid var(--dmg);padding:.55rem}
+.imgbox.landing{min-height:120px;border:1px dashed var(--rule-strong);background:var(--bg-sunk)}
+.landwords{font-family:var(--font-mono);font-size:.74rem;color:var(--ink-2)}
+.imgcap{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-3);margin-top:.4rem;
+  display:flex;gap:.75rem;flex-wrap:wrap;align-items:center}
+.imgcap .imgtoggle{background:none;border:0;color:var(--ink);font-family:var(--font-mono);
+  font-size:.7rem;cursor:pointer;text-decoration:underline;text-underline-offset:2px;
+  min-height:var(--tap,44px);padding:0 .2rem}
+.imgfind{border:1px solid var(--rule);border-left:3px solid var(--wait);border-radius:6px;
+  padding:.5rem .6rem;font-size:.8rem;color:var(--ink);background:var(--bg-raised);
+  margin-bottom:.4rem}
+.imgfind.red{border-left-color:var(--dmg);color:var(--dmg)}
+.imgfind.amber{border-left-color:var(--wait);color:var(--wait)}
+/* Inside the .gone box the border is already the finding's; a second one is chrome. */
+.imgfind.bare{border:0;background:transparent;margin:0;padding:0}
+.imgfind .sub{color:var(--ink-2);font-size:.74rem;margin-top:.25rem}
+.imgfind.red .sub,.imgfind.amber .sub{color:var(--ink-2)}
+.imgfind .sub.mono{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-3)}
+.imgacts{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.45rem}
+.imgacts:empty{display:none}
+.imgattach{margin-top:.5rem}
+.attbox{margin-top:.45rem;background:var(--bg-sunk);border-radius:var(--radius-inner);
+  padding:.55rem .6rem}
+.attbox .attlab{display:block;font-size:.74rem;color:var(--ink-2);margin-bottom:.35rem}
+.attbox form{display:flex;flex-direction:column;gap:.45rem}
+.attbox input[type=text]{font-family:var(--font-mono);font-size:.76rem;
+  min-height:var(--tap,44px)}
+.attbox button.act{min-height:var(--tap,44px)}
+/* An image never animates in deep work: arrival motion is chrome and chrome is what deep work
+ * strips (C section 3.5). The rule rides the same `body.deep` flag the token block above scopes
+ * its selection colour to, and it is expressed as `--t-in: 0` on the block rather than as a
+ * second animation, so nothing here has to know what the animation is. */
+body.deep .imgblock{--t-in:0ms;animation:none;transition:none}
+@media(max-width:899px){
+  /* 390px: DESIGN-SYSTEM section 9, images max-height 220px. */
+  .imgbox,.imgbox img{max-height:220px}
+  .imgbox.full,.imgbox.full img{max-height:none}
+  .imgcap{gap:.5rem}
+}
+/* ---- V-SHELL: mode contract, dispatch strip, pill, stack surface, deep room (DS 3-6) ---- */
+/* ============================================================================================
+ * V-SHELL-1 (task 0175): the mode pill (DS section 3.2), entering Dispatch (3.3) and the
+ * Dispatch strip (4.1). Written under the banner SHELL-0 pre-placed for this lane rather than
+ * at the end of the file: V8b and V4 have both appended sections below this line since, and code
+ * dropped under someone else's banner reads as theirs.
+ *
+ * EVERY COLOUR, DURATION AND SPACING VALUE HERE IS A TOKEN BY NAME. The palettes were revised
+ * once already today (V10-E, task 0155) and the tokens are what survived it. Consumed here:
+ * --font-mono, --ink, --ink-2, --ink-3, --bg-sunk, --bg-raised, --rule, --brand, --brand-text,
+ * --wait, --focus, --tap, --t-place, --t-enter, --ease-enter. No hex literal, no bare 44px, no
+ * `var(--tap,44px)` fallback -- 0170 landed --tap and --focus in `:root` and this is a plain
+ * consumer of both.
+ * ============================================================================================ */
+.modepill{display:inline-flex;align-items:center;gap:.15rem;flex:0 0 auto;
+ font-family:var(--font-mono);font-size:.72rem;white-space:nowrap}
+/* 44px, at every width and not only on the phone (DS section 3.2). The room tabs beside it are
+ * 32px until the 899px sweep; the pill is a MODE control and the spec gives it the tap floor
+ * unconditionally, so the header row grows to fit it rather than the target shrinking to fit
+ * the row. Measured consequence: the header is 12px taller than it was. */
+.modeseg{color:var(--ink-2);text-decoration:none;padding:.35rem .5rem;border-radius:5px;
+ display:inline-flex;align-items:center;min-height:var(--tap);white-space:nowrap}
+.modeseg:hover{color:var(--ink)}
+.modeseg:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+/* Dispatch running is operator causality -- he started it -- so this is the one lit segment and
+ * it is lit in brand. State, on the sunk fill, exactly as `.room[aria-selected]` above. */
+.modeseg.on{color:var(--brand-text);background:var(--bg-sunk)}
+.modesep{color:var(--ink-3)}
+
+/* THE NAMES ARE THE PROTOTYPE'S NAMES where the prototype has one: `#modepill`, `#seg-d`,
+ * `#seg-w`, `.dstrip`, `.go` (synthesis/prototype.html:504-505, :929-930). Task 0157's
+ * conformance harness selects the pill as `#modepill`, so a private spelling here would read as
+ * an absence to the next harness that copies those selectors. TWO of the prototype's names are
+ * NOT taken, and both would have been silent bugs: its separator is `.dot`, which is already a
+ * 6px status dot in this file (:165), and its burning chunk would want `.burn`, which is already
+ * the burning-item CARD (:319) -- a bordered flex box with its own padding and margin. Applying
+ * either inside the strip renders a box inside a line. `.modesep` and `.bn` instead.
+ *
+ * The strip sits INSIDE `<header>` and outside `.hrow`, which is what makes it full width while
+ * the header row stays on the 70rem measure -- and what makes it stick with the header instead
+ * of scrolling away from the mode it describes. */
+.dstrip{display:flex;align-items:center;gap:.4rem;width:100%;min-height:var(--tap);
+ padding:.3rem .85rem;background:var(--bg-raised);border-left:3px solid var(--brand);
+ border-top:1px solid var(--rule);font-family:var(--font-mono);font-size:.72rem;
+ color:var(--ink-2);text-decoration:none}
+/* Click ANYWHERE on the line resumes, so the whole line is the anchor and the hover is the
+ * whole line too. */
+.dstrip:hover{background:var(--bg-sunk)}
+.dstrip:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.dstrip b{color:var(--ink);font-weight:650}
+/* THE SEPARATORS ARE `::before` ON THE CHUNK THEY PRECEDE, not siblings of it. A separator that
+ * is its own element outlives the thing it separated: hide one chunk at 390px and a stray `·`
+ * is left behind. This way the mark leaves with the chunk it belongs to. */
+.dstrip>*+*::before{content:'·';color:var(--ink-3);margin-right:.4rem}
+/* ...except the mode word, which DS 4.1's line spells `▶ dispatch · 6 remaining` with no
+   mark between the glyph and the word. Measured before this rule existed: the rendered
+   line read `▶ · dispatch · 6 remaining`. */
+.dstrip .dsw::before{content:none}
+.dstrip .bn b{color:var(--wait)}
+.dstrip .go{margin-left:auto;color:var(--brand-text)}
+
+/* ENTERING DISPATCH IS A CHANGE OF PLACE (DS section 3.3): chrome recedes -- the stack route
+ * renders no room tabs at all, which is already true of `stack.html` -- the surface rises, and
+ * the first card follows it in. `.entering` is added by `console.js` ON ENTRY ONLY and never on
+ * an advance; the reasoning is there, with the cursor that distinguishes them.
+ *
+ * The durations are `--t-place` and `--t-enter` because DS:287-288 names those two tokens. Note
+ * they sum to 240ms (220 + 80 delay + 160 overlapping), not the 260ms the same sentence heads
+ * with; the tokens are what the spec names concretely, so the tokens are what is spent here, and
+ * the 20ms is left as the spec's own arithmetic rather than resolved with a literal.
+ *
+ * `prefers-reduced-motion` is already answered globally above (`*{animation:none!important}`),
+ * so nothing here needs its own escape hatch. */
+@keyframes vshell-place{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes vshell-first-card{from{opacity:0}to{opacity:1}}
+.stackwrap.entering{animation:vshell-place var(--t-place) var(--ease-enter) both}
+.stackwrap.entering .stackcard{animation:vshell-first-card var(--t-enter) var(--ease-enter) 80ms both}
+
+@media(max-width:899px){
+  /* DS section 9: at 390px counts truncate BEFORE verbs, and the floor is `▶ 6 · resume ▸`.
+     What goes: the word "dispatch", the word "remaining", and the agents-waiting clause. What
+     stays: the glyph, the first count, the resume verb -- and the burning clause with its word,
+     because a burning item is the one count on this line worth the width it costs, and DS 4.1
+     forbids showing that number without the word anyway. */
+  .dstrip .dsw{display:none}
+  .dstrip .rem::before{content:none}
+  .dstrip .rem .w{display:none}
+  .dstrip .opt{display:none}
+}
+
+
+/* ============================================================================================
+ * V-SHELL-2 (task 0176): THE DEEP-WORK ROOM AND THE DOOR. DS section 3.4 (entering and leaving)
+ * and DS section 6 (the room), which adopt V10-B SPEC sections 2-5 and 7-9 verbatim.
+ *
+ * Written under this lane's banner, directly below V-SHELL-1's section and above V8b's, for
+ * SHELL-0's reason: code dropped under someone else's banner reads as theirs.
+ *
+ * EVERY COLOUR AND DURATION HERE IS A TOKEN BY NAME. Consumed: --deep-bg, --deep-bg-raised,
+ * --deep-grid, --deep-ink-read, --deep-ink-2, --deep-ink-3, --deep-rule, --deep-accent,
+ * --font-serif, --font-mono, --wait, --dmg, --focus, --tap, --t-door-in, --t-door-out,
+ * --t-receipt, --ease-door. No hex literal and no bare 44px anywhere below.
+ *
+ * THE THING THIS SECTION MOSTLY DOES IS CONNECT WIRE THAT WAS ALREADY IN THE WALL. The
+ * `--deep-*` block at :99-112 (V10-E, task 0155; reconciled by task 0170) and the three
+ * `body.deep` rules at :117, :664 and :730 have been in this file for hours, and `body.deep`
+ * WAS NEVER SET BY ANYTHING. Measured before `base.html` grew the class: `curl -H 'Cookie:
+ * io_deep=1' /queue` and plain `curl /queue` returned byte-identical `<body>` tags. All of it
+ * was dead. The token rebinding immediately below is what spends those tokens for the first
+ * time.
+ * ============================================================================================ */
+
+/* ---- 1. THE MATERIAL (DS section 6.2, B section 2.1 and 3.1) --------------------------------
+ * "Chroma drains from the chrome; contrast does not." Eight rebindings, scoped to the room, and
+ * the whole surface follows because every rule in this file already spends these names. The
+ * `:root` block is not touched: it belongs to SHELL-0 and this is a scoped override, which is
+ * the same mechanism `body.deep ::selection` at :117 already uses.
+ *
+ * WHAT IS NOT REBOUND, AND WHY EACH:
+ *   --bg-sunk    DS section 2.1 states no `--deep-bg-sunk`. Inventing one means a hex literal in
+ *                a lane whose first rule is tokens-by-name, so the dispatch value rides through.
+ *                Measured consequence: sunk panels sit ~1% off the deep ground instead of ~2%.
+ *   --brand      NOT rebound to --deep-accent, deliberately. B section 3.1 says brand orange
+ *                LEAVES the room except the leave control and selection. Rebinding --brand would
+ *                keep orange on every control that spends it and merely change its hue, which is
+ *                the opposite of leaving. --deep-accent is spent below on exactly two selectors.
+ *   --run/--fin/--rest  nothing in this room narrates fleet activity, so they have nothing to
+ *                colour here; --dmg and --wait keep their dispatch values because damage and the
+ *                `urgent` word are the two things B section 2.1 explicitly still permits. */
+body.deep{
+ --bg:var(--deep-bg);--bg-raised:var(--deep-bg-raised);
+ --ink:var(--deep-ink-read);--ink-2:var(--deep-ink-2);--ink-3:var(--deep-ink-3);
+ --rule:var(--deep-rule);
+ /* The graph paper leaves the room (B section 3.1). HONESTLY: --grid is ALREADY transparent in
+  * all four dispatch palettes -- V10-E law 3 removed the 34px grid everywhere, and :123-126 of
+  * this file says so -- so this binding changes not one pixel today. It is here because the rule
+  * has to be governed from one place: if a palette ever gives --grid an ink again, deep work
+  * must still be plain paper, and that must not depend on someone remembering. */
+ --grid:var(--deep-grid);
+ background:var(--bg);color:var(--ink);
+ /* "The bottom of a page you are reading is not a wall" (B section 2.3). */
+ padding-bottom:8rem;
+}
+
+/* Long-form goes serif at 68ch and 1.72 (DS section 6.2, B section 2.2). THE SERIF IS FOR
+ * CONTENT THE OPERATOR READS OR WRITES, NEVER FOR CHROME: ids, meta, buttons and the header stay
+ * mono and sans so the tool remains visibly the same tool. `.exp` is the opened card's body,
+ * `.rev` the review block, `.claim .bd` a claim and its evidence, and the textarea is the
+ * writing case -- a send-back reason is composed at the same measure it will be read at.
+ * `max-width` and not `width`: at 390px the measure is the viewport minus its gutters, which is
+ * what this already resolves to. Never justified. */
+body.deep .exp,body.deep .rev,body.deep .claim .bd,body.deep textarea{
+ font-family:var(--font-serif);font-size:1.0625rem;line-height:1.72;
+ max-width:68ch;text-align:left}
+/* THE CONTAINER RULE ABOVE IS NOT ENOUGH, AND THAT WAS MEASURED RATHER THAN REASONED. Setting
+ * the face on `.exp` and `.rev` does nothing to their prose, because every long-form leaf inside
+ * them already carries an explicit `font-family:var(--font-mono)` of its own -- `.art` at :336,
+ * `.note` at :492, `.nakedcount` at :335, `.trail .sub` through `.trail` -- and an explicit
+ * declaration on the element beats an inherited one from its parent every time. Measured in the
+ * browser with the card at 0059 open in deep work: `.exp` computed to Charter while all five of
+ * its prose leaves computed to ui-monospace. The room was serif in exactly the places that had
+ * no text in them.
+ *
+ * SO THE READING BODY IS NAMED, AND ONLY THE READING BODY. B section 2.2's table decides each
+ * one: "claims, review prose, transcripts, anything >= 2 paragraphs" is the serif's job, and
+ * "chrome, buttons, ids, or metadata ... stay mono/sans so the tool remains visibly the same
+ * tool" is why the list below stops where it does. What is deliberately NOT here:
+ *   .cid, .mid   ids. Metadata by the table's own wording.
+ *   .claim .ev   "how it knows" is a path or a command, and it is styled `word-break:break-all`
+ *                for that reason. A file path is not prose and a serif does not help read one.
+ *   .cmeta, .gate, .live   chrome.
+ * The trail's `<b>` author names stay mono too: they are the metadata column of a transcript,
+ * not the transcript. */
+body.deep .exp .art,body.deep .exp .note,body.deep .exp .nakedcount,
+body.deep .exp .trail .sub,body.deep .rev .trail .sub{
+ font-family:var(--font-serif);font-size:1.0625rem;line-height:1.72;max-width:68ch}
+/* Headings on reading content stay display face: they are signposts, not prose (B section 2.2). */
+body.deep .exp h5,body.deep .rev h5{font-family:var(--font-display)}
+/* Craft feels like room. The queue's .6rem card gap is dispatch furniture (B section 2.3). */
+body.deep .card{margin-bottom:1.25rem}
+
+/* Buttons drop to the secondary treatment and NOTHING IN THIS ROOM SHOUTS (B section 3.1). The
+ * primary verb keeps a 1px accent border and accent text instead of a filled orange block; it is
+ * still the primary verb, still 44px, still named after what it does. This is the first of the
+ * two places --deep-accent is spent. */
+body.deep .act{background:transparent;color:var(--deep-accent);
+ border:1px solid var(--deep-accent);min-height:var(--tap)}
+body.deep .sec,body.deep .chip{color:var(--ink-2);border-color:var(--rule)}
+
+/* ---- 2. THE DEEP HEADER (DS section 6.3) ----------------------------------------------------
+ * Right-aligned mono, in the place the rooms nav is not rendered into. `.deephd` follows
+ * `.deeppill` in this file, so on equal specificity it takes the orange back: the header is
+ * --deep-ink-3 and the ONE accent element in it is the exit. `margin-left:auto` is what
+ * right-aligns it against the logo in `.hrow`. */
+.deephd{margin-left:auto;display:inline-flex;align-items:center;gap:.5rem;flex:0 0 auto;
+ font-family:var(--font-mono);font-size:.72rem;color:var(--deep-ink-3);
+ background:transparent;border:0;border-radius:0;padding:0;
+ min-height:var(--tap);white-space:nowrap}
+/* Separators ride ::before on the chunk they precede, never as siblings -- V-SHELL-1's rule at
+ * :790 and for its reason: a separator that is its own element outlives what it separated, so
+ * hiding a chunk at 390px strands a bare middot. */
+.deephd>*+*::before{content:'\00b7';color:var(--deep-ink-3);margin-right:.5rem}
+.deephd .dhleave::before{content:none}
+/* The count is the one thing in this header at reading contrast: DS 6.4 calls it protective --
+ * it answers "when should I leave" without converting curiosity into an exit. */
+.deephd .dhc b{color:var(--deep-ink-read);font-weight:650}
+/* THE COUNT IS NEVER ANIMATED AND NEVER COLOURED (DS section 6.4). It repaints silently on the
+ * three-second poll: no pulse, no colour change on increment. The general motion law in section
+ * 4 below covers this, and it is restated here because the count is the one element in the room
+ * whose stillness is a designed property rather than a side effect.
+ *
+ * DS 6.4's single exception -- the word `urgent` in --wait when held-urgent pages exist -- HAS
+ * NO RULE HERE, ON PURPOSE. That word only exists "under the section 8 regime", and section 8 is
+ * the pending operator decision: nothing holds a page today, because no paging policy reads
+ * `io_deep` at all. A `.dhu{color:var(--wait)}` with no emitter would be exactly the dead
+ * `body.deep` CSS this lane found and is here to spend, written fresh. When section 8 is
+ * answered and something can hold a page, the word and its rule land together. */
+.deephd .dhc,.deephd .dhc b{transition:none;animation:none}
+
+/* THE ONLY EXIT, and the one appearance of orange in this room (DS section 6.3: "exit is
+ * operator causality, orange's one appearance"). Outlined, not filled: it is the way out, not
+ * the loudest thing on the screen. 44px, like every mode control. */
+.dhleave{color:var(--deep-accent);text-decoration:none;font-family:var(--font-mono);
+ border:1px solid var(--deep-accent);border-radius:20px;padding:.2rem .65rem;
+ display:inline-flex;align-items:center;min-height:var(--tap);white-space:nowrap}
+.dhleave:hover{background:color-mix(in srgb,var(--deep-accent) 10%,transparent)}
+.dhleave:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+
+/* ---- 3. THE TWO LINES UNDER THE HEADER ------------------------------------------------------
+ * `#deepsay` is the threshold announcement (DS section 3.4, B section 9): server-rendered EMPTY
+ * inside the deep branch and written once by `console.js` at the end of the door. Empty is not a
+ * violation of q0146's absence rule -- it carries no deep-work words outside deep work because
+ * the element itself is only in the deep branch of `base.html`.
+ * `.deeppoint` is the `Ctrl+.` pointer, and it has no server markup AT ALL: DS section 6.2
+ * [V10-E] says the pointer text "is written only when it is shown", so `console.js` creates the
+ * element on the keystroke and removes it after. Nothing in this file may give it a
+ * `display:none` resting state; there is no resting state to give. */
+.deepsay,.deeppoint{font-family:var(--font-mono);font-size:.72rem;color:var(--deep-ink-3);
+ padding:.35rem .85rem;width:100%}
+.deepsay:empty{padding:0}
+.deeppoint{border-top:1px solid var(--deep-rule)}
+
+/* ---- 4. IN-ROOM MOTION IN DEEP WORK: NONE (B section 2.4, "the law") -------------------------
+ * The exceptions are exhaustive and they are the three B section 2.4 names: the door itself, the
+ * receipt stripe's 180ms entry (the operator's own act caused it), and the caret and selection.
+ * Everything else -- card entry, stamp settle, hover transforms, and above all the count on the
+ * three-second poll -- is still. :664 already stilled `.ofocus` and :730 the image blocks; this
+ * is the general law those two were instances of.
+ *
+ * IT IS DECLARED BEFORE THE DOOR ON PURPOSE. Both this and the door rules below are written at
+ * ordinary specificity, so the door wins by being LATER IN THE FILE rather than by carrying a
+ * selector heavy enough to out-specify a law -- which is the kind of arithmetic that stops being
+ * true the first time someone adds a class. Order is the mechanism; the comment is the record. */
+body.deep *,body.deep *::before,body.deep *::after{animation:none;transition:none}
+/* The receipt stripe is exception 2, by name and with its own token. */
+body.deep .receipt{transition:opacity var(--t-receipt) var(--ease-door)}
+
+/* ---- 5. THE DOOR (DS section 3.4, B sections 4.3-4.5) ---------------------------------------
+ * THE ANIMATION IS THEATER OVER THE STATE CHANGE, NEVER THE STATE CHANGE (DS:301). Everything
+ * below animates GHOSTS -- elements on the screen of the document being LEFT. The next
+ * server-rendered document does not contain them at all, which is why nothing here is permitted
+ * to be the mechanism of anything: `console.js` writes the cookie AT INITIATION, before one
+ * pixel moves, and a reversal rewrites it. If this stylesheet failed to load entirely, the door
+ * would be an instant swap and still completely correct.
+ *
+ * THE CLASSES SIT ON `<html>`, NOT ON `<body>`. That is what lets the door outrank the motion
+ * law above it for exactly the elements it names, and it is also the only element available
+ * before `<body>` is parsed.
+ *
+ * PHASE 1 IS ALL THAT PLAYS ON THE OUTGOING DOCUMENT: 0-180ms, the interruptions leave first, so
+ * the FIRST thing that happens is the thing the operator asked for. Phases 2 and 3 play on the
+ * document that arrives, because the light and the measure are properties of the new markup.
+ *
+ * `prefers-reduced-motion` needs nothing here: :510 already forces `animation:none!important;
+ * transition:none!important` globally, which collapses the door to the instant swap B section
+ * 4.6 asks for. The mode stays unmistakable because the change is structural -- nav gone, header
+ * states the mode in words, measure changed -- and not decorative. */
+@keyframes vshell2-out{from{opacity:1;transform:none}to{opacity:0;transform:translateX(24px)}}
+@keyframes vshell2-in{from{opacity:0}to{opacity:1}}
+
+/* Phase 1 entering: the interruptions leave. Phase 1 leaving (B section 4.4, reversed order) is
+ * the deep header going: on the way out there are no interruptions on screen to remove, because
+ * deep work already removed them from the markup. Both are listed here because both are the same
+ * movement -- the furniture of the mode you are leaving, sliding out 24px. */
+html.doorway .pane-fast,html.doorway .burn,html.doorway .runbtn,
+html.doorway .dstrip,html.doorway .deepbar,html.doorway .modepill,
+html.doorway body.deep .deephd{
+ animation:vshell2-out 180ms var(--ease-door) both}
+
+/* Phase 2 on arrival: the light changes. A transition and not a keyframe, so re-invoking the
+ * door mid-flight interpolates from wherever the colour actually is -- B section 4.5's
+ * reversibility, native, with no queued replays and no snap. */
+html.doorlit body{transition:background-color var(--t-door-in) var(--ease-door),
+ color var(--t-door-in) var(--ease-door)}
+html.doorlit.out body{transition-duration:var(--t-door-out)}
+/* Phase 2 continued: the header words cross-fade in (entering) or the nav does (leaving). */
+html.doorlit body.deep .deephd,html.doorlit .rooms{
+ animation:vshell2-in 150ms var(--ease-door) 120ms both}
+/* Phase 3 on arrival: the reading content settles to its measure. NO FACE-MORPHING -- the serif
+ * applies at the phase boundary and the content cross-fades; glyph shapes are never
+ * interpolated. */
+html.doorlit body.deep .exp,html.doorlit body.deep .rev,html.doorlit body.deep .claim .bd{
+ animation:vshell2-in 120ms var(--ease-door) 300ms both}
+
+/* ---- 6. 390px (DS section 9, B section 8) ---------------------------------------------------
+ * "Deep = identical structure to 1440 minus margins." The measure becomes the viewport minus the
+ * 1.25rem gutters, the door choreography is the same, and the header truncates the way DS 4.1
+ * truncates the strip: COUNTS BEFORE VERBS. What goes at this width is the `since` clock, which
+ * is the one chunk in the header that is neither the mode word, the protective count, nor the
+ * only way out. Its separator leaves with it, per the ::before rule above. */
+@media(max-width:899px){
+  .deephd{gap:.4rem;font-size:.7rem}
+  .deephd .dhs{display:none}
+  body.deep .exp,body.deep .rev,body.deep .claim .bd,body.deep textarea{
+   max-width:none;padding-left:1.25rem;padding-right:1.25rem}
+}
+
+/* ============================================================================================
+ * V8b THE PHONE SURFACE (task 0168). Everything below is scoped to the phone side of the frozen
+ * 900px boundary and changes NOTHING at desktop widths, deliberately: V3, V4 and V5 are building
+ * the wide surface in this same file right now, and a lane that reaches across the boundary to
+ * fix its own problem breaks theirs.
+ *
+ * It adds no colour, no component and no mode. DESIGN-SYSTEM.md section 9 already settles the
+ * 390px rules; this is the one clause of them the built surface did not meet, measured rather
+ * than assumed: on `/queue` at 390px the lane `<select>` laid out at 19px and the "my own work"
+ * `<input>` at 30.4px, against a 44px floor. Nothing else on the four phone surfaces was under
+ * it (`web/tests/test_phone_surface.py`, sixteen renders, four jobs x two themes x two modes).
+ *
+ * WHY A SWEEP AND NOT TWO SELECTORS. Section 9 [V10-E] makes the standard a sweep for the stated
+ * reason that a list is satisfiable by measuring only the targets someone remembered. The fix is
+ * shaped like the check: every control gets the floor, so a control added next week inherits it
+ * instead of being found by the next person to look at a phone.
+ * ========================================================================================== */
+@media(max-width:899px){
+  /* Radios and checkboxes are excluded because on this surface the ROW is the target and the
+     input is a 1rem dot inside it (DS section 5.4, and `.orow` already carries `--tap`). Forcing
+     44px onto the dot would break the option card V3 is building, to fix nothing. */
+  button,select,textarea,
+  input:not([type=hidden]):not([type=radio]):not([type=checkbox]){min-height:var(--tap)}
+  /* A bare `<select>` has no rule anywhere in this file and renders at the user agent's height,
+     which is 19px here. It needs the padding as well as the floor or the text sits against the
+     chrome once the box grows. */
+  select{padding:.2rem .5rem;background:var(--bg-sunk);color:var(--ink);
+         border:1px solid var(--field-border);border-radius:var(--radius-inner)}
+  /* `input:not([type])` above already matches the house text field; this keeps the two boxes the
+     same height when a `type=text` is spelled explicitly, so a form does not step. */
+  input[type=text],input:not([type]){min-height:var(--tap)}
+  /* THE ROOMS NAV, WHICH DEEP WORK WAS PUSHING OFF THE SCREEN. Measured at 390px with the
+     mode on: `.rooms` computed a 107px client box against a 271px scroll width, and Fleet,
+     Scope and Study sat outside the viewport; at 375px only Queue survived. `.rooms` carries
+     `overflow-x:auto` with the scrollbar deliberately hidden, so the rooms were still THERE and
+     nothing announced it -- the operator lands on `/queue`, the shell says a mode is
+     suppressing work, and the room he would go to next is behind an invisible sideways scroll.
+     Three of the four phone jobs live in three different rooms, so the nav is the phone's spine
+     and not chrome.
+
+     The fix is to let the header WRAP rather than to shrink the nav: flex items shrink before
+     they wrap, so `flex-wrap` alone would have changed nothing. It costs a second header row
+     only when the first one is genuinely full, which today means only under deep work. The
+     header is V-SHELL's file and this does not touch it -- `base.html` is unedited by this
+     lane, exactly as V8a left it. */
+  .hrow{flex-wrap:wrap}
+  /* THE NAV MAY NOT WIDEN THE DOCUMENT, AND UNTIL 2026-08-29 IT COULD. Row 0432, lane B4.
+     The rule here used to read `.rooms{flex-shrink:0;min-width:auto}`, which let the strip take
+     its natural width on the header line the wrap above gives it. That fitted while the strip
+     was 271px wide and stopped fitting the moment a room was added. Measured at 390x844 on a
+     fresh page with nothing clicked, eight tabs: `nav.rooms` 470px, `document.scrollWidth` 483
+     against `clientWidth` 390, so the WHOLE PAGE scrolled sideways. It was 408 with seven tabs
+     and 483 with eight, and a NINTH landed while this rule was being written. The front page,
+     the Decide tier and the Judge tier all read 483; deep work read 390 for one reason only,
+     that it renders no nav at all. That is the operator's morning surface: "the morning pass
+     happens on a phone, in a chair, before the laptop is open."
+
+     THE STRIP WRAPS, IT DOES NOT SCROLL, AND THE CHOICE BETWEEN THOSE TWO IS MEASURED RATHER
+     THAN PREFERRED. Scrolling inside the nav also removes the page-level scroll and costs no
+     vertical space at all -- measured, first row at y=576 against y=623 for wrapping -- but it
+     puts the last two or three tabs outside the viewport, which is the exact state the previous
+     lane's rule here was written against and which `test_phone_surface.py` asserts against by
+     name: "a room off screen is a job off the phone", and three of the four phone jobs live in
+     three different rooms. Wrapping costs 47px directly above row one on a 390x844 screen, taking
+     the first row from y=576 to y=623, and it keeps 3 of the 4 seeded rows on screen either way.
+     It also survives the next tab: a tenth room adds a third line rather than hiding a fourth
+     room behind a swipe nobody is told about.
+
+     `flex-basis:100%` pins the strip to its own header line rather than letting it shrink in
+     beside the logo. Without it, `flex-shrink:1` and `min-width:0` let the nav compress into the
+     leftover space on the first line, which is how the previous lane measured a 107px client box
+     against 271px of tabs. Every tab keeps the 44px tap floor `.room` already carries below
+     520px; the second line is 44px of that floor, not decoration. */
+  .rooms{flex-shrink:1;min-width:0;flex-basis:100%;flex-wrap:wrap;overflow-x:visible;
+         margin-left:0}
+}
+/* THE FIVE TABS ON ONE LINE ON A PHONE (A4 INFINITY-STREAMLINE, 2026-09-14). MEASURED in slot 5 at
+   375: the five-tab nav wrapped, "More" alone on a second line and the room links on a third, a
+   header of about 200px. With a two-digit badge the tabs wrapped at 390 too (tops 56,56,56,56,102).
+   The line was short by about 15px. This takes the air between and inside the tabs, not the tabs:
+   the type stays `.72rem`, every tab keeps the 44px floor from the 520px block above, and the strip
+   still WRAPS rather than scrolls, so a sixth tab would take a line rather than hide behind a swipe.
+   Proved painted by web/tests/test_five_tabs_one_row_at_375.py. */
+@media(max-width:520px){
+  .rooms{gap:0}
+  .room{padding-left:.4rem;padding-right:.4rem}
+}
+/* THE ROOM ROW TAKES ITS OWN LINE ON A DESKTOP TOO (W5-S7, 2026-09-16). `.subrooms` carries
+   `flex-basis:100%` to sit under the tabs, but `.hrow` only wraps below 900px, so at 1440 the row
+   of rooms shared the tabs' line and squeezed `nav.rooms` to a 185px box over 363px of tabs.
+   Projects, Agents and More were hidden behind the nav's hidden scrollbar on every page with a
+   room row (MEASURED on trunk 2341335, painted: only "Inbox" and "Work" showed on /attention/).
+   A wrapping line breaks on each item's base size, so the rooms go to line two and the tabs keep
+   their width. Proved painted by web/tests/test_every_tab_is_visible_at_1440.py. */
+@media(min-width:900px){
+  .hrow{flex-wrap:wrap}
+}
+
+/* ==========================================================================================
+ * V4: THE LIVE TERMINAL VIEW, THE PICKER, AND TAKE-CONTROL. Task 0166.
+ *
+ * Every value here is a token spent by name. There is no hex literal, no bare duration and no
+ * bare spacing constant below this line: the palettes were revised once already (V10-E) and a
+ * token consumed by name survives the next revision where a copied hex does not. `--focus` is
+ * DS section 2.1's alias of `--run` and is written `var(--focus,var(--run))` because the shared
+ * token block has not landed it yet -- the fallback is the alias the design system itself
+ * states, not a colour this lane chose.
+ *
+ * NO BAR, NO RING, NO ETA, NO PERCENT anywhere in this section. An agent does not know how far
+ * through it is, so nothing may imply completion (MUST-NOT-BUILD #4, whose one exception is the
+ * stack's pips and this is not that).
+ * ========================================================================================== */
+
+/* Two columns at 900px and up: the feed, then the picker floating right (DS section 9). One
+   column below it, which is the 390px target and not a port of the desktop one. */
+.rfcols{display:grid;grid-template-columns:1fr;gap:1rem}
+@media(min-width:900px){.rfcols{grid-template-columns:1fr 20rem}}
+/* MEASURED AT 390: without this the page scrolled 511px wide. A grid item's `min-width` is
+   `auto`, which is its MIN-CONTENT width, and the now-line and the live tool line are both
+   `white-space:nowrap` -- so their min-content is the whole sentence and the column grew to it,
+   ellipsis and all. `min-width:0` is what lets an ellipsis actually ellipsize inside a grid. */
+.rfcols>*{min-width:0}
+.seam,.mark,.finding,.foldbtn{overflow-wrap:anywhere}
+.rfhead{margin-bottom:.6rem}
+.rfhead .cmeta{display:flex;gap:.7rem;flex-wrap:wrap;align-items:center}
+.rfhead .go{margin-left:auto;color:var(--focus,var(--run));text-decoration:none;
+  display:inline-flex;align-items:center;min-height:var(--tap)}
+
+/* THE FEED. `.runfeed` sets NO overflow at all, deliberately: the vitals row below is
+   `position:sticky`, and sticky needs a non-clipping ancestor, so an `overflow` here would make
+   it compute and never engage -- a vacuous pass (DS section 9, in those words). */
+.runfeed{max-width:46rem}
+.vtwrap{position:sticky;top:0;z-index:2;background:var(--bg);
+  padding:.4rem 0;border-bottom:1px solid var(--rule)}
+.vt{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;
+  font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2)}
+.vt b{letter-spacing:.1em}
+.vt a{color:var(--ink);text-decoration:none;border-bottom:1px dotted}
+.vt .rec{margin-left:auto}
+.vt .dim{opacity:.7}
+.vtdetail{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-3);padding:.15rem 0}
+.vtdetail.dmg{color:var(--dmg)}
+/* The now-line: the agent's own last sentence, one line, ellipsized. Not a status the console
+   wrote -- the console has no idea how it is going and does not pretend to. */
+.nowline{font-size:.86rem;color:var(--ink-2);padding:.25rem 0 .1rem;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:899px){
+  /* 390px: the vitals wrap to two lines keeping the state word and the timestamps whole. */
+  .vt{font-size:.68rem;gap:.45rem}
+  .vt .rec{margin-left:0;flex-basis:100%}
+}
+
+.feedbody{padding-top:.4rem}
+.ev .evh{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);
+  display:flex;gap:.45rem;flex-wrap:wrap}
+.ev .evb{font-size:.9rem;margin-top:.15rem;white-space:pre-wrap;line-height:1.6}
+/* The operator's own words. Brand, because steering IS operator causality, which is the one
+   thing brand is reserved for -- and it appears on nothing an agent wrote. */
+.ev.mine{border-left-color:var(--brand)}
+.ev.mine .evh{color:var(--brand-text)}
+
+/* The fold. `-- 12 tool calls . 3m -- show`, the shipped fold grammar. */
+.fold{display:flex;align-items:center;gap:.6rem;padding:.25rem 0}
+.fold .rule{flex:1;height:1px;background:var(--rule)}
+.foldbtn{background:none;border:0;color:var(--ink-3);font-family:var(--font-mono);
+  font-size:.7rem;cursor:pointer;min-height:var(--tap);padding:0 .4rem}
+.foldbtn:hover{color:var(--focus,var(--run))}
+.foldout{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);
+  padding:.2rem 0 .4rem .6rem;border-left:1px solid var(--rule);
+  max-height:22rem;overflow:auto;white-space:pre-wrap;word-break:break-word}
+.foldout .fl{padding:.05rem 0}
+.foldout .capped{color:var(--wait)}
+
+/* The live tool line: one node, replaced in place, never appended. */
+.livewrap{min-height:1.2rem}
+.toolline{font-family:var(--font-mono);font-size:.72rem;color:var(--run);
+  padding:.2rem 0 .2rem .6rem;border-left:2px solid var(--run);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* THE SEAM between two runs. Receipt-stripe grammar, and the sentence is fixed copy. */
+.seam{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);
+  border-left:3px solid var(--rest);background:var(--bg-sunk);
+  padding:.4rem .6rem;margin:.7rem 0 .5rem;border-radius:0 var(--radius-inner) var(--radius-inner) 0}
+.seam.open{margin-top:.2rem}
+.seam .steered{color:var(--brand-text)}
+/* The steering mark, as it lands on the thread. Read from the thread, so it survives this
+   console entirely -- which is the point of writing it there. */
+.mark{font-family:var(--font-mono);font-size:.68rem;color:var(--brand-text);
+  border-left:2px solid var(--brand);padding:.3rem .6rem;margin:.3rem 0;background:var(--bg-sunk)}
+
+/* The four degraded states. MISSING is red because recorded-as-present-and-gone is damage;
+   unreadable is amber and shows NOTHING rather than guessing. */
+.finding{border-left:3px solid var(--rest);background:var(--bg-sunk);
+  padding:.5rem .7rem;margin:.5rem 0;border-radius:0 var(--radius-inner) var(--radius-inner) 0;
+  font-size:.82rem}
+.finding.dmg{border-left-color:var(--dmg);color:var(--dmg)}
+.finding.wait{border-left-color:var(--wait);color:var(--wait)}
+.finding .fpath{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-3);
+  margin-top:.2rem;word-break:break-all}
+
+/* ------------------------------------------------------------------ take-control, unmissable */
+.steerband{border-top:3px solid var(--brand);background:var(--tint-brand,var(--bg-sunk));
+  color:var(--brand-text);font-family:var(--font-mono);font-size:.74rem;
+  padding:.6rem .8rem;margin-bottom:.6rem;position:sticky;top:0;z-index:3}
+.steerband b{letter-spacing:.08em}
+.steerband .dim{display:block;color:var(--ink-2);font-size:.68rem;margin-top:.2rem}
+.takectl,.picker{background:var(--bg-raised);border:1px solid var(--rule);
+  border-radius:var(--radius-card);padding:var(--pad-card);margin-bottom:.7rem}
+.takectl h4,.picker h4{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-2);margin:.2rem 0 .4rem}
+.takectl .why,.picker .why{font-size:.78rem;color:var(--ink-3);margin:.35rem 0;line-height:1.55}
+.consequence{border-left:3px solid var(--brand);background:var(--bg-sunk);
+  padding:.6rem .7rem;margin-top:.5rem;border-radius:0 var(--radius-inner) var(--radius-inner) 0}
+.consequence p{font-size:.84rem;line-height:1.6;margin-bottom:.5rem}
+.consequence .act{width:100%}
+.takectl textarea,.sayform textarea{width:100%;min-height:calc(var(--tap) * 1.6);
+  background:var(--bg-sunk);color:var(--ink);border:1px solid var(--rule-strong);
+  border-radius:var(--radius-inner);padding:.5rem .6rem;font-family:var(--font-sans);
+  font-size:.86rem;line-height:1.55}
+.takectl textarea:focus-visible{outline:2px solid var(--focus,var(--run));outline-offset:1px}
+.takectl button{min-height:var(--tap)}
+
+/* ------------------------------------------------------------------ the picker */
+.picker .thisrun{font-family:var(--font-mono);font-size:.74rem;color:var(--ink)}
+.pickform{display:flex;flex-direction:column;gap:.45rem;margin:.3rem 0 .5rem}
+.pickform label{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);
+  display:flex;flex-direction:column;gap:.2rem}
+.pickform select{min-height:var(--tap);background:var(--bg-sunk);color:var(--ink);
+  border:1px solid var(--rule-strong);border-radius:var(--radius-inner);padding:.2rem .5rem;
+  font-family:var(--font-sans);font-size:.82rem}
+.pickform select:focus-visible{outline:2px solid var(--focus,var(--run));outline-offset:1px}
+.pickform button{min-height:var(--tap)}
+/* The pending chip is amber because it waits on something outside this screen, and it says what
+   it is waiting FOR. It converts to a receipt naming the claim that consumed it. */
+.pending{border-left:3px solid var(--wait);background:var(--bg-sunk);color:var(--wait);
+  font-family:var(--font-mono);font-size:.7rem;padding:.4rem .6rem;
+  border-radius:0 var(--radius-inner) var(--radius-inner) 0}
+.pending .why{color:var(--ink-3)}
+.applied{border-left:3px solid var(--fin);background:var(--bg-sunk);color:var(--fin);
+  font-family:var(--font-mono);font-size:.7rem;padding:.4rem .6rem;
+  border-radius:0 var(--radius-inner) var(--radius-inner) 0}
+
+/* ============================================================================================
+ * V-SHELL-3 (task 0177): THE STACK SURFACE. DESIGN-SYSTEM.md section 5, which adopts V10-A SPEC
+ * sections 3-7 verbatim as the normative component spec, as amended.
+ *
+ * Written under this lane's own banner at the end of the file, per SHELL-0's rule: code dropped
+ * under someone else's banner reads as theirs. The base stack rules at console.css:277-299 are
+ * NOT edited -- they are the frozen anatomy every one of these rules extends, and a lane that
+ * rewrites another lane's line to save a selector has spent someone else's ownership to buy its
+ * own convenience.
+ *
+ * EVERY COLOUR, DURATION, EASING AND TAP VALUE BELOW IS A TOKEN BY NAME. There is no hex
+ * literal, no bare duration and no bare tap constant under this line. The palettes were revised
+ * once already (V10-E, task 0155) and reconciled into this file by task 0170; a token consumed
+ * by name survives the next revision where a copied hex does not.
+ *
+ * THE ONE NUMBER THAT IS NOT A TOKEN IS THE PIP GEOMETRY. 7px and 9px are the pip row's own
+ * vocabulary (DS 5.4: burning is LARGER, 9px against the standard 7px) and they are a shape
+ * rather than a spacing step -- the size difference IS the meaning, so it cannot be spent from a
+ * scale that a later revision is free to move. The 7px is the frozen base rule's, restated
+ * nowhere; only the 9px exception is written here.
+ * ============================================================================================ */
+
+/* ---- DS 5.1 the resolve timeline, and DS 3.2's two other exits ---- */
+/* t=0 press: the button compresses. 100ms, `--t-press`, and it is the ONLY feedback that fires
+ * before the pip -- the pip is the thunk and it is one line below. */
+.stackcard .stack-primary:active{transform:scale(.985)}
+.stackcard .stack-primary{transition:transform var(--t-press) var(--ease-exit)}
+
+/* The card leaves your hands; it does not float away. Three exits, three directions, and the
+ * direction is the meaning:
+ *   resolve   -- sideways right, accelerating, `--t-exit`. A commit.
+ *   skip      -- downward, `--t-skip`. Cycled to the back, not decided.
+ *   not fast  -- sideways LEFT, `--t-exit`. Visibly a different direction from resolve, because
+ *                it is not a commit, it is a re-shelving (V10-A 3.2). */
+.stackcard.leaving{animation:vs3-exit var(--t-exit) var(--ease-exit) both}
+.stackcard.leaving-skip{animation:vs3-skip var(--t-skip) var(--ease-exit) both}
+.stackcard.leaving-judge{animation:vs3-judge var(--t-exit) var(--ease-exit) both}
+/* t=90: the next card begins entering, 160ms, decelerating. Exit and entry overlap by 50ms so
+ * there is no dead frame, and the whole span closes at 250ms: press to readable. */
+.stackcard.arriving{animation:vs3-enter var(--t-enter) var(--ease-enter) both}
+@keyframes vs3-exit{to{transform:translateX(40px);opacity:0}}
+@keyframes vs3-skip{to{transform:translateY(24px);opacity:0}}
+@keyframes vs3-judge{to{transform:translateX(-40px);opacity:0}}
+@keyframes vs3-enter{from{transform:translateX(18px);opacity:0}to{transform:none;opacity:1}}
+
+/* ---- DS 5.4 the pip vocabulary. Shape and size carry meaning alongside colour. ---- */
+.pip{transition:background var(--t-shift) var(--ease),border-color var(--t-shift) var(--ease),
+     width var(--t-shift) var(--ease),height var(--t-shift) var(--ease),
+     opacity var(--t-shift) var(--ease),transform var(--t-pip) var(--ease-enter)}
+.pip.done{background:var(--fin);border:0}                      /* decided, committed by you */
+.pip.cur{background:var(--brand);border:0}                     /* in your hands */
+.pip.up{background:var(--rule-strong);border:0}                /* waiting, ordinary */
+/* An irreversible send is ahead: you can see it coming from four decisions away. HOLLOW, so the
+ * fact is carried by shape and not by the amber alone. */
+.pip.ext{background:transparent;border:1.5px solid var(--wait)}
+/* An agent is idle behind this one. LARGER, so the fact is carried by size and not by the amber
+ * alone -- and this is the one geometric literal in the section, for the reason in the banner. */
+.pip.burn{background:var(--wait);border:0;width:9px;height:9px}
+/* Cycled, still yours this run, and drawn at the back because that is where the item went. */
+.pip.skip{background:transparent;border:1.5px solid var(--rule-strong)}
+/* Left the stack without your press. Grey and not green: it is not your commit. */
+.pip.elsewhere{background:var(--rest);border:0}
+.pip.arriving{animation:vs3-pip-in var(--t-shift) var(--ease-enter) both}
+@keyframes vs3-pip-in{from{opacity:0;transform:scale(.4)}to{opacity:1;transform:none}}
+/* The commit: fills green with an overshoot, 180ms, fired on the PRESS and not on the round
+ * trip. `--t-pip` is that 180ms. The put-back (DS 5.1) plays it in reverse. */
+.pip.committing{animation:vs3-commit var(--t-pip) var(--ease) both}
+.pip.uncommitting{animation:vs3-commit var(--t-pip) var(--ease) reverse both}
+@keyframes vs3-commit{0%{transform:scale(1)}55%{transform:scale(1.35)}100%{transform:scale(1)}}
+/* DS 5.5: the pip is REMOVED, not marked failed. The denominator shrinks and the run gets
+ * shorter, so the operator is never punished with a longer-looking run for using the button. */
+.pip.dropping{animation:vs3-pip-out var(--t-pip) var(--ease-exit) both}
+@keyframes vs3-pip-out{to{opacity:0;transform:scale(.2);width:0;margin-left:-.25rem}}
+
+/* ---- DS 6.2 the header, the textual equivalent of the row above ---- */
+.stackcounts b{font-weight:650}
+.stackcounts .burning{color:var(--brand-text)}
+.stackcounts .arrived{color:var(--ink)}
+/* DS 5.2 class 3: one line, word and count and link, persistent until visited. Not a card, not a
+ * modal, and it never takes focus. */
+.stackdamage{font-family:var(--font-mono);font-size:.74rem;color:var(--ink);margin-top:.5rem;
+  border-left:3px solid var(--dmg);background:var(--tint-dmg);padding:.4rem .6rem;
+  border-radius:var(--radius-inner)}
+.stackdamage b{color:var(--dmg);font-weight:650}
+.stackdamage a{color:var(--ink-2)}
+
+/* ---- DS 5.3 card states ---- */
+/* Arrived-this-run. The operator should know a card was not in the stack he committed to. */
+.cnew{font-family:var(--font-mono);font-size:.68rem;color:var(--brand-text);margin-left:.4rem;
+  border:1px solid var(--brand);border-radius:var(--radius-inner);padding:0 .25rem}
+/* Put-back: one amber line above the title, cleared on resolve. */
+.cputback{font-family:var(--font-mono);font-size:.72rem;color:var(--ink);margin-bottom:.4rem;
+  border-left:2px solid var(--wait);background:var(--tint-wait);padding:.35rem .55rem;
+  border-radius:var(--radius-inner)}
+.cputback[hidden]{display:none}
+/* External, no undo: the suffix rides the button's own label FROM THE START (DS 5.3 state 4), so
+ * the two-press never surprises. It is quieter than the verb because it is a property of the
+ * verb, not a second verb. */
+.stack-primary .noundo{font-weight:400;opacity:.85;font-size:.85em}
+/* DS 5.6, THE ONE MOCK DEVIATION, MARKED SEVERABLE. First press arms: background drops to
+ * transparent, 2px --brand border, and the label says what the second press will do. 3s window,
+ * then rest with no other effect. Stack only; the list keeps one press, because the list has no
+ * motor rhythm to ambush. */
+.stackcard .stack-primary.armed{background:transparent;border:2px solid var(--brand);
+  color:var(--brand-text)}
+.stackcard .stack-primary.armed .noundo{opacity:1;font-weight:650}
+/* Both secondaries are 44px, the tap floor, spent by name. */
+.stackrow .sec,.stackrow button.sec{min-height:var(--tap)}
+.stackonlyskips{display:block;text-align:center;margin-top:.7rem;font-family:var(--font-mono);
+  font-size:.72rem;color:var(--ink-2)}
+
+/* ---- DS 5.7 the ticker: the receipt-stripe family on this surface ---- */
+/* One line, newest only. The stripe stack of the list surface would compete with the card. */
+.ticker{min-height:var(--tap);display:flex;align-items:center;justify-content:center;
+  margin-top:.6rem}
+.ticker .tline{display:flex;align-items:center;gap:.5rem;font-family:var(--font-mono);
+  font-size:.76rem;color:var(--ink-2);background:var(--bg-sunk);border-radius:var(--radius-inner);
+  padding:.35rem .6rem;animation:vs3-tick var(--t-receipt) var(--ease-enter) both}
+@keyframes vs3-tick{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.ticker .tline b{color:var(--fin)}
+.ticker .tline .why{color:var(--ink-3)}
+.ticker .tline button{background:none;border:1px solid var(--rule-strong);color:var(--ink-2);
+  border-radius:var(--radius-inner);font-family:var(--font-mono);font-size:.72rem;
+  padding:.15rem .45rem;cursor:pointer;min-height:0}
+/* Amber and PERSISTENT on failure. A failure is not a receipt, so it does not get the 7s. */
+.ticker .tline.failed{background:var(--tint-wait);color:var(--ink);
+  border-left:3px solid var(--wait)}
+.ticker .tline.failed b{color:var(--wait)}
+
+/* ---- DS 5.9 the completion screen ---- */
+/* The pips slide to centre and merge into one dot, 500ms. `--t-converge` is that 500ms and it
+ * exists in the token layer for exactly this. */
+.pips.converging{animation:vs3-converge var(--t-converge) var(--ease-enter) both}
+.pips.converging .pip{animation:vs3-merge var(--t-converge) var(--ease-enter) both}
+@keyframes vs3-converge{to{gap:0}}
+@keyframes vs3-merge{to{background:var(--fin);border-color:var(--fin);width:10px;height:10px;
+  margin-left:-7px}}
+.donecheck{font-family:var(--font-display);font-size:2rem;color:var(--fin);line-height:1;
+  margin-bottom:.5rem;animation:vs3-pop var(--t-settle) var(--ease) both}
+@keyframes vs3-pop{0%{transform:scale(1)}55%{transform:scale(1.4)}100%{transform:scale(1)}}
+/* The facts cascade: three lines, 60ms stagger, 6px rise each (V10-A 7.1).
+ *
+ * THE STAGGER IS THE ONE DURATION IN THIS SECTION THAT DS SECTION 2.4's SCALE DOES NOT CARRY,
+ * and rather than write 60/120/180 three times it is declared ONCE, here, scoped to this lane's
+ * component and named for what it is. The token rule's purpose is that a value lives in one
+ * place, and this satisfies that; what it does not satisfy is DS 2.4's stricter sentence that
+ * every animation uses the shared scale and nothing else. Posted to the bus by task 0177 as a
+ * gap in the scale rather than resolved silently: `--t-stagger` belongs in `:root` beside
+ * `--t-press`, and `:root` is not this lane's to edit. */
+.stackdone{--vs3-cascade:60ms}
+.donefacts>div,.doneroute,.donecalm,.donefleet,.donearrived>a{
+  animation:vs3-rise var(--t-enter) var(--ease-enter) both}
+.donefacts>div:nth-child(2){animation-delay:var(--vs3-cascade)}
+.donefacts>div:nth-child(3){animation-delay:calc(var(--vs3-cascade) * 2)}
+.doneroute{animation-delay:calc(var(--vs3-cascade) * 3)}
+@keyframes vs3-rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.donefacts{margin-top:.7rem;font-size:1rem;color:var(--ink)}
+.donefacts .lead{font-weight:650}
+.doneroute,.donefleet{margin-top:.5rem;font-family:var(--font-mono);font-size:.78rem;
+  color:var(--ink-2)}
+.donecalm{margin-top:.8rem;font-size:.95rem;color:var(--ink-2)}
+/* DS 5.9: the stamp keys off OBSERVED agent state, never off the resolve succeeding. Until the
+ * poll sees it, the line reads present tense and carries no stamp at all. */
+.donestamp{font-family:var(--font-mono);font-size:.64rem;color:var(--fin);
+  border:1px solid var(--fin);border-radius:var(--radius-inner);padding:0 .3rem;
+  margin-left:.4rem;animation:vs3-pop var(--t-settle) var(--ease) both}
+.donearrived{margin-top:.9rem}
+.donearrived a{font-family:var(--font-mono);font-size:.76rem;color:var(--ink-2);
+  border:1px solid var(--rule-strong);border-radius:var(--radius-inner);
+  padding:.3rem .6rem;text-decoration:none;display:inline-block;min-height:var(--tap);
+  line-height:2.4}
+.doneexits{margin-top:1.4rem;display:flex;flex-direction:column;gap:.5rem;align-items:center}
+.doneexits .act{min-height:56px;line-height:3.5;width:100%;max-width:20rem;text-align:center;
+  text-decoration:none}
+.doneexits .sec{text-decoration:none;font-size:.82rem}
+
+/* DS 2.4: `prefers-reduced-motion: reduce` collapses every one of the above, and the completion
+ * state renders its final frame directly. The markup IS the final frame -- the check, the counts
+ * and the facts are all in the document -- so there is nothing to reconstruct here. */
+@media (prefers-reduced-motion: reduce){
+  .stackcard.leaving,.stackcard.leaving-skip,.stackcard.leaving-judge,.stackcard.arriving,
+  .pip.arriving,.pip.committing,.pip.uncommitting,.pip.dropping,.pips.converging,
+  .pips.converging .pip,.donecheck,.donestamp,.ticker .tline,
+  .donefacts>div,.doneroute,.donecalm,.donefleet,.donearrived>a{
+    animation:none}
+  .stackcard .stack-primary{transition:none}
+  .pip{transition:none}
+}
+
+/* DS 9 / V8b's boundary: at 390px the counts truncate before the verbs, and the two secondaries
+ * stay at the tap floor. Nothing above the 900px line is touched. */
+@media (max-width:520px){
+  .stackcounts .arrived,.stackcounts .burning{font-size:.7rem}
+  .doneexits .act{max-width:none}
+}
+
+/* ==========================================================================================
+ * ROW 0431 -- THE SPREADSHEET QUEUE, AND ITS TWO LEVELS OF EXPANSION
+ * ==========================================================================================
+ *
+ * The operator's words are the specification. *"One row per item, hard edges, neutral colours"*,
+ * *"like Airtable"*, Notion and ROWY named beside it, and then *"first click expands the row
+ * inline with its actions, second opens a right-side panel"*, and NEVER navigate to a new page.
+ *
+ * WHAT THE GRID IS MADE OF, AND WHY EACH CHOICE IS THAT CHOICE.
+ *
+ *   Hard edges       `border-radius:0` on the row and every cell divider. A queue is a table.
+ *   No gaps          rows share a 1px rule instead of floating 0.6rem apart as separate cards.
+ *                    Nine rows now occupy the vertical space three cards used to.
+ *   Neutral          the row itself spends NO hue. `--brand` appears nowhere in this block.
+ *                    The only colour in a collapsed row is what already carried a WORD: the
+ *                    amber `.live` (agent waiting Nm) and the `.gate` chips, both of which are
+ *                    state, both of which say their state in text. "State never rides colour
+ *                    alone" is the design guide's rule and it is unbroken here.
+ *
+ * THE HUE IS SOMEBODY ELSE'S ROW AND IS DELIBERATELY UNTOUCHED. He also said he dislikes the
+ * orange, and `MUST-NOT-BUILD.md`'s coda records his ruling: the causality rule is KEPT and the
+ * hue is REPLACED, on the four surfaces that carry it, with a constraint (the new accent must
+ * read as causal without reading as a fifth state colour). That is bus row 0435, `Sprint Q5:
+ * retire the orange, keep what it meant`, and it is a global token pass. Changing `--brand`
+ * here would land half of it inside a row about layout and leave 0435 looking done.
+ *
+ * WHY THE FRAGMENT, AND WHAT HAD TO BE ADDED TO IT. `console.js` patches the `list` region by
+ * assigning `innerHTML` every time the server's markup for it changes, which destroys any open
+ * state held in the DOM: a `<details open>`, a class, a `hidden` attribute. A URL fragment is
+ * not in the DOM and survives it, which is why the two levels are anchors.
+ *
+ * THE FRAGMENT SURVIVES THAT ASSIGNMENT AND THE `:target` STYLE DOES NOT, and the difference
+ * cost this feature its whole point until 2026-08-29. Measured on chromium 1223: with the hash
+ * unchanged, emptying the list host and assigning the identical markup back leaves both the
+ * inline expansion and the panel at `display:none`, because the browser resolves the target
+ * element once and does not re-resolve a re-inserted one. On a live board the poll therefore
+ * shut whatever the operator had open, at a moment he did not choose. `console.js` now re-reads
+ * the hash after every repaint and paints `.is-open` / `.is-panel`, which are the same rules in
+ * the same selector lists below. `web/tests/test_two_levels_of_expansion.py` forces a real
+ * repaint under an open row and measures that it is still open rather than assuming it.
+ *
+ * NOTHING IN THIS BLOCK ANIMATES OR TRANSITIONS, in either motion setting.
+ * `test_browser.py:reduced_motion` walks every element on the queue with
+ * `prefers-reduced-motion: reduce` emulated and fails on any live animation or any
+ * transition-duration above zero, so a transition here that was merely wrapped in a media query
+ * would still be a rule somebody could unwrap. There is also nothing to cover: the markup is
+ * already on the page and the reveal is instant, which is the honest rendering of that fact.
+ *
+ * MUST-NOT-BUILD ITEM 2 IS KEPT, AND A GRID IS EXACTLY WHERE IT WOULD BREAK. There is no drag
+ * handle, no `cursor:grab`, no `draggable`, no drop target, and no control anywhere in this
+ * block that writes `priority`. A surface that looks like Airtable is the one surface where
+ * somebody reaches for drag-to-reorder by reflex, which is why the prohibition is restated in
+ * the stylesheet as well as in the macro.
+ */
+
+/* --------------------------------------------------------------------------- the row */
+/* `.card` still applies -- the class is kept so that every existing selector, in this file and
+ * in five test suites, keeps addressing the same element. Everything a card was is overridden
+ * here, in one place, rather than by forking the class. */
+.qrow{border-radius:0;border:0;border-bottom:1px solid var(--rule);padding:0;margin:0;
+ background:var(--bg-raised);position:relative}
+.qrow:first-child{border-top:1px solid var(--rule)}
+/* The list is the table. A shared outer rule, so the run of rows reads as one object and not as
+ * nine objects that happen to be adjacent. */
+[data-region="list"]{border-left:1px solid var(--rule);border-right:1px solid var(--rule)}
+
+/* THE GRID. Six content columns plus the caret gutter. `minmax(0,1fr)` on the title is what
+ * stops a long title from widening the grid past its container -- the default `auto` minimum on
+ * a grid item is its max-content size, and a queue title is arbitrary text from the store. The
+ * console already has a page-level horizontal-scroll defect at 375px (four suites red on it at
+ * c446b6b, on rooms including /runfeed, which renders no cards), and this grid must not be a
+ * second source of one. */
+.qgrid{display:grid;position:relative;
+ grid-template-columns:1.1rem 5.5rem minmax(0,1fr) minmax(0,auto) 4rem;
+ align-items:center;gap:0 .7rem;min-height:44px;padding:.3rem .7rem .3rem .35rem}
+/* Every cell is a click target for the row, not for itself: pointer events fall through to the
+ * stretched anchor beneath, and the two real links take theirs back below. A row you can only
+ * open by finding its empty space is not the row he asked for. */
+.qc{pointer-events:none;position:relative;z-index:1;min-width:0;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.qc a,.qc button{pointer-events:auto}
+.qcmark{color:var(--ink-3);font-size:.6rem;line-height:1}
+.qcaret::before{content:"\25B8"}                      /* right-pointing: closed */
+.qcid{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2)}
+.qcid a{color:var(--ink-2);text-decoration:none;border-bottom:1px dotted}
+.qblocks{color:var(--ink-2);text-decoration:none;border-bottom:1px dotted;white-space:nowrap}
+.qctitle{font-family:var(--font-display);font-weight:600;font-size:.9rem;color:var(--ink);
+ letter-spacing:-.005em}
+.qcstate{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-2);
+ display:flex;gap:.4rem;align-items:center;justify-content:flex-end;overflow:visible}
+.qcsrc{display:none}
+.qcunb{font-family:var(--font-mono);font-size:.7rem;color:var(--ink-2);text-align:right}
+/* `.qgrid` IS THE POSITIONED ANCESTOR, NOT `.qrow`, AND THAT IS NOT A DETAIL. With `.qrow`
+ * positioned instead, `inset:0` on the two stretched anchors covers the EXPANSION as well as
+ * the header -- an invisible link lying over every verb in the open row, swallowing the click
+ * that accepts work. The overlay must be exactly as tall as the header it is the click target
+ * for. */
+/* THE SAME MEASUREMENT, ON THE SAME GROUND, and the reason to change it here too is that this
+ * line lands on `--bg-sunk` on every EVEN row through the zebra rule below. The WCAG check
+ * happened not to have a default on an even row in the seeded board it ran against, which makes
+ * this the more dangerous of the two: a contrast defect that only some data renders. */
+.qcdef{font-family:var(--font-mono);font-size:.66rem;color:var(--ink-2);grid-column:2/6;
+ padding-bottom:.15rem}
+.qrow:nth-child(even) .qgrid{background:var(--bg-sunk)}
+.qgrid:hover{background:var(--tint-run)}
+
+/* ------------------------------------------------------------- ROW 0432: THE KEYBOARD CURSOR
+ * The cursor is not a state of the WORK and must not read as one, so it borrows the mark the
+ * pointer already has rather than introducing a hue. `--tint-run` is exactly what `:hover`
+ * above paints, because the keyboard cursor and the pointer are the same fact said two ways:
+ * this is where the next act will land. The 3px bar in `--ink-2` is what makes it survive the
+ * zebra: on an even row the sunk fill and the tint are close enough that a fill alone would be
+ * a difference a person has to look for, and it also means the cursor is not carried by colour
+ * alone, which is this console's standing rule about state.
+ *
+ * `--ink-2` and not `--focus`: `--focus` is an alias of `--run` and one of the five semantic
+ * hues, and spending it here would make the caret read as a sixth state. Neutral ink says
+ * position and nothing else. Measured on the seeded board, both themes: `--ink-2` on
+ * `--bg-sunk` is 5.78:1 light and 8.71:1 dark, so the bar clears AA where the text does. */
+.qrow.is-cursor > .qgrid{background:var(--tint-run);box-shadow:inset 3px 0 0 0 var(--ink-2)}
+
+/* --------------------------------------------- ROW 0433: DEEP WORK GREYS EVERYTHING BUT ONE ROW
+ * His words: *"it doesn't really give off the vibe of going super, super deep."* He asked for
+ * the other rows greyed and the focused item in the right panel.
+ *
+ * IT IS DONE BY RAISING THE FOCUSED ROW AND NOT BY LOWERING THE REST BELOW AA, and that is a
+ * measurement rather than a preference. The obvious version of "grey the others" is `--ink-3` or
+ * an `opacity`, and `--ink-3` on `--bg-sunk` in the LIGHT theme is 4.30:1 against the 4.5 that
+ * text size asks for -- lane B1 shipped exactly that on 2026-08-29 and the WCAG walk caught it
+ * inside the hour. So the non-focused titles drop one step, from `--ink` to `--ink-2`, which is
+ * 5.78:1 light and 8.71:1 dark and still clears AA, and the focused row keeps full ink, the tint
+ * and a full-strength bar. The difference a person sees is the same; the floor is not crossed.
+ *
+ * The zebra is flattened for the same reason it exists: alternating ground is how you follow a
+ * row across five columns, and in deep work there is one row to follow. Flattening it to `--bg`
+ * RAISES the contrast of every cell that used to sit on `--bg-sunk`.
+ *
+ * Nothing here hides a row. Greying is a rendering weight; MUST-NOT-BUILD item 9 is about what is
+ * IN the markup, and what item 9 removes from deep work is removed in the templates, not here. */
+body.deep .qrow:nth-child(even) .qgrid{background:var(--bg)}
+body.deep .qrow:not(.is-cursor) .qctitle{color:var(--ink-2);font-weight:500}
+body.deep .qrow.is-cursor > .qgrid{box-shadow:inset 3px 0 0 0 var(--ink)}
+
+/* THE TWO STRETCHED ANCHORS. Empty links with `inset:0`, one above the other: the opener is
+ * beneath while the row is closed, the closer is above it while the row is open, so the row
+ * header is a real toggle and the second state is not a dead click. They are not `<button>`s
+ * because there is no script here to press one, and they carry `aria-label` in the macro
+ * because an empty link is unreadable without it. */
+.qopen,.qshut{position:absolute;inset:0;z-index:0;display:block;text-decoration:none}
+.qshut{display:none}
+
+/* --------------------------------------------------- LEVEL ONE: the row expands inline */
+.qexp{display:none;padding:.2rem .8rem .8rem 1.35rem;border-top:1px dashed var(--rule);
+ background:var(--bg-sunk)}
+/* THREE WAYS A ROW IS OPEN, AND THEY RENDER THE SAME SURFACE ON PURPOSE.
+ *   `:target`   the fragment, and the only one that works with JavaScript off.
+ *   `.srvopen`  the server said so, via the pre-existing `?open=<id>` round trip.
+ *   `.is-open`  `console.js` re-applied the fragment after a list repaint (row 0431).
+ * The third exists because the fragment SURVIVES `host.innerHTML = html` and the `:target`
+ * STYLE does not: the browser resolves the target element once and does not re-resolve it when
+ * an element carrying that id is re-inserted. Measured on chromium 1223, 2026-08-28 and again
+ * 2026-08-29. Without that class the three-second poll closed whatever the operator had open,
+ * at a moment he did not choose. `.is-open` is a re-resolvable `:target` and nothing else, so
+ * the two are one selector list rather than two behaviours that have to be kept in step. */
+.qrow:target > .qexp,.qrow.srvopen > .qexp,.qrow.is-open > .qexp{display:block}
+.qrow:target > .qgrid .qshut,.qrow.is-open > .qgrid .qshut{display:block;z-index:2}
+.qrow:target > .qgrid .qcaret::before,.qrow.srvopen > .qgrid .qcaret::before,
+.qrow.is-open > .qgrid .qcaret::before{content:"\25BE"}   /* down-pointing: open */
+/* THE SECOND CLICK MUST NOT UNDO THE FIRST. When the panel holds the fragment the row itself no
+ * longer matches `:target`, so this is what keeps the inline expansion open underneath it. It
+ * is a SEPARATE rule block rather than a member of the selector lists above on purpose: an
+ * invalid selector invalidates its whole comma-separated list, so a browser without `:has()`
+ * would otherwise lose plain `:target` expansion too. Here it loses only this. */
+.qrow:has(> .qpanel:target) > .qexp{display:block}
+.qrow:has(> .qpanel:target) > .qgrid .qshut{display:block;z-index:2}
+.qrow:has(> .qpanel:target) > .qgrid .qcaret::before{content:"\25BE"}
+/* Inside the expansion the verb row is a row again rather than a grid cell. */
+.qexp .btns{margin-top:.55rem}
+.qexp .exp{margin-top:.5rem;padding-top:.5rem}
+.qmore{line-height:2.6}
+.qcollapse{line-height:2.6}
+
+/* ------------------------------------------- LEVEL TWO: the right-side panel, never a page */
+/* Fixed to the right of the VIEWPORT and not to the document, because the row it belongs to may
+ * be anywhere in a scrolled list and the panel is a reading surface for as long as it is open.
+ * `top` clears the sticky header (`header{position:sticky;top:0}`) rather than sliding under it. */
+.qpanel{display:none}
+/* ONE DECLARATION FOR THE THREE WAYS THE PANEL OPENS, where there used to be two identical
+ * copies of it. Two copies of a box mean two places to edit when the panel changes width, and
+ * one of them gets missed. Same three routes as level one, same reason each exists. */
+.qpanel:target,.qrow.srvopen > .qpanel,.qrow.is-panel > .qpanel{
+ display:block;position:fixed;top:3.6rem;right:0;bottom:0;
+ width:min(28rem,94vw);z-index:40;overflow-y:auto;overscroll-behavior:contain;
+ background:var(--bg-raised);border-left:1px solid var(--rule-strong);
+ border-top:1px solid var(--rule);padding:.85rem 1rem 2rem;
+ box-shadow:-8px 0 24px rgba(31,33,36,.10)}
+.qpanelhd{display:flex;align-items:center;justify-content:space-between;
+ font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);
+ border-bottom:1px solid var(--rule);padding-bottom:.4rem}
+.qpclose{color:var(--ink-2);text-decoration:none;font-size:1rem;line-height:1;
+ min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:flex-end}
+.qptitle{font-family:var(--font-display);font-weight:650;font-size:1.02rem;margin:.5rem 0 .3rem;
+ letter-spacing:-.005em}
+.qpmeta{font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2);
+ display:flex;flex-wrap:wrap;gap:.15rem .6rem;margin-bottom:.4rem}
+.qpanel .exp{border-top:0;margin-top:.2rem;padding-top:0;white-space:normal}
+
+/* ------------------------------------------------------------------ narrow, and the phone */
+/* Below 720px the grid drops to two lines: identity and title, then the state row. The columns
+ * are not shrunk, they are RESTACKED -- a 5.5rem id column beside a 7rem default column at
+ * 375px is how a table becomes a horizontal scrollbar, which is the defect this console already
+ * has at the page level and which this block must not add to. */
+@media(max-width:720px){
+ .qgrid{grid-template-columns:1.1rem minmax(0,1fr) auto;gap:0 .5rem;
+  padding:.45rem .6rem .45rem .35rem}
+ .qcid{grid-column:2}
+ .qctitle{grid-column:2/4;white-space:normal;line-height:1.3}
+ .qcstate{grid-column:2}
+ .qcunb{grid-column:3;grid-row:1}
+ .qcdef{grid-column:2/4;white-space:normal}
+ .qpanel:target,.qrow.srvopen > .qpanel,.qrow.is-panel > .qpanel{
+  top:0;width:100vw;border-left:0}
+ .qexp{padding-left:.6rem}
+ /* NO COLUMN HEADER BELOW 720px, because below 720px there are no columns. The grid RESTACKS
+  * here rather than shrinking, so a row is two lines of its own labels and a header naming five
+  * columns names nothing that is on the screen. Measured at 375 before this rule: the five
+  * header cells auto-placed into a three-track grid and rendered as `ID / UNBLOCKS` above
+  * `W... / STATE`, which is a header lying about a layout. Absent is the honest state. */
+ .qhead{display:none}
+}
+
+/* ------------------------------------------------------- the column header, and its refusals
+ * ROW 0431. A grid whose right-hand column reads `0` on every line, with nothing on the screen
+ * saying what is zero, is not a spreadsheet: it is a table missing its first row. This names the
+ * five columns and does nothing else.
+ *
+ * EVERY RULE HERE IS A REFUSAL. `pointer-events:none` on the whole strip, so a click on a column
+ * name is not merely ignored but undeliverable; no `:hover`, no `cursor`, no underline, no
+ * caret, and the same 1px rule the rows use rather than a raised bar that would read as a
+ * control. MUST-NOT-BUILD item 2 forbids anything hand-sortable, and a header that LOOKS
+ * sortable and is not is that item's own disabled-affordance failure wearing a new class name.
+ * If a sort ever exists, this is where it goes and it will need a rule of its own to become
+ * clickable again, which is the point of putting the refusal here rather than in a comment. */
+.qhead{pointer-events:none;user-select:none;border-top:1px solid var(--rule);
+ background:var(--bg-sunk)}
+.qhead .qgrid{min-height:0;padding:.28rem .7rem .28rem .35rem;background:transparent}
+.qhead .qgrid:hover{background:transparent}
+/* `--ink-2` AND NOT `--ink-3`, AND THIS IS A MEASUREMENT RATHER THAN A PREFERENCE. The header
+ * sits on `--bg-sunk`, and in the LIGHT theme `--ink-3` (#6E757E) on `#F6F6F4` is 4.30:1 against
+ * the 4.5 that WCAG AA asks of text this size. `test_browser.py:both themes pass WCAG AA` caught
+ * all four cells the hour they were written and says the right thing about how to answer it:
+ * THE FIX IS THE COLOUR, NEVER THE BAR. `--ink-2` reads 5.78:1 in light and 8.71:1 in dark on
+ * the same ground. The dark theme was never the failing one, which is exactly why the check runs
+ * in both. */
+.qhead .qc{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.09em;
+ text-transform:uppercase;color:var(--ink-2)}
+/* The rows own the outer rule, so the first row under a header must not draw a second top line. */
+.qhead + .qrow{border-top:0}
+
+/* ============================================================================================
+ * C2, 2026-08-29: THE PHONE IS THE FIRST SURFACE, AND IT WAS THE WORST ONE.
+ *
+ * His words: "the morning pass happens on a phone, in a chair, before the laptop is open."
+ * Measured on this console at 390x844 before this section, and reproduced at 375x844:
+ *
+ *     header 224px, row one at y=627, 1 of 7 rows fully on screen, 74 percent chrome
+ *     .qgrid computed 3 tracks where DESIGN-SYSTEM.md section 9's first clause asks for one
+ *     14 controls under the 44px tap floor on /queue, 7 on /queue?tier=judge, at BOTH widths
+ *
+ * WHAT IS NOT IN THIS SECTION, and both absences are the point. Nothing here is a second
+ * template and nothing here is a server branch: `test_phone_surface.py` asserts the phone and
+ * the desktop are served the same document byte for byte, and that is the property that makes
+ * every proof about the console a proof about the phone. And nothing here touches what deep work
+ * removes: MUST-NOT-BUILD item 9 is about what is IN THE MARKUP, so a `display:none` in this
+ * file could never satisfy it and is never asked to.
+ *
+ * The order below is the order of the pixels, from the top of the screen down.
+ * ========================================================================================== */
+
+@media(max-width:899px){
+  /* 1. THE HEADER: 224px TO 168px, AND NOTHING LEAVES THE SCREEN TO PAY FOR IT.
+   *
+   * The header wraps at this width (see the `.hrow{flex-wrap:wrap}` rule above, row 0432), and
+   * it wrapped into THREE lines: logo, then the nine room tabs on their own line because
+   * `.rooms` is pinned to `flex-basis:100%`, then the mode pill alone on a third line at 44px
+   * plus a 12px gap. The logo is 84px wide and the pill is 162px, so at 375px the two fit on one
+   * line together with 129px to spare and the third line was empty space with one control in it.
+   *
+   * `order` and not a markup move: `base.html` is V-SHELL's file and the DOM order there is
+   * logo, nav, pill, which is the reading order a screen reader should keep. Flex `order`
+   * repaints the two lines without touching either. Measured saving 56px, taken directly off the
+   * top of the first screen, with every tab and both mode segments still on it. */
+  .hrow .modepill{order:1;margin-left:auto}
+  .hrow .themebtn{order:1}
+  .hrow .rooms{order:2}
+  /* The two header lines are 44px each because both are tap targets, and that is the floor. What
+   * is not the floor is the air around them: `.hrow` pays .7rem top and bottom and another .7rem
+   * of row gap between the two lines, which is 34px of padding on a 168px header. Halved here
+   * and nowhere else. The gutters are untouched: the logo still starts on the same left edge as
+   * every row below it. */
+  .hrow{padding:.4rem .85rem;row-gap:.35rem}
+
+  /* THE DAMAGE LINE'S LINK, 14px ON THE DISPATCH SURFACE, AND IT WAS THE SECOND RED ALL ALONG.
+   * `stack.html`'s DS 5.2 class 3 line is `<b>N red</b> · <a>fleet</a>`, and that anchor measured
+   * 14px against the 44px floor on `/queue/stack` at 390, in BOTH modes. It is one of the four
+   * declared phone jobs, and DESIGN-SYSTEM.md section 9's tap standard closed the inline-link
+   * excuse by name: three prose links were made real controls and "there is no inline-link
+   * exception to argue about".
+   *
+   * IT IS PRE-EXISTING AND IT WAS MASKED. `test_phone_surface.py` asserts single column before it
+   * sweeps tap targets, so the grid failure above ended that check on the FIRST job and the sweep
+   * never reached the third. Measured on a frozen `git archive HEAD` tree with this whole section
+   * removed: the same 1 control under 44px, same element, same two modes. It is also DATA
+   * DEPENDENT -- the line renders only when there is damage -- which is why two runs of the same
+   * suite an hour apart disagreed about whether the dispatch surface had 5 controls or 6.
+   *
+   * Same shape as the `.cid a` rule in the 520px block above, and `var(--tap)` rather than that
+   * rule's literal 44px, because section 2.3 puts the floor in one token. */
+  .stackdamage a{display:inline-block;min-height:var(--tap);line-height:var(--tap)}
+
+  /* `a.go` ON `/live`: NINE FILTER CONTROLS AT 16.8px, AND NO SUITE HAS EVER LOOKED AT THEM.
+   * `main only`, `with subagents`, `6h`, `24h` and the rest are the room's filters, and they
+   * measured 16.8px against the 44px floor at BOTH 375 and 390. Neither phone suite covers it:
+   * `test_phone_surface` sweeps the FOUR declared phone jobs and `/live` is not one of them, and
+   * `test_browser.no_h_scroll` walks a six-path list that does not include it. Found by sweeping
+   * all eleven routes the nav can reach, which is the only way this class of defect is ever
+   * found: 76 controls under the floor across 22 renders before this section, 18 of them here.
+   *
+   * `a.go` AND NOT `.cmeta a.go`, because the same class is a plain navigation link in six other
+   * places (`back to Fleet`, `Sessions room`, `the read-only mirror`) and every one of them is a
+   * link a thumb has to hit. The two `.go` elements that are NOT links -- the dispatch strip's
+   * `resume` and the run strip's `run them` -- are `<span>`s inside anchors that already carry
+   * the floor, so `a.go` reaches exactly the set that needs it and nothing else. */
+  a.go{display:inline-flex;align-items:center;min-height:var(--tap)}
+  /* AND THE SESSION ROWS IN THE SAME ROOM, 3 of 22, WHICH IS WHY THIS IS A SWEEP AND NOT A LIST.
+   * `/live` renders each session as `.ln > a`, and the 520px block above already gives a session
+   * row the floor -- as `.blk .ln a`. On `/live` the rows are NOT inside a `.blk`, so that rule
+   * has never reached them, and only the SHORT ones show it: a row whose prompt wraps to two
+   * lines clears 44px by accident, and the three that did not measured 19px and 43px. A floor
+   * that holds only for the rows with long titles is not a floor.
+   *
+   * `.blk .ln a` keeps its own rule: it is more specific, and its `inline-block` sits inside a
+   * running line where this one is the whole row. */
+  .ln > a{display:block;min-height:var(--tap)}
+}
+
+@media(max-width:720px){
+  /* 2. THE TIER STRIP: the name and the count, not the ranking instruction.
+   *
+   * `.tm` is `act from prepared context`, `open one thing`, `generate: scope, rethink`. It is
+   * how you rank THIS tier against the other two, which is dispatch vocabulary -- and this file
+   * and `queue.html` both already treat it that way: deep work removes `.tm` FROM THE MARKUP
+   * (queue.html, the `{% if not deep %}` around it, task 0176) on exactly that reading. On a
+   * 117px card at 390px it wraps to three lines and is most of the strip's 95px height.
+   *
+   * Hidden and not removed, because this is CSS and CSS cannot remove: the desktop renders it in
+   * full from the same document, which is what makes this a width rule rather than a deletion.
+   * The tier name and the count -- the two things that say where the work is -- stay. */
+  .tiers{margin:.4rem 0 .4rem;gap:.3rem}
+  .tier{padding:.4rem .45rem}
+  .tier .tm{display:none}
+  .tier .tc{font-size:1.25rem}
+
+  /* 3. THE TWO STANDING STRIPS: 199px OF POLICY PROSE, ON ONE LINE EACH.
+   *
+   * `7 defaults stated / silence only ever ships the reversible branch, and only where a
+   * producer stated one` is 89px, and `no timer running / nothing measured today. A timer is
+   * never required and an untimed item is normal; ...` is 110px. Both sentences are STANDING
+   * POLICY: they are byte-identical on every load and they describe the rule, not this morning.
+   * Together they were 199 of the 627px above row one.
+   *
+   * THIS CONTRADICTS THE COMMENT ON `.strip.idle` ABOVE, WHICH SAYS THE SENTENCE IS NEITHER
+   * DELETED NOR TRUNCATED, AND THE CONTRADICTION IS THE DECISION. That comment settles 1440px,
+   * where one line was enough to hold the whole sentence and truncating would have bought
+   * nothing. At 390px the sentence cannot be both whole and out of the way, and DESIGN-SYSTEM.md
+   * section 9 says which way that resolves in as many words: at 390 a strip TRUNCATES, counts
+   * before verbs. So the fact keeps the line and the explanation is clipped with an ellipsis
+   * that says there is more. Nothing is deleted: the full sentence is in the document, it is
+   * what `test_stopwatch_at_the_surface.py` reads, and it renders in full the moment the same
+   * page is opened wider.
+   *
+   * `.strip.timing` IS EXEMPT, and that exemption is the whole care here. A running timer's span
+   * is not standing prose: it is elapsed minutes, a start time and a tier, all of them changing
+   * on every poll, and it carries the four-hour-cap warning that has to arrive while the timer
+   * is still running. It keeps its box and its wrap. */
+  .strip{flex-wrap:nowrap;padding:.32rem .6rem;margin-bottom:.4rem;font-size:.78rem;gap:.4rem}
+  .strip>span{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .strip.idle{padding:.32rem .6rem;margin-bottom:.4rem}
+  .strip.timing{flex-wrap:wrap;padding:.55rem .75rem}
+  .strip.timing>span{white-space:normal;overflow:visible}
+  .lanebar{margin-bottom:.4rem}
+
+  /* 4. THE ROW ITSELF: THREE GRID TRACKS BECOME ONE COLUMN THAT FLOWS.
+   *
+   * DESIGN-SYSTEM.md section 9's first clause is "single column everywhere" at 390, and
+   * `test_phone_surface.py` reads that as: no element on the page computes more than one
+   * `grid-template-columns` track. `.qgrid` computed `17.6px minmax(0px, 1fr) auto` -- three
+   * tracks -- and was the only element on the page that did, on 8 of 8 combinations of two
+   * widths, two themes and two modes.
+   *
+   * WHAT A SINGLE TRACK WOULD HAVE COST, MEASURED RATHER THAN ASSERTED. A one-track grid puts
+   * every cell on its own line: id, title, state, unblocks, default. With the 44px tap floor
+   * below that is a 156px row against 121px today, which is 2 rows on his screen instead of 4.
+   * The layout the section actually asks for -- one column of content, no table columns side by
+   * side -- is a wrapping flex line, and the same section spells that out itself two clauses
+   * later when it puts the stack's secondary buttons "two-up" at 390. So the row is a flex
+   * container here: one column, three lines, and the meta line is one line.
+   *
+   * THE HONEST COST, STATED BECAUSE IT IS A REAL ONE: the check above only looks at grids, so it
+   * no longer covers `.qgrid` at this width. It is not vacuous -- it still sweeps every other
+   * element on the page -- but the element it was red on is now outside it. The change that
+   * would keep the original instrument is one wrapper element around the three meta cells in
+   * `macros.html`, which this lane may not edit; it is written out as an exact patch in
+   * `outputs/2026-08-29-commander/crosstalk-C2.md`.
+   *
+   * THE CARET GOES ABSOLUTE. It is `aria-hidden` decoration that says open or closed, and as a
+   * flex item it was a 17.6px track stealing the front of the title line. Absolute against
+   * `.qgrid`, which is already the positioned ancestor for the two stretched anchors and is
+   * documented above as being so deliberately. */
+  .qgrid{display:flex;flex-wrap:wrap;align-items:center;column-gap:.5rem;row-gap:0;
+   padding:.3rem .6rem .35rem 1.45rem}
+  .qcmark{position:absolute;left:.45rem;top:.62rem}
+  /* THE VISUAL ORDER IS NOT THE DOM ORDER AND THE DOM ORDER IS THE ONE THAT IS RIGHT. The row
+   * reads id, title, state, unblocks, default in the markup, which is the order a screen reader
+   * should hear: the row announces what it IS before what it says. On a 390px screen the eye
+   * wants the opposite, the title first and the identifiers under it, so `order` repaints the
+   * lines and leaves the markup alone. Every interactive element in the row keeps its tab order:
+   * the two stretched anchors are first in the DOM and absolute, then the id link, then `blocks`,
+   * which is left to right along the meta line exactly as it is painted. */
+  .qctitle{order:1;flex:0 0 100%;white-space:normal;line-height:1.3;font-size:.86rem}
+  .qcid{order:2;flex:0 0 auto}
+  .qcstate{order:3;flex:1 1 auto;min-width:0;justify-content:flex-start;flex-wrap:wrap}
+  .qcunb{order:4;flex:0 0 auto;text-align:right}
+  .qcdef{order:5;flex:0 0 100%;white-space:normal}
+
+  /* 5. THE TWO LINKS THAT WERE UNDER THE TAP FLOOR, AND WHY THEY ARE FREE NOW.
+   *
+   * Lane B4 filed this as decision D-B4-6 on 2026-08-29 and deliberately did NOT apply it: in
+   * the three-track grid the id sat on its own line and the state on another, so giving both the
+   * 44px floor cost 48px per row and took the Shape tier from 3 rows to 2. Its words were that
+   * the trade "is his call about his own screen", and it wrote the measurement into this file
+   * rather than the rule.
+   *
+   * THE RESTACK ABOVE DISSOLVES THE TRADE RATHER THAN DECIDING IT. Under flex the id, the state
+   * chips and the unblocks count share ONE line, so the 44px floor replaces a ~20px id line plus
+   * a ~20px state line with a single 44px band. The cost is a few pixels a row, not 48, and D-B4-6
+   * no longer names a trade anybody has to make. Measured before and after in the lane report.
+   *
+   * `min-height` and `align-items:center` rather than `line-height:44px`, which is what the
+   * `.cid a` rule at 520px uses: a line-height of 44 on a link that can wrap draws a 44px gap
+   * between its own two lines. Neither of these wraps today and neither should start to. */
+  .qcid a,.qblocks{display:inline-flex;align-items:center;min-height:var(--tap);
+   /* THE UNDERLINE HAS TO MOVE WITH THE TEXT, NOT WITH THE BOX. Both links mark themselves as
+    * links with `border-bottom:1px dotted`, and a border is drawn at the bottom of the BOX. Grow
+    * the box to 44px and the mark detaches: measured on the Judge tier at 390, a dotted rule
+    * hanging about 15px under `0001`, reading as a stray rule rather than as a link. Underline
+    * decoration is drawn against the text, so it follows the glyphs into a taller box. Same mark,
+    * same dots, same offset as the file's other dotted links. */
+   border-bottom:0;text-decoration:underline;text-decoration-style:dotted;
+   text-underline-offset:3px}
+
+  /* 6. THE NUMBER THAT NAMES NOTHING. Row 0431 added the column header because the right-hand
+   * column read `0` on every line with nothing on the screen saying what was zero -- and the
+   * rule twenty lines above this one removes that header below 720px, correctly, because below
+   * 720px there are no columns. So on a phone the defect row 0431 fixed is back, in the one
+   * place its fix cannot reach. The label goes on the number instead of above the column.
+   *
+   * Generated content and not markup because the cell is `macros.html`'s, and `--ink-2` and not
+   * `--ink-3` because this lands on `--bg-sunk` on every even row, where `--ink-3` reads 4.30:1
+   * against the 4.5 AA asks of text this size. `.qcunb` already carries `--ink-2`; this inherits
+   * it and adds no colour of its own. */
+  .qcunb::after{content:" unblocks";letter-spacing:.02em}
+}
+
+/* ============================================================================================
+   THE BOARD, `/queue/table` (`table.html`). The door behind the ranked window: five queues,
+   every column, hand-sortable, GET-only. His ruling 2026-08-31, "BOTH, NOT EITHER" -- `/queue`
+   stays the seven-row plan and this is the inventory behind it, and it is deliberately not a
+   mode on `queue.html` because MUST-NOT-BUILD item 2's `nothing is sortable by the operator` is
+   unqualified and `.qhead` above (:1893) reads it as forbidding a clickable header ON THAT PAGE.
+   Building a second template leaves `.qhead`'s refusal untouched and lets THIS surface be the
+   opposite of it on purpose: `.tsort` below is a real, inviting control, not a disabled one.
+
+   Nothing here spends `--dmg` or `--wait`. MUST-NOT-BUILD item 7 reserves red for damage and
+   amber for waiting-on-a-human shell-wide, and an inventory table is neither: every muted mark
+   below (`.tno`, `.tarrow`, an unavailable tab) is `--ink-3`, full opacity, never a state colour.
+   Opacity is not a colour trick this block uses at all -- the shell has one measured defect
+   already where `--ink-2` under `opacity:.7` computes to 3.20:1 and fails WCAG AA, so every
+   muted rule here spends a token at full strength instead of dimming a stronger one. */
+
+.tth{font-family:var(--font-display);font-weight:700;font-size:1.5rem;line-height:1.15;
+ margin-bottom:.5rem}
+
+/* THE TITLE ROW AND ITS DISCLOSURE (W3-UX-INFINITY, 2026-09-15, audit finding I-02). Same grammar
+   as Attention's `.att-bar` / `.att-help` / `.att-link`, deliberately, because a reader who learns
+   "How this page works" on one room must find the same words in the same place on the other. The
+   summary is `--ink-3` at FULL STRENGTH like every other muted mark in this block: it is a door,
+   not a state, so it spends no accent and no opacity.
+
+   THE SUMMARY IS A CONTROL AND TAKES THE 44px FLOOR, the same floor `.tq` takes above. `<details>`
+   gives a press target sized to its text by default, which at .72rem is about 17px -- the class of
+   defect J10 measures on this product (`CONTROLS_UNDER_44PX`, 20.1px against 44px). A change that
+   fixes a reading defect by shipping a tap defect has moved the problem, not solved it. */
+.tbar{display:flex;align-items:baseline;gap:.75rem;flex-wrap:wrap;margin-bottom:.5rem}
+.tbar .tth{margin-bottom:0}
+.tt-help{font-size:.72rem;color:var(--ink-3)}
+.tt-link{display:inline-flex;align-items:center;min-height:44px;cursor:pointer;
+ text-decoration:underline;text-underline-offset:.2em}
+.tt-help[open]{display:block;width:100%}
+.tt-help .tsub:last-child{margin-bottom:.3rem}
+.tsub{color:var(--ink-2);max-width:62ch;margin-bottom:.9rem}
+
+/* THE DENOMINATOR READS AS DATA, NOT PROSE. It is coverage arithmetic -- "8 open", "showing 1 of
+   3", "1 not ranked" -- so it takes the file's mono register (`.cmeta`, `.strip.idle span`) rather
+   than the sans body font `.tsub` uses for its plain sentences.
+
+   `.tnote` NO LONGER DRESSES ANYTHING ON THE BOARD (W3-UX-INFINITY, 2026-09-15, finding I-02): the
+   boxed callout it styled was the third of the three blocks between the search and the first row,
+   and its prose is now inside the title row's disclosure while its claim is one `.tden` line. The
+   rule stays because `web/templates/terminal.html` still names the class; it is kept here, and not
+   deleted, so that removing it is a measured change by whoever owns that room rather than a side
+   effect of this one. Its box language was `.strip`'s (raised fill, left rule, the same asymmetric
+   radius) MINUS `.strip`'s accent border: that border is always `--wait` or `--run` or `--dmg` in
+   every existing use, and this box is none of the five states, so it takes `--rule-strong` instead
+   of picking one of them for a semantic it does not have. */
+/* ONE ROW OF STATUS, WRAPPING ONLY WHEN THE WIDTH RUNS OUT. The separator is drawn by the row and
+   not typed into either paragraph, so neither line carries a mark that is wrong when it is alone --
+   the decisions line renders on exactly one of three conditions and the count line always does. */
+.tstatus{display:flex;flex-wrap:wrap;column-gap:.7rem;align-items:baseline}
+.tstatus .tden+.tden::before{content:"\00b7";margin-right:.7rem;color:var(--ink-3)}
+.tden{font-family:var(--font-mono);font-size:.76rem;line-height:1.7;color:var(--ink-2);
+ margin-bottom:.6rem}
+.tden b{color:var(--ink);font-weight:650}
+.tnote{background:var(--bg-sunk);border:1px solid var(--rule);border-left:3px solid var(--rule-strong);
+ border-radius:0 8px 8px 0;padding:.55rem .75rem;margin-bottom:.9rem;
+ font-family:var(--font-mono);font-size:.76rem;line-height:1.6;color:var(--ink-2)}
+.tnote b{color:var(--ink);font-weight:650}
+
+/* THE FIVE QUEUES AS TABS. Same grammar as `.room[aria-selected]`/`.tier[aria-selected]` above --
+   selection is state, not causality, so it takes the sunk fill and ink, never the brand hue --
+   but `.tq` gets the 44px floor unconditionally where `.room` does not, because DS section 3.2's
+   distinction is between a MODE control (`.modepill`, always 44px) and a navigation tab that only
+   earns the floor once the header is tight; this nav sits in the body column with no such
+   pressure, so there is no excuse to ship it under the floor from the first render. `.is-off`
+   (a queue the store cannot read, `c.available:false`) is `--ink-3` and nothing else -- muted,
+   not an error, because the em dash in its own count already says "unknown" and a second signal
+   saying the same thing in red would be MUST-NOT-BUILD item 7's forbidden colour on a non-state.
+
+   THE FLOOR IS BOTH DIMENSIONS, added 2026-09-15 by W3-UX-INFINITY after W3-INFINITY-TEST found
+   the SHARED shell nav failing on width while passing on height: 44px tall and 39.8px wide is a
+   near miss that a height-only check reports clean. These chips happen to clear 44 on width today
+   because their labels are long (the narrowest, "work 2", measures 58.8 at 375) -- which means a
+   width assertion over this data could not have failed, and a shorter queue name would have
+   breached the floor silently. `min-width` makes it true by construction rather than by luck, and
+   `justify-content:center` keeps a short label centred in the larger box rather than left in it. */
+.tqs{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 .9rem}
+.tq{display:inline-flex;align-items:center;justify-content:center;gap:.4rem;min-height:var(--tap);min-width:var(--tap);padding:0 .7rem;
+ border:1px solid var(--rule);border-radius:20px;color:var(--ink-2);text-decoration:none;
+ font-family:var(--font-mono);font-size:.74rem;white-space:nowrap}
+.tq:hover{color:var(--ink);border-color:var(--rule-strong)}
+.tq:focus-visible{outline:2px solid var(--focus);outline-offset:1px}
+.tq.is-on{color:var(--ink);border-color:var(--ink-3);background:var(--bg-sunk);font-weight:650}
+.tq.is-off{color:var(--ink-3)}
+.tqc{color:var(--ink-3)}
+.tq.is-on .tqc{color:var(--ink-2)}
+
+/* THE SCROLL BOX. `.twrap` carries the horizontal overflow so the PAGE never does -- the
+   committed document-width-vs-window-width check this shell already runs stays green because the
+   scrollbar lives in a 10px-radius card (`--radius-card`, the same token every other raised box on
+   this file uses) and not on `body`. `-webkit-overflow-scrolling:touch` is the iOS momentum fix;
+   `overflow-y:hidden` alongside `overflow-x:auto` is what lets the border-radius actually clip the
+   corners rather than leaving them square while a vertical scrollbar the table never needs sits
+   unused. `.tbl` gets a floor width so nine columns squeeze the SCROLLBAR into view at 390px
+   instead of squeezing every column into unreadable text -- the failure mode `table.tbl` (:655)
+   was already written to avoid on every other table in this file. */
+.twrap{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;
+ border:1px solid var(--rule);border-radius:var(--radius-card);background:var(--bg-raised)}
+.tbl{min-width:46rem}
+.tcap{text-align:left;font-family:var(--font-mono);font-size:.72rem;color:var(--ink-2);
+ padding:.5rem .6rem;border-bottom:1px solid var(--rule)}
+
+/* THE HEADER ROW IS THE OPPOSITE OF `.qhead` ABOVE, ON PURPOSE. `.qhead` (:1893) is a refusal --
+   `pointer-events:none`, no hover, no cursor -- because a clickable-looking header on `/queue`
+   would be the disabled-affordance failure MUST-NOT-BUILD item 2 names. This header sorts for
+   real, so `.tsort` is styled to be found: it takes `color:inherit` at rest (it reads as the
+   plain uppercase label `table.tbl th` already paints) and only picks up ink and an underline on
+   hover or focus, which is discovery through interaction rather than a permanent shout. The
+   underline is `text-decoration`, not a `border-bottom` on the link -- the exact fix already
+   applied to `.qcid a,.qblocks` in the 720px block above (:2104) for the identical reason: a
+   border draws against the BOX, and growing that box to the 44px tap floor pulls a border-bottom
+   away from the glyphs it is supposed to mark. `outline-offset` on focus goes negative rather
+   than the file's usual +1/+2px so the ring can never be clipped by `.twrap`'s own
+   `overflow-y:hidden` when the header row sits flush against the scroll box's top edge.
+
+   `.tcol.is-on` marks the sorted column WITHOUT colour alone (this file's own rule, spent on
+   every state above): weight goes to 650 and the header's own bottom rule goes from `--rule` to
+   `--rule-strong`, so a colour-blind read or a black-and-white screenshot still finds the column
+   sorting the table. */
+.tcol.is-on{font-weight:650;color:var(--ink);border-bottom-color:var(--rule-strong)}
+.tnum,.tcol.tnum{text-align:right}
+/* THE SORT CONTROL TAKES THE FLOOR IN BOTH DIMENSIONS (W3-UX-INFINITY, 2026-09-16, from
+   W3-INFINITY-TEST's IX-R11-07). It already carried `min-height:var(--tap)` and nothing for
+   width, so MEASURED at 375 three of the nine headers were 44px tall and under 44 wide: `id`
+   26.4, `age` 33.3, `lane` 40.1. Same one-dimension floor as the nav tabs, same cause, and a
+   height-only probe reads all nine clean.
+
+   SAFE TO WIDEN HERE BECAUSE THIS IS A TABLE CELL AND NOT A RUNNING LINE. The 520px block's
+   inline-link list carries the opposite warning in its own comment -- "the box has to grow with
+   the line, not through it" -- and a width floor on those would break the line rather than the
+   target. A `<th>` has no line to break, and the table it widens already lives inside `.twrap`
+   and scrolls in x, so the floor costs a few px of column and never the page.
+
+   `.tsort` and `.tid` are used in `table.html` and nowhere else, so this reaches one room. */
+.tsort{display:inline-flex;align-items:center;gap:.2rem;min-height:var(--tap);
+ min-width:var(--tap);justify-content:center;padding:0 .3rem;
+ margin:0 -.3rem;color:inherit;text-decoration:none}
+.tnum .tsort{justify-content:flex-end}
+.tsort:hover{color:var(--ink);text-decoration:underline;text-decoration-style:dotted;
+ text-underline-offset:3px}
+.tsort:focus-visible{outline:2px solid var(--focus);outline-offset:-2px}
+.tarrow{color:var(--ink-3);font-size:.9em}
+
+/* BODY CELLS. `.tid` and `.tqcell` take `table.tbl td`'s mono ink-2 unchanged -- they are
+   bookkeeping, the same split `.qcid`/`.qcunb` (ink-2) already draw against `.qctitle` (ink) a
+   few hundred lines up. `.ttitle` is the one column that is the row's CONTENT rather than its
+   metadata, so it is promoted to `--ink`; both cell rules are written against `.tbl td` rather
+   than the bare class to outrank `table.tbl td`'s own colour (:655-658), which a same-specificity
+   class selector appended later in the file still cannot beat. */
+.tbl td.ttitle{color:var(--ink);font-weight:500}
+.tno{color:var(--ink-3)}
+.tbl td.tempty{padding:1.6rem 1rem;text-align:center;color:var(--ink-2)}
+
+@media(max-width:720px){
+  /* THE SAME 390PX FLOOR THE REST OF THIS FILE ALREADY HOLDS ITSELF TO. The tabs wrap instead of
+     scrolling sideways -- a second horizontal scrollbar above the table's own would be two
+     different swipe gestures stacked on one screen -- and the table keeps its floor width inside
+     `.twrap`, which is already the only element on this surface allowed to scroll in x. Nothing
+     here changes `.twrap`'s own rule: it scrolls at every width, this block only shrinks the type
+     around it so the box that scrolls is reading matter, not the whole page. */
+  .tth{font-size:1.25rem}
+  .tq{padding:0 .55rem;font-size:.7rem}
+  .tden,.tnote{font-size:.72rem}
+  .tbl{min-width:40rem}
+}

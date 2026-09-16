@@ -1,0 +1,614 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Queue{% endblock %}
+
+{# THE TWO LINKS OFF AN EMPTY TIER ARE THE ONLY WAY OFF IT, AND THEY WERE 15px TALL.
+   Lane D5, 2026-08-30, from the human-path audit. On live `brain` the front page IS this
+   screen: `/queue` defaults to `decide` and his decide tier is 0 of 0, so the sentence below
+   is the whole content of the workspace column and these anchors are the whole exit from it.
+   Measured at 375x812 before this rule, in both themes with the theme asserted off
+   `data-theme` and the body background: `Judge 4` and `Shape 5` at **15px x 53px** against a
+   44px tap floor, 2 of 2. The note the operator will read leads with `controls under the 44px
+   tap floor 76 -> 0` and this page is where that number is 2.
+
+   IT IS A `<style>` IN A TEMPLATE AND THAT IS A DEVIATION, RECORDED RATHER THAN HIDDEN.
+   `web/static/console.css` is another lane's file and this lane does not own it; `board.html`
+   set the precedent for a per-room `{% block head %}`, with a `<link>` rather than a rule.
+   When console.css is next open, this belongs in it beside `.empty .sub` at :298 and this
+   block should go. It is scoped to one class on one element so it can be moved by cutting it.
+
+   NO COLOUR AND NO NEW AFFORDANCE. The anchors, their words and their hrefs are untouched;
+   this makes the target the size of a thumb. #}
+{% block head %}
+<style>
+  .empty .sub a.tiergo{display:inline-block;min-height:44px;min-width:44px;line-height:44px;
+    padding:0 .55rem;vertical-align:middle}
+  /* THE WINDOW DOOR, 2026-08-31, on his ruling. Same treatment and the same reason as `.tiergo`
+     directly above: it is a link he taps on a phone, and the `.chipnote` it sits in is .68rem,
+     which is well under the 44px tap floor this shell enforces on every other control. An
+     affordance that is real but too small to hit is the shape MUST-NOT-BUILD item 2 is about.
+
+     IT IS ALSO MADE TO LOOK LIKE A CONTROL. `a{}` at console.css:158 gives it the ink colour and
+     a hairline underline, which inside a muted mono note reads as more text. The weight and the
+     underline colour are what say it can be pressed; the caret in the markup is the other half.
+
+     Belongs in `console.css` beside `.chipnote` at :281 when that file is next open, exactly as
+     the rule above it does. It is one class on one element so it moves by cutting. */
+  /* THE BOARD DOOR TOO (A4 INFINITY-STREAMLINE, 2026-09-14). `the whole board, sortable` sits in
+     `p.qdoor`, not `.chipnote`, so this floor never reached it: MEASURED 19px at 390, dark, Decide,
+     by test_phone_surface on a disposable scratch store (slot 4). Same rule, one more selector. */
+  .chipnote a.qwindow,.qdoor a.qwindow{display:inline-block;min-height:var(--tap,44px);line-height:var(--tap,44px);
+    font-weight:600;color:var(--ink);text-decoration-color:currentColor;vertical-align:middle}
+</style>
+{% endblock %}
+
+{% block body %}
+
+<div data-region="tiers"><!--region:tiers-->
+{# ROW 0433: THE TIER COUNTERS ARE GONE ENTIRELY IN DEEP WORK, WHICH IS HIS ASK IN HIS WORDS.
+   *"it doesn't really give off the vibe of going super, super deep."* Measured by lane B1 on
+   2026-08-29: the tier strip is 79 of the 329 pixels still standing between him and row one, so
+   this is a reclaim rather than a mood, and in deep work it is also the last thing on the screen
+   inviting him to go and look at another tier.
+
+   ABSENT FROM THE MARKUP AND NOT `display:none`, which is MUST-NOT-BUILD item 9 read the way
+   this file already reads it three times below (`.tm`, the `deepbar`, the run strip) and the
+   way operator ruling q0146 of 2026-08-18 requires: *"one stylesheet regression, one
+   specificity accident, one devtools toggle, and a CSS-hidden element is on screen. A
+   markup-absent one cannot come back."* A card that is `display:none` is still read by a screen
+   reader and still shipped down the wire.
+
+   THE REGION WRAPPER STAYS AND ONLY ITS CONTENT GOES. The poller patches regions by name and
+   `_render_regions` renders them by name, so removing the host would be a change to the poll
+   contract rather than to what is on the screen. Empty is 0 characters of content, which is
+   what item 9's own check counts.
+
+   The count is not lost, and this is the one thing to keep straight about item 9: it says only
+   the count survives, in the toggle's own note, and that note is the DEEP HEADER's `N waiting`
+   in `base.html`, which is untouched. What goes here is the three-tier strip, which is a
+   ranking instruction about tiers he is not in. #}
+{% if not deep %}
+<div class="tiers" role="tablist">
+  {% for t in TIERS %}
+  <a class="tier" role="tab" href="/queue?tier={{ t.k }}{{ '&deep=1' if deep }}"
+     aria-selected="{{ 'true' if tier == t.k else 'false' }}">
+    <div class="tn">{{ t.n }}{% if tiers[t.k] and t.k != 'shape' %}<span class="dot"></span>{% endif %}</div>
+    {# The TOTAL, not the number of cards. The list below is a window on it. #}
+    <div class="tc">{{ totals[t.k] }}</div>
+    {# TRIAGE VOCABULARY LEAVES THE MARKUP IN DEEP WORK, not the layout (DS section 6.2, V10-E
+       executing the operator's answer to q0146). `≤2 min · no artifact` is a sorting instruction
+       -- it tells you how to RANK this tier against the others -- and ranking is dispatch
+       vocabulary. The tier name and its count stay: a count may appear anywhere.
+       ABSENT, never `display:none`: "one stylesheet regression, one specificity accident, one
+       devtools toggle, and a CSS-hidden element is on screen. A markup-absent one cannot come
+       back." Task 0171's harness reads this as `.tier .tm` and had it at present=3 populated=3
+       in all four deep combos before this line. V-SHELL-2, task 0176. #}
+    {% if not deep %}
+    <div class="tm">{{ t.m }}</div>
+    {% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% endif %}
+<!--/region:tiers--></div>
+
+<div data-region="defstrip"><!--region:defstrip-->
+{% if defaults %}
+<div class="strip">
+  <b>{{ defaults|length }} default{{ '' if defaults|length == 1 else 's' }} stated</b>
+  <span style="opacity:.7">silence only ever ships the reversible branch, and only where a
+  producer stated one</span>
+</div>
+{% endif %}
+<!--/region:defstrip--></div>
+
+{# ONE BAR FOR THE FAST LANE, NOT THREE. The strip that counts it, the line that named the one
+   burning item and the note that said where the pane was were three full-width bars stacked
+   above the workspace, all about a lane that is rendered exactly once, and together they put the
+   first queue card at 45 % of a 390px viewport. They are one row now. Nothing is dropped: the
+   count, the burning item's id, its title and its idle minutes are all still here, and the
+   deep-work note is still the count the guide's rule allows.
+
+   The regions stay separate inside the row because the poll patches by region name and the
+   toggle, the count and the burning item change on different clocks. #}
+<div class="lanebar">
+<div data-region="deepbar"><!--region:deepbar-->
+{# `not deep` ADDED BY V-SHELL-2 (task 0176), AND IT REMOVES A SECOND EXIT. DS section 3.4 is
+   normative and says the only exit is `leave` in the deep header. This bar rendered
+   `deep work: on` linking to `&deep=0` on every tier but Decide -- a fourth-of-five-rooms side
+   door out of an absolute mode, which is exactly the "mode you can fall out of by reflex" B
+   section 4.2 says provides no protection.
+
+   B section 4.1 does say *"the Judge/Shape `deepbar` keeps a toggle too (it is where the habit
+   lives)"*, and that is kept: with deep work OFF this bar still renders `deep work: off` and is
+   still the habitual way in. What goes is only the OUT direction, because B section 4.2 and DS
+   3.4 both say `leave` is the only one and DESIGN-SYSTEM.md wins every disagreement with a lane
+   SPEC -- including, here, with another sentence of the same lane SPEC.
+
+   Two more things leave with it, and both are the point rather than collateral. The `deepnote`
+   below duplicated the header's count, and DS 6.4 has that count living in the header now: two
+   counts of one number in one screen is worse than either. And its copy read *"nothing will
+   interrupt you"*, which is DS section 3.4's promise wearing different words -- section 8
+   (DS:528-538) rules that promise out until the operator decides whether deep work narrows the
+   pager, and it is not honest to delete the sentence from the threshold line and leave the same
+   claim standing three inches below it. #}
+{% if tier != 'decide' and not deep %}
+<div class="deepbar">
+  <a class="deepbtn{{ ' on' if deep }}" href="/queue?tier={{ tier }}&deep={{ 0 if deep else 1 }}">
+    deep work: {{ 'on' if deep else 'off' }}</a>
+  {# A COUNT MAY APPEAR ANYWHERE. CARDS MAY NOT. Nothing interrupts deep work, so in deep work
+     the count lives here, in the toggle's own note, and nowhere else on the screen.
+     With deep work OFF this note used to read "fast lane visible on the right", which was false
+     at 390px and 375px in both themes -- there is no right, the pane is the strip below -- and
+     redundant at every width where it was true, because the pane it points at is on the screen.
+     A note that is wrong on a phone and unnecessary on a desktop is not a note. #}
+  {% if deep %}
+  <span class="deepnote">nothing will interrupt you · {{ totals.decide }} waiting{% if burning %},
+    {{ burning }} with an agent idle{% endif %}</span>
+  {% endif %}
+</div>
+{% endif %}
+<!--/region:deepbar--></div>
+
+<div data-region="runbtn"><!--region:runbtn-->
+{% if tiers.decide and not (deep and tier != 'decide') %}
+  {% if tier == 'decide' %}
+  {# BOTH NUMBERS, IN ONE PLACE, AND IN THAT ORDER. Row 0403, filed 2026-08-27 and met again by
+     the operator on the live surface on 2026-08-28 after the row itself was cancelled in a board
+     bankruptcy. Measured at 1440px and at 390px before this line: the chip said `DECIDE 8`, this
+     button said `7 decisions` and the foot of the list said `1 more in decide below the window`.
+     Three numbers describing one tier on one screen. They reconcile, and the reader has to do
+     the arithmetic to find that out, which is the opposite of a number he can trust at a glance.
+
+     The RENDERED count still leads, because this button starts the stack and the stack runs the
+     window: a button that promised eight and ran seven would be lying about its own act, and
+     `_stack_view` measured today confirms the run is the window (`1 of 7` in the stack header
+     against a tier of 8). What is added is the denominator it was being read against, so the
+     chip above is now confirmed by this line rather than contradicted by it.
+
+     `of N` is stated at every value, including when the window holds the whole tier. A number
+     that changes shape when the store changes is harder to trust than one that does not, and
+     `7 of 7` is a true sentence. This is a count and not a meter: MUST-NOT-BUILD #4 leaves the
+     run-the-stack pips as the console's only progress indicator and nothing here is a second
+     one. #}
+  <a class="runbtn" href="/queue/stack?from={{ tier }}">▶&nbsp; Run the stack ·
+     {{ tiers.decide|length }} of {{ totals.decide }}
+     decision{{ '' if totals.decide == 1 else 's' }}, one at a time</a>
+  {% elif not deep %}
+  {# In the slower tiers the fast lane is a COUNT in a collapsed strip, never a competing card.
+     A live blocking item surfaces into any tier, because that one costs fleet wall clock by the
+     minute; it rides this strip rather than a bar of its own, because it can only ever appear
+     beside it. In deep work neither appears, because deep work is absolute.
+
+     THIS STRIP IS THE FAST PANE AT PHONE WIDTH, NOT A SECOND COPY OF IT (row 0415). Below 900px
+     `.pane-fast` is `display:none` and this row is the only fast lane on the screen, which is
+     what `test_phone.py:the_collapsed_strip_is_one_row_carrying_the_count` pins. Above 900px the
+     pane itself is on the screen carrying the same count, the same items and the same act, and
+     measured at 1440px on `/queue?tier=judge` before row 0415 the Decide tier therefore stated
+     itself three times on a screen the operator opened to judge: chip `DECIDE 8`, this strip
+     `Decide 8 run them`, pane head `DECIDE 8`, with two `run them` calls to action. His words:
+     "if I click on shape, I see shape, and then I see decide to the right."
+
+     So above 900px this strip is not shown, in `console.css`, and it is CSS rather than markup
+     ON PURPOSE: this is the responsive collapse, whose two halves must be one document served at
+     both widths, and it is the exact mirror of the `.pane-fast` rule it alternates with. It is
+     NOT the deep-work mechanism, which stays absolute in the markup one condition above.
+
+     ONE EXCEPTION, AND IT IS THE STRIP'S OTHER JOB. `urgent` means a Decide item has an agent
+     idle on it, and that is the thing this bar carries into any tier because it costs fleet wall
+     clock by the minute wherever the operator happens to be standing. That is an interrupt worth
+     interrupting for; a tier count he already has twice on the same screen is not. #}
+  <a class="runbtn collapsed{{ ' urgent' if burning }}" href="/queue/stack?from={{ tier }}">
+    <span>Decide</span> <b>{{ totals.decide }}</b>
+    {% if burn_item and burn_item.tier != tier %}
+    <span class="bt">· {{ burn_item.id }} {{ burn_item.title }}</span>
+    <span class="hot">agent idle {{ burn_item.live }}m</span>
+    {% elif burning %}
+    <span class="hot">· {{ burning }} agent waiting</span>
+    {% endif %}
+    <span class="go">run them ▸</span></a>
+  {% endif %}
+{% endif %}
+<!--/region:runbtn--></div>
+</div>
+
+{# THE RECEIPT STRIPE IS ITS OWN REGION, and deliberately not part of `list`. Rendered inside the
+   list it inherited the list's focus guard: the guard exists to protect a sentence being typed,
+   and every verb that requires a sentence -- Send back, Bump it, Move it out of Decide, Answer,
+   Post it, Decline, Mark my task done -- was therefore submitted with the caret still in the
+   region the receipt renders in. The write landed and the operator was shown nothing. No
+   client-side rule can suppress a receipt from here. #}
+<div data-region="receipts"><!--region:receipts-->
+{{ m.receipts(receipts, room) }}
+<!--/region:receipts--></div>
+
+{# THE RUNNING TIMER (task 0284). Its own region, and the ONE region on this screen that is
+   expected to change on every poll: a running timer's elapsed minutes are stale the instant they
+   are rendered. Everything else that ticks was deliberately kept out of the card region for that
+   exact reason, so the churn is here and only here.
+
+   It is above the list rather than in the chrome because the warning it carries is a decision the
+   operator has minutes to make: past the four-hour cap the entry WILL be recorded as abandoned
+   whatever he passes to stop, and the read says so while the timer is still running. A warning
+   delivered at stop time would arrive after the only moment it could have been acted on. #}
+<div data-region="stopwatch"><!--region:stopwatch-->
+{{ m.stopwatch_strip(room, stopwatch) }}
+<!--/region:stopwatch--></div>
+
+{# ROW 0434: WHAT THIS LIST IS ORDERED BY, AND THE FILTERS OVER IT.
+
+   His ask 4: *"default order by urgency x importance, with Notion-style filtering by project,
+   client, task, priority and custom fields."*
+
+   THE SENTENCE IS SERVER-RENDERED AND THE CONTROLS ARE NOT, and that split is the whole design
+   of this block.
+
+   The sentence is a FACT about the list directly below it and it is built in `model.order_terms`
+   out of `human_queue.rank.DEFAULT_WEIGHTS`, so it cannot drift from the ranking it describes.
+   It renders at every width, in every theme, and with JavaScript off, because it is text and
+   costs one line. Until this line the queue had been ranked by a computed score since D6b and
+   said so NOWHERE on the screen: the operator was looking at an order and had no way to know
+   there was one, which is the half of ask 4 he would feel first.
+
+   The CONTROLS are built by `console.js` and only above 900px. Three reasons, and the first is
+   the one that decided it:
+
+     1. `console.css` puts a 44px minimum on every `button`, `select` and `input` below 899px
+        (the phone tap-target sweep). Five dropdowns and a search box is 264px of a 390px screen,
+        on the surface lane B4 spent a section reclaiming 47px of and which he says his morning
+        happens on. A collapsed control is still a 44px button.
+     2. A control that JavaScript has not wired is an affordance that cannot work, which is
+        MUST-NOT-BUILD item 2's own sentence and the reason row 0431 made the column header
+        undeliverable to a click. Rendering the dropdowns server side would put six dead controls
+        on the screen of anyone with JavaScript off.
+     3. The filtering is done in the browser over the rendered rows, so nothing here needs a
+        round trip and nothing here has a server half to keep in step.
+
+   `#qfilter` IS NOT A REGION, deliberately, and for the reason the `+ my own work` drawer below
+   gives in its own words: the three-second poll replaces a region's markup, and a search box he
+   is halfway through typing into is the one thing on this screen that must not be replaced under
+   him. The ROWS are a region and they do get replaced; `console.js` re-applies the filter to
+   them after every repaint, which is the same contract row 0431 built for the open row.
+
+   `queue_filter_facts()` is called under `not patch_only` for the reason `depth()` below is: a
+   context processor runs on every render including the poll, and this one reads the catalogue. #}
+<div id="qfilter" class="chipnote"
+     {% if not patch_only %}
+     {% set qf = queue_filter_facts() %}
+     data-project-column="{{ 1 if qf.project_column else 0 }}"
+     data-project-table="{{ 1 if qf.project_table else 0 }}"
+     data-projects-used="{{ qf.projects_used }}"
+     data-ledger="{{ qf.ledger }}"
+     data-project-note="{{ qf.project_note }}"
+     data-absent="{% for a in qf.absent %}{{ a.field }}: {{ a.why }}{{ ' | ' if not loop.last }}{% endfor %}"
+     {% endif %}
+     data-order-band="{{ queue_order.band }}"
+     data-order-ties="{{ queue_order.ties }}"
+     {# THE DENOMINATOR THE FILTER CANNOT REACH, handed to the client so the count it prints is a
+        count of something stated. The list is a WINDOW on the tier (D6b, seven a tier), the
+        filter runs in the browser over what was rendered, and a filter that said "0 rows" over a
+        tier holding twenty would be the console's own "8 items counted and unreachable" defect
+        wearing a new control. These three numbers are already on this page -- the tier chip, the
+        foot note -- and are repeated here as data rather than re-derived. #}
+     data-tier="{{ tier }}" data-total="{{ totals[tier] }}"
+     data-below-window="{{ hidden[tier] }}"
+     data-blocked="{{ blocked|length }}" data-deferred="{{ deferred_items|length }}">
+  {#- THE CONTROLS COME FIRST AND THE SENTENCE FOLLOWS, and the order is a MEASUREMENT rather than
+      a preference. With the sentence first, the `filter` control sat at x=1100 on a 1440 screen,
+      and row 0431's level-two panel is `position:fixed`, 448px wide, at panel_left=992. Measured
+      2026-08-29: with the panel open, `document.elementFromPoint` on the middle of the control
+      answered `rev`, an element of the PANEL. The control was on the screen, fully styled, and
+      undeliverable to a click, which is MUST-NOT-BUILD item 2's own affordance-that-cannot-work,
+      found by the suite rather than reasoned about. Opened, the bar is about 700px wide and ends
+      well clear of 992. #}
+  <span id="qfilter-controls"></span>
+  <span id="qfilter-said" title="{{ queue_order.long }} {{ queue_order.band }}."
+    >{{ queue_order.sentence }}</span>
+</div>
+
+<div class="split{{ ' two' if tier != 'decide' and not deep }}">
+  <div data-region="list"><!--region:list-->
+    {#- THE COLUMN HEADER, row 0431, and the whole of its design is what it must NOT be.
+
+        It is here because a grid without one is a grid with an unexplained column: the
+        right-hand number read `0` on every row with nothing anywhere on the screen saying what
+        was zero. It is `unblocks`, it is the strongest single term in the ranking, and until
+        this line it was the one column the operator could not name.
+
+        MUST-NOT-BUILD ITEM 2 IS KEPT AND THIS IS THE SURFACE THAT WOULD BREAK IT. A spreadsheet
+        header is where a person reaches to sort, and this queue is ranked by a computed score
+        that no control may edit. So the header is NOT a control and does not dress as one: no
+        anchor, no button, no hover state, no cursor change, no caret, and `pointer-events:none`
+        in the stylesheet so that a click on it cannot even be delivered. An affordance that
+        cannot work is worse than one that is absent, which is item 2's own sentence.
+
+        It renders only when the tier HAS rows: a header over an empty list is a table promising
+        contents it does not have, and the empty state below already says what it means. -#}
+    {% if tiers[tier] %}
+    <div class="qhead" aria-hidden="true">
+      <div class="qgrid">
+        <div class="qc"></div>
+        <div class="qc">id</div>
+        <div class="qc">what it is</div>
+        <div class="qc">state</div>
+        <div class="qc qcunb">unblocks</div>
+      </div>
+    </div>
+    {% endif %}
+    {% for item in tiers[tier] %}
+      {# `deep` is passed EXPLICITLY: line 2 imports macros.html without context, so a macro
+         body cannot see it. See defer_block -- the bump/defer chips leave the markup in deep
+         work, and this is the only call site that can tell it. Task 0236. #}
+      {{ m.card('queue', item, defer, expanded=(open_id == item.id),
+                review=(open_review if open_id == item.id else None), sw=stopwatch,
+                deep=deep) }}
+    {% else %}
+      {# THE OTHER TIERS ARE COUNTED FROM `totals`, NOT FROM `items`. Row 0383, 2026-08-27.
+         `items` is `model.queue_view()`'s concatenation of the WINDOWED cards, seven a tier, so
+         this sentence was a card count wearing a tier count's words -- the exact thing
+         `web/README.md` says must never happen ("the list is a window, the count is the total").
+         Measured on a seeded store before this change: the tier chips two inches above read
+         Judge 4 and Shape 11, and this line read `11 items in other tiers`. Two counts of one
+         obligation, disagreeing, on one screen, with the smaller one in the place a first-run
+         reader looks when the screen is otherwise empty.
+         The sum is built by walking TIERS rather than naming judge and shape, so a sixth tier
+         is counted by arriving rather than by someone remembering this line. #}
+      {% set other_tiers = [] %}
+      {% for t in TIERS %}{% if t.k != tier and totals[t.k] %}
+        {% set _ = other_tiers.append(t) %}{% endif %}{% endfor %}
+      {% set other_count = namespace(n=0) %}
+      {% for t in other_tiers %}{% set other_count.n = other_count.n + totals[t.k] %}{% endfor %}
+      {% if zero %}
+      {# Queue zero does not celebrate. Rewarding an empty queue rewards clearing items to feel
+         good. It gets calm, and a statement of what the fleet is doing without you. #}
+      <div class="empty">
+        <div class="big">Nothing needs you here.</div>
+        <div class="sub">
+          {{ zero.working }} agent{{ '' if zero.working == 1 else 's' }} working ·
+          {{ zero.red }} red<br>
+          {{ other_count.n }} item{{ '' if other_count.n == 1 else 's' }} in other tiers<br>
+          {% if zero.paused %}the fleet is PAUSED{% else %}the fleet is running{% endif %}
+        </div>
+      </div>
+      {% else %}
+      {# AND THE SENTENCE CARRIES THE DOOR. It named a number of items somewhere else and gave
+         no way to reach them: on a first run with Decide empty this is the whole content of the
+         workspace column, and the only route onward was the tier chip in the header, which a
+         reader has to already know is a control. The tier names here are the same links, in the
+         sentence that says why you would want them, with each tier's TOTAL beside it. This is a
+         link and not an advance: MUST-NOT-BUILD #10 forbids auto-advance outside run-the-stack
+         and nothing here moves on its own. #}
+      <div class="empty"><div class="big">Nothing in {{ tier }}.</div>
+        <div class="sub">
+          {% if other_count.n %}{{ other_count.n }}
+            item{{ '' if other_count.n == 1 else 's' }} in other tiers:
+            {% for t in other_tiers %}<a class="tiergo"
+              href="/queue?tier={{ t.k }}{{ '&deep=1' if deep }}"
+              >{{ t.n }} {{ totals[t.k] }}</a>{{ '' if loop.last else ' · ' }}{% endfor %}
+          {% else %}nothing in any other tier either{% endif %}
+        </div></div>
+      {% endif %}
+    {% endfor %}
+    {# NOTHING LEAVES THE QUEUE SILENTLY. The list is a window on the tier, and what the window
+       did not reach, what a blocker is holding and what carries a wake condition are counted and
+       named here. Back-pressure operates on producer discipline, never on suppression, so an
+       item this screen is not showing is an item this screen says it is not showing. #}
+    {#- `window_all` JOINS THIS GUARD, AND LEAVING IT OUT WAS A REAL DEFECT CAUGHT BY TESTING
+        BOTH STATES. When he clicks through to the whole tier, `hidden[tier]` becomes 0, so this
+        outer condition went false and the entire note vanished: 21 cards on screen and nothing
+        saying what was being shown or how to get back. That is precisely the "the count must not
+        disappear when the window is wide" condition the patch was written down with, and it does
+        not live in the inner branch alone. -#}
+    {#- THE SECOND DOOR, AND IT ANSWERS A DIFFERENT QUESTION FROM THE FIRST. `window=all` inside
+        the note below widens THIS TIER of THIS ranked list; it is still the plan, just all of it.
+        This one leaves the plan entirely and opens the inventory: all five of his queues, every
+        column, in any order he asks for.
+
+        HIS RULING, 2026-08-31, and it settled a conflict that was never real: the ranked window
+        STAYS the default view and GETS a door to the full sortable table behind it. Both, not
+        either. The window protects the starvation guarantee, which only ever needed protecting on
+        a surface claiming to be a plan; the table answers the Airtable ask.
+
+        IT IS OUTSIDE THE `chipnote` GUARD, AND THAT IS A DEFECT I PUT IN AND TOOK OUT WITHIN THE
+        HOUR. It was written inside that block, which renders only
+        `{% raw %}{% if hidden[tier] or window_all or blocked or deferred_items or cycles %}{% endraw %}`.
+        On a board with no overflow, no blocker, no deferral and no cycle every one of those is
+        false, so the door was absent from all 3 of 3 tiers on the seeded store -- measured, 0
+        occurrences of the href -- and would have been absent from HIS board on exactly the quiet
+        mornings it is most useful. The note above this guard records the same vanishing happening
+        to the window count in August. A door to the whole board must not be conditional on the
+        board being untidy.
+
+        IT IS A LINK AND DELIBERATELY NOT A TAB. A tab beside Decide / Judge / Shape would read as
+        a fourth tier and put an inventory on the same shelf as the three tiers of a plan.
+
+        IT CARRIES NO SORT ATTRIBUTE AND IS OUTSIDE `.qhead`, which is not an accident: three
+        committed censuses assert that the ranked header is undeliverable to a click and that
+        `[data-sort]`, `.sortable` and any drag affordance are absent from this page. This anchor
+        is none of those things, so this page's own refusals are untouched and still able to
+        fail. -#}
+    <p class="qdoor"><a class="qwindow" href="/queue/table">the whole board, sortable &#9656;</a>
+      all five queues, every column, any order &mdash; the inventory behind this plan.</p>
+    {% if hidden[tier] or window_all or blocked or deferred_items or cycles %}
+    <div class="chipnote">
+      {#- THE COUNT SAYS WHAT THE WINDOW IS, BECAUSE THE COUNT ON ITS OWN WAS A PROMISE WITH NO
+          DOOR BEHIND IT. Lane D2, 2026-08-29, from the human path audit's third finding.
+
+          MEASURED before this line, at 1440x900 on the seeded store, on 3 of 3 tiers and in both
+          themes: the foot of the list read `3 more in judge below the window.` and there were
+          **0 controls anywhere on the page whose text matches more, all, show, next or page**.
+          Across the three tiers that is 2, 3 and 3, so eight items were named as existing and
+          reachable by no click at all. The auditor's own sentence was "I looked for the control
+          that shows them. There is none."
+
+          THE CAP IS NOT THE DEFECT AND IT IS NOT BEING REMOVED HERE. `queue/human_queue/reads.py`
+          states it in its own module docstring -- "render a window, not a backlog" -- the demo
+          document heads a section with it, and `DEFAULT_WINDOW = 7` carries the same sentence on
+          the line that sets it. A control that pages a window into a backlog would spend a stated
+          design stance to fix a sentence, and whether to spend it is the operator's call and not a
+          lane's. It is written up for him at `lane-D2-decisions.md` D-D2-1 with the one-line
+          server change it would need, and NOTHING was built against it.
+
+          SO WHAT CHANGED IS THE SENTENCE AND NOT THE CAP. The count stays, in full, because
+          dropping it would hide the arithmetic rather than answer it -- the console would stop
+          saying what it is not showing, which is the one thing this block exists to do. What is
+          added is the WINDOW ITSELF and the RULE the window follows, so the number reads as a
+          plan rather than as a door that will not open:
+
+            * `N of M` is the pair the tier chip and the run-the-stack button already state
+              (row 0403), restated here rather than left as a remainder the reader has to add.
+            * the oldest item is ALWAYS rendered, whatever it scores: `reads.queue` reserves it a
+              slot the moment a tier overflows its window, and `macros.html` stamps `OLDEST` on
+              that row. That is the anti-starvation guarantee, and until this line it was a fact
+              the code kept and no screen said.
+            * `queue_open` is what a cleared item leaves: an accepted work item fails
+              `accepted_at IS NULL`, an answered question fails `answer IS NULL`, a human task
+              marked done leaves `state IN ('inbox','active')`. So the hidden rows really do move
+              up as these go, and this sentence is checkable against the view rather than being a
+              reassurance.
+
+          `tiers[tier]|length` and not the literal 7: the window is the server's number and a
+          template that retyped it would be a second copy of it. It also reads correctly on the
+          overflow case, where the reserved oldest makes the rendered list eight rows long. -#}
+      {#- THE COUNT IS THE DOOR, and it is the only thing on this page that links to the wide
+          window. HIS RULING, 2026-08-31: build the door, opt-in per visit. The sentence was
+          already naming these rows; it now reaches them.
+
+          THE SENTENCE MUST NOT VANISH WHEN THE WINDOW IS WIDE, which is the condition the lane
+          that wrote this patch down attached to it. `hidden[tier]` is 0 in BOTH states, so an
+          `{% if hidden[tier] %}` alone would render nothing at all once he clicked through, and
+          the screen would stop saying what it was showing at exactly the moment he had changed
+          it. The `elif` is that condition, and it carries the way back. -#}
+      {% if hidden[tier] %}<a class="qwindow" href="?tier={{ tier }}&amp;window=all"
+          >{{ hidden[tier] }} more in {{ tier }} below the window &#9656;</a> This list is a
+        window and not a backlog: it holds <b>{{ tiers[tier]|length }} of {{ totals[tier] }}</b>,
+        the top by rank and always this tier's oldest so that nothing starves, and the other
+        {{ hidden[tier] }} move up as you clear these.
+      {% elif window_all and totals[tier] %}showing <b>all {{ tiers[tier]|length }} of
+        {{ totals[tier] }}</b> in {{ tier }}. This is the whole tier and not the plan:
+        <a class="qwindow" href="?tier={{ tier }}">back to the window &#9666;</a>. It is not
+        remembered, so the next time you open the queue it is the top {{ tiers[tier]|length if
+        totals[tier] < 7 else 7 }} again.{% endif %}
+      {% if blocked %}{{ blocked|length }} item{{ '' if blocked|length == 1 else 's' }} waiting on
+        a blocker, not dispatched.{% endif %}
+      {% if deferred_items %}{{ deferred_items|length }} deferred with a wake condition.{% endif %}
+      {% if cycles %}<b>{{ cycles|length }} dependency cycle{{ '' if cycles|length == 1 else 's' }}
+        in depends_on</b>: both ends read as blocked forever until the data is fixed.{% endif %}
+    </div>
+    {% endif %}
+  <!--/region:list--></div>
+
+  <div class="pane-fast" data-region="fastpane"><!--region:fastpane-->
+  {% if tier != 'decide' and not deep %}
+    {# THE PANE STATES ITS OWN WINDOW, ONCE (row 0415, same argument as the run-the-stack button
+       above). This head read `Decide 8` while the strip above it read `Decide 8` and the chip
+       above that read `DECIDE 8`, and the pane then closed with `1 more below the window` as a
+       fourth number. It now says what it is showing against what it owes, in one place, and the
+       closing note goes because it was that sentence's remainder.
+
+       An EMPTY lane says `0` and not `0 of 0`, which is the one value where the pair stops being
+       a window on anything, and the pane's own `Nothing fast is waiting.` sits directly below. #}
+    <div class="panehd">Decide
+      <span class="ct">{% if totals.decide %}{{ tiers.decide|length }} of
+        {{ totals.decide }}{% else %}0{% endif %}</span></div>
+    {% for i in tiers.decide %}
+    {# The right panel is a COMPACT DISPATCH STRIP and deliberately not the same card as the
+       left. Full cards in both columns would be two queues competing; a strip beside a reading
+       column is one queue and one workspace. #}
+    <div class="mini">
+      <div class="mid">{{ i.id }}</div>
+      <div class="mt">{{ i.title }}</div>
+      <div class="mm">{{ m.gates(i) }}
+        {% if i.live %}<span class="live">waiting {{ i.live }}m</span>{% endif %}
+        unblocks {{ i.unblocks }}</div>
+      {% if i.default %}<div class="mm" style="opacity:.85">if you say nothing → {{ i.default }}</div>{% endif %}
+      {{ m.primary('queue', i) }}
+      <div class="mrow">
+        <a href="/queue?tier=decide&open={{ i.id }}">open</a>
+      </div>
+    </div>
+    {% else %}
+    <div class="deepnote">Nothing fast is waiting.</div>
+    {% endfor %}
+    {% if tiers.decide %}
+    <a class="runbtn" style="min-height:40px;font-size:.74rem"
+       href="/queue/stack?from={{ tier }}">▶&nbsp; run them full screen</a>
+    {% endif %}
+  {% endif %}
+  <!--/region:fastpane--></div>
+</div>
+
+{# THE TWO DRAWERS THAT USED TO STAND BETWEEN HIM AND THE FIRST ROW ARE NOW BELOW IT, row 0431.
+
+   His ask 1 is "one row per item, hard edges, neutral colours" and, in the same sentence, "not
+   blocks of text". The rows became a grid; this is the other half of that sentence. Measured at
+   1440x1200 on `/queue?tier=judge` before this move, the first row began at y=506, which is 42
+   percent down a large screen and 67 percent down a 760px laptop one. Of the 506px, 106 were
+   these two collapsed drawers plus their margins.
+
+   Neither is a queue. `+ my own work` is a door for CREATING an item and `+ how deep` is a
+   MEASUREMENT of the whole board, and both are things he opens on purpose, once, when he is
+   planning. Nothing about either is lost by putting them under the list: they are on the same
+   page, they keep their ids, their markup and their forms, and the poll never touched them
+   because neither is a region.
+
+   WHAT DELIBERATELY DID NOT MOVE. The tier strip is navigation. The defaults strip is the rule
+   the rows below it are ranked under. The deep-work bar and the run-the-stack affordance are
+   both acts on the list. The stopwatch region stays above the list because a RUNNING timer
+   carries a four-hour-cap warning that is only actionable while it runs, which is its own
+   comment's argument and it survives this change. What changed for the stopwatch is only how
+   much room it takes when it is IDLE, in `macros.html`. #}
+{# THE OPERATOR'S OWN DOOR (task 0267), and deliberately NOT a region. A region is patched by the
+   three-second poll, and a form he is halfway through typing into is the one thing on this
+   screen that must not be replaced under him. Nothing in here changes on the server's clock, so
+   it has nothing to gain from being patched and everything to lose.
+
+   It is one line, not the Scope flow. Scope asks per row "how will an agent prove this without
+   you?", which is the right question for work an agent will do and the wrong one for "renew the
+   insurance". The row lands with actor_type=human -- and that word is not a flag this form gets
+   to assert: it selects the operator's own database login, and migration 20's trigger refuses
+   the row to any login with no brain.human_role mapping. An agent posting through this shape
+   gets a refusal, which is the point of it. #}
+<details class="blk" id="mine">
+  <summary><b>+ my own work</b> <span class="hint">yours to mark done; no agent will take
+    it</span></summary>
+  <form class="act-form" method="post" action="/{{ room }}/act" style="margin-top:.5rem">
+    <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+    <input type="hidden" name="action" value="post_mine">
+    <input type="hidden" name="id" value="">
+    <input name="text" placeholder="e.g. call the accountant about the Q3 filing"
+           style="width:100%;font-family:var(--font-mono)">
+    <label class="hint" style="display:block;margin-top:.4rem">lane
+      <select name="lane" style="font-family:var(--font-mono)">
+        {% for l in lanes %}<option{{ ' selected' if l == 'ops' }}>{{ l }}</option>{% endfor %}
+      </select></label>
+    <button class="act" type="submit" style="margin-top:.5rem">Put it in my queue</button>
+    <div class="hint" style="margin-top:.3rem">It ranks beside everything else rather than in a
+      second list, and it is the only kind of item this console will let you mark done: on an
+      agent's item that verb would fabricate the agent's report.</div>
+  </form>
+</details>
+
+{# DEPTH, CLEARANCE AND THE TWO ETAS. Deliberately NOT a region, for the opposite reason to the
+   strip above: `reads.depth_and_clearance` reads every open item plus four windows of history,
+   and running that twenty times a minute for a block he opens when he plans his morning would be
+   this console's most expensive read on its most frequent path. `depth` arrives as a CALLABLE and
+   is called here, so the poll's render never enters it -- `patch_only` is set only by
+   `_render_regions`.
+
+   Collapsed by default and never in deep work: it is a count of everything, which is the one
+   thing an absolute mode must not put on the screen. #}
+{% if not patch_only and not deep %}
+<details class="blk" id="depth">
+  <summary><b>+ how deep, and how many hours of yours</b> <span class="hint">measured, with the
+    coverage of the measurement</span></summary>
+  <div style="margin-top:.5rem">{{ m.depth_block(depth()) }}</div>
+</details>
+{% endif %}
+
+<div class="foot" data-region="cleared"><!--region:cleared-->
+{% if tier != 'decide' and deep %}Deep work is on. The fast lane, the burning line and every
+card outside this tier are not rendered, not hidden.{% endif %}
+<!--/region:cleared--></div>
+
+{% endblock %}

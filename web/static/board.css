@@ -1,0 +1,150 @@
+/* The project board. Bus row 0436. Lane B2 owns this file; nothing here touches console.css.
+ *
+ * EVERY COLOUR IS A TOKEN BY NAME, taken from console.css's palette and never redefined here, so
+ * the board follows the light/dark switch and the retire-the-orange pass (row 0435) without this
+ * file being edited. Two tones only:
+ *
+ *   tone-running   --run  / --tint-run    blue.  in progress. The only column that spends money.
+ *   tone-waiting   --wait / --tint-wait   amber. hold, ice, blocked.
+ *
+ * `blocked` IS AMBER AND NOT RED, and that is the ruling rather than a palette accident. Red
+ * means damage. A project the operator parked behind something is a deliberate, reversible
+ * setting, which is the same argument that recoloured the paused-fleet banner from red to amber.
+ * No state on this page rides colour alone: every column prints its word and every card prints
+ * the sentence that says when and why it got there.
+ *
+ * NO BRAND ACCENT IS SPENT HERE, and row 0435 (2026-08-29) confirmed it by measurement rather
+ * than by reading: the census walked this room in both themes and found three elements
+ * carrying the accent, all of them in the shell's header and none of them in this file. The
+ * board's four column borders are --rest, --run and --wait, which is why the hue swap reached
+ * this room without touching a declaration here. That was the point of writing it this way.
+ */
+
+.bdh { font-family: var(--font-display); font-size: 1.15rem; margin: .2rem 0 .5rem; }
+
+/* THE HONEST BANNERS. Amber for a store that is behind, never red: being one migration back is
+ * not damage. `bdok` is quiet on purpose -- an armed guard should not shout. */
+.bdwarn, .bdok {
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-inner, 6px);
+  padding: .5rem .65rem; margin: 0 0 .7rem; font-size: .82rem; line-height: 1.45;
+}
+.bdwarn { background: var(--tint-wait); border-color: var(--wait); color: var(--ink); }
+.bdok   { background: var(--bg-sunk); color: var(--ink-2); }
+.bdwarn b, .bdok b { font-family: var(--font-display); letter-spacing: .02em; }
+.bdwarn code, .bdok code, .bdfoot code { font-family: var(--font-mono); font-size: .95em; }
+
+/* FOUR COLUMNS, AND THEY SCROLL SIDEWAYS INSIDE THEIR OWN BOX rather than widening the page.
+ * The console already overflows at a 390px viewport (measured 2026-08-29: nav.rooms content is
+ * 470px in a 363px box) and a new room must not add to the document's own width. */
+.bdcols {
+  display: flex; gap: .6rem; align-items: flex-start;
+  overflow-x: auto; padding-bottom: .4rem;
+}
+.bdcol {
+  flex: 1 1 0; min-width: 232px; max-width: 340px;
+  background: var(--bg-raised); border: 1px solid var(--rule);
+  border-top: 3px solid var(--rest);
+  border-radius: var(--radius-card, 10px); padding: .55rem .6rem .6rem;
+}
+.bdcol.tone-running { border-top-color: var(--run); }
+.bdcol.tone-waiting { border-top-color: var(--wait); }
+
+.bdhd { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+.bdword {
+  font-family: var(--font-display); font-size: .95rem; letter-spacing: .01em;
+  text-transform: lowercase;
+}
+.tone-running .bdword { color: var(--run); }
+.tone-waiting .bdword { color: var(--wait); }
+/* THE COUNT PILL TAKES --ink-2 AND NOT --ink-3, and that is an accessibility fix rather than a
+ * preference. Found by row 0435's sweep on 2026-08-29, which walks every text node in every room
+ * rather than the two rooms `test_browser.py:light_theme_passes_aa` visits (`/queue` and
+ * `/brief`), so this room's four failing nodes were real, shipped and unmeasured. It is spent BY
+ * NAME so the day the palette moves this follows it.
+ *
+ * THE PALETTE HAS NOW MOVED, so the numbers are re-measured rather than carried (2026-09-16,
+ * Ground B Slate). The premise of the workaround is gone and the workaround STAYS; both halves
+ * of that are deliberate:
+ *
+ *   light  --ink-3 on --bg-sunk   was #6E757E on #F6F6F4  4.30 FAIL   now #636B78 on #E9ECF1  4.54
+ *   light  --ink-2 on --bg-sunk   was #5B6169 on #F6F6F4  5.78        now #515965 on #E9ECF1  5.98
+ *   dark   --ink-3 on --bg-sunk   was #8F8E8B on #151515  5.57        now #8A919C on #101317  5.86
+ *
+ * The locked guide chose its ink faint so it survives the sunk fill, QUOTED from its section 3a:
+ * "That removes a live workaround rather than routing around it" -- and this is the workaround it
+ * means. --ink-3 now clears 4.5 on its own sunk fill, so the pill COULD go back to it.
+ *
+ * IT DOES NOT, ON A 0.04 MARGIN. 4.54 against a 4.5 bar is four hundredths of head-room: any
+ * later nudge to either token, or a tint composited under the pill, puts it back under the bar
+ * silently, and a fix that has to be re-made is worse than one that was never undone. Reverting
+ * it is a real option and it is a design call with an owner, not a tidy-up for whoever is next in
+ * this file. Routed, not taken.
+ *
+ * THE THIRD NUMBER IN THE PREVIOUS VERSION OF THIS COMMENT DID NOT REPRODUCE. It claimed dark
+ * --ink-3 #8F8E8B on #151515 was 7.29:1; computed WCAG 2.x relative luminance gives 5.57. Its
+ * other two numbers, 4.30 and 5.78, reproduce to the digit, and the same method agrees with six
+ * ratios the locked style guide publishes independently -- so the method is not what is in
+ * question, 7.29 is. The conclusion it supported is unaffected: 5.57 passes 4.5 as well. */
+.bdn {
+  font-family: var(--font-mono); font-size: .78rem; color: var(--ink-2);
+  background: var(--bg-sunk); border-radius: 999px; padding: .05rem .45rem;
+}
+.bdmean { margin: .15rem 0 .5rem; font-size: .75rem; color: var(--ink-3); line-height: 1.4; }
+
+.bddrop { min-height: 3.2rem; display: flex; flex-direction: column; gap: .4rem; }
+/* The drop target says so only while something is being dragged, and it says it with a rule and
+ * a tint rather than with motion. */
+.bddrop.over {
+  outline: 2px dashed var(--focus); outline-offset: 2px; border-radius: var(--radius-inner, 6px);
+}
+
+.bdcard {
+  background: var(--bg); border: 1px solid var(--rule-strong);
+  border-left: 3px solid var(--rest);
+  border-radius: var(--radius-row, 9px); padding: .45rem .55rem; cursor: grab;
+}
+.tone-running .bdcard { border-left-color: var(--run); }
+.tone-waiting .bdcard { border-left-color: var(--wait); }
+.bdcard:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.bdcard.dragging { opacity: .45; cursor: grabbing; }
+.bdtitle { display: block; font-size: .86rem; line-height: 1.3; }
+.bdslug { display: block; font-family: var(--font-mono); font-size: .72rem; color: var(--ink-3); }
+.bdmeta { display: flex; gap: .5rem; margin-top: .25rem; font-size: .72rem; color: var(--ink-2); }
+.bdsince {
+  margin-top: .3rem; font-size: .71rem; color: var(--ink-3); line-height: 1.4;
+  border-top: 1px solid var(--rule); padding-top: .25rem;
+}
+.bdempty { margin: .2rem 0; font-size: .75rem; color: var(--ink-3); font-style: italic; }
+
+/* THE VERB. Visible, not a hidden dialog the drag reveals: the form is the mechanism and the
+ * drag is a shortcut into it, so it has to be usable with the script dead. */
+.bdmove {
+  margin-top: .6rem; border-top: 1px solid var(--rule); padding-top: .5rem;
+  display: flex; flex-direction: column; gap: .3rem;
+}
+.bdlab { font-size: .72rem; color: var(--ink-3); }
+.bdsel, .bdwhy {
+  font: inherit; font-size: .78rem; padding: .3rem .35rem;
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-inner, 6px);
+  background: var(--bg); color: var(--ink); width: 100%; box-sizing: border-box;
+}
+.bdwhy:focus-visible, .bdsel:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+.bdgo {
+  font-family: var(--font-display); font-size: .8rem; min-height: var(--tap, 44px);
+  border: 1px solid var(--rule-strong); border-radius: var(--radius-inner, 6px);
+  background: var(--bg-sunk); color: var(--ink); cursor: pointer;
+}
+.bdgo:hover { background: var(--tint-wait); }
+.tone-running .bdgo:hover { background: var(--tint-run); }
+.bdgo:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.bdfoot {
+  margin-top: .8rem; font-size: .74rem; color: var(--ink-3); line-height: 1.5;
+  border-top: 1px solid var(--rule); padding-top: .5rem;
+}
+
+/* A phone gets one column at a time rather than four squeezed ones. The columns still scroll
+ * sideways inside `.bdcols`, so nothing widens the document. */
+@media (max-width: 640px) {
+  .bdcol { min-width: 82vw; max-width: 82vw; }
+}

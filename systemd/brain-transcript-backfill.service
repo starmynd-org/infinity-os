@@ -1,0 +1,28 @@
+[Unit]
+Description=Index transcripts left unindexed by a SessionEnd hook that could not run
+Documentation=file://@REPO@/systemd/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+# Same store gate, same reason, as brain-transcript-verify.service. This unit runs at boot BY
+# DESIGN rather than by accident of a Persistent timer, so it is the one most certain to arrive
+# while dockerd is still starting and Postgres is still in crash recovery. Without this gate the
+# run that matters most is the run most likely to find no store.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=@REPO@/systemd/brain-transcript-backfill
+
+# Ordering against the verify sweep, stated because it is a real dependency and not a preference:
+# backfill CREATES pointer rows and verify RE-HASHES existing ones, so a transcript recovered here
+# is covered by the same night's verify pass rather than waiting a day. They rarely collide (this
+# one fires at boot, that one at 03:20) and nothing breaks if they do: backfill skips rows that
+# exist and verify skips files that do not.
+#
+# Letting the unit go `failed` is the point, as in brain-health.service and the verify sweep:
+# `systemctl --user --failed` then names it without anyone reading a log. Red here means files
+# were still unindexed after a full pass AT BOOT, which cannot be the expected open-session floor
+# and is therefore a real per-file failure to read in the journal.
+StandardOutput=journal
+StandardError=journal

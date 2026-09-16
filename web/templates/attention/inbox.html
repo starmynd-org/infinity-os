@@ -1,0 +1,956 @@
+{% extends "base.html" %}
+{% block title %}Attention{% endblock %}
+{% block head %}
+<style>
+  .att-bar{display:flex;justify-content:space-between;gap:.75rem;align-items:center;margin:.55rem 0}.att-bar h1{font:inherit;font-weight:700;margin:0}.att-tabs{display:flex;gap:.35rem;overflow:auto;padding:.1rem 0}.att-tabs a{white-space:nowrap;border:1px solid var(--rule);border-radius:5px;padding:.25rem .45rem;font-size:.76rem;text-decoration:none;color:var(--ink-2);display:inline-flex;align-items:center;box-sizing:border-box;min-height:24px;min-width:24px}.att-tabs a[aria-current="page"]{border-color:var(--rule-strong);color:var(--ink)}.att-muted,.att-why{font-size:.72rem;color:var(--ink-3)}
+  {# THE CHIP NO LONGER REFUSES TO WRAP, AND THAT `white-space:nowrap` IS THE 375px DEFECT (E12).
+     Measured by the Admiral at `130fe86`: seven chips on the first page pushed
+     `document.documentElement.scrollWidth` to 401 against a 375 viewport -- 26 px of sideways
+     scroll on a phone, produced by chips that could not break and cells that would not let them.
+     A chip that wraps says the same words; a page that scrolls sideways loses the right-hand
+     column of every row. `overflow-wrap:anywhere` is what handles the one long unbroken token
+     (an id, a lane name) that `normal` wrapping cannot break at all.
+
+     I CANNOT MEASURE THIS HERE and do not claim to have: no browser was driven in this packet,
+     8300 is pinned to X0 for another tester, and geometry is measured in a viewport. What is
+     written below is the structural claim instead -- no element may exceed its container -- and
+     the number is the tester's to take. #}
+  {# AND THE CHIP IS ALSO A LINK, which is the half F2 found. Every one of these is an anchor to
+     its own `#evidence-` section on the inspector, so it is a control and not a label: MEASURED by
+     Closure at 87 x **20** on all 7 rank chips at BOTH widths, and a second family of 7 at 110 x 20
+     at 375. `min-height` on an `inline-flex` box is what raises it without touching the horizontal
+     axis, and the vertical padding is left where it was so the words sit where they did. #}
+  .att-chip{display:inline-flex;align-items:center;box-sizing:border-box;min-height:24px;min-width:24px;border:1px solid var(--rule-strong);border-radius:12px;padding:.05rem .38rem;font-size:.68rem;white-space:normal;max-width:100%;overflow-wrap:anywhere;word-break:break-word}.att-chip.wait{color:var(--wait)}.att-chip.run{color:var(--run)}.att-chip.rest{color:var(--rest)}.att-chip.stale{color:var(--wait)}
+  .att-table{width:100%;max-width:100%;border-collapse:collapse;font-size:.78rem}.att-table th,.att-table td{border-bottom:1px solid var(--rule);padding:.42rem .38rem;text-align:left;vertical-align:top;min-width:0;max-width:100%;overflow-wrap:anywhere}.att-table th{font-size:.66rem;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}.att-table .sub{display:block;color:var(--ink-3);font-size:.72rem;margin-top:.1rem}
+  {# THE CONTROLS, SIZED SO THEY CANNOT BE THE NEXT 26 PIXELS. A text input's default size is
+     about twenty characters and it does not shrink below it unless it is told to: `min-width:0`
+     plus `flex:1 1 7rem` is what lets the field give way inside a 375px card, and
+     `box-sizing:border-box` keeps its padding inside the 100%. The form wraps rather than
+     stretching, so a narrow card puts the button under the field instead of off the screen. #}
+  .att-act{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin:0;max-width:100%}
+  .att-act .att-field{flex:1 1 7rem;min-width:0;max-width:100%;box-sizing:border-box;font:inherit;font-size:.74rem;padding:.2rem .3rem;border:1px solid var(--rule-strong);border-radius:4px;background:var(--bg-raised);color:var(--ink)}
+  {# ------------------------------------------------- THE CAUSAL MARK, AND IT IS THE ONLY ONE
+     Packet ATT-6, author A13, 2026-09-11. `PROPOSAL-2026-09-10-INFINITY-EXPERIENCE-VISUAL-
+     VOCABULARY.md` section 2 item 1 names one causal token family -- `--ws-causal`,
+     `--ws-causal-text`, `--ws-causal-tint`, `--ws-on-causal` -- and section 4 records ANDREW'S
+     DECISION, 2026-09-11: PURPLE. The default pair is the one `console.css:40,67` already authors
+     as `--brand`/`--brand-text` in both palettes, which is the only accent pair on any surface
+     carrying a recorded contrast measurement: `--on-solid` on this fill is 6.94:1 light and
+     7.74:1 dark, `--brand-text` is 9.44:1 on `--bg`. NO VALUE IS RESTATED IN THIS FILE, here or
+     in any comment below. `console.css` is where a colour is a number; a hex sitting in a comment
+     on this page is the one the next author copies out of the comment into a rule, which is what
+     `NoColourIsWrittenAsANumberInThisRoom` scans this whole file -- comments included -- to stop.
+
+     THE FALLBACK IS NOT DECORATION AND IT IS WHY THIS PAGE DOES NOT BREAK. `console.css` is not
+     this seat's file and the family does not exist in it yet, so every reference below is
+     `var(--ws-*, var(--<the token console.css really has>))`. Today every one of them resolves to
+     the SAME PURPLE the family will carry; the day the family lands in `console.css` nothing
+     here changes and nothing here has to be found again.
+
+     WHY THIS BUTTON. `web/MUST-NOT-BUILD.md` at `dc9a99d`, the coda after item 11, lists the
+     four surfaces the accent is spent on and the FIRST is *"the accept controls"*. This rule is
+     every act control on this page -- Accept work, Mark done, Answer, Accept objective, and the
+     undo forms the receipt stripe builds, which carry `att-act`/`att-btn` too. An undo is the
+     person's own act as much as the act it undoes.
+
+     WHAT DOES NOT GET IT, decided here once so the next reader does not re-derive it:
+       * `.att-field` (above) stays neutral. A text box is form chrome; painting it would be the
+         decoration the same coda forbids in as many words.
+       * `.att-chip.wait/.run/.rest/.stale` and `.att-err` stay on their STATE tokens and keep
+         their word beside the colour. The coda's hard constraint is that the accent must not read
+         as a fifth state, so it may not be spent on one.
+       * `.att-receipt:focus` stays `var(--focus,var(--run))`. `console.css:44` is explicit:
+         *"The brand accent is never spent on an affordance."* A focus ring is an affordance.
+       * `--accent` is not referenced on this page at all and is not touched (section 2 item 3).
+
+     `--on-solid` AND NOT `--bg` AS THE `--ws-on-causal` FALLBACK, which is a deliberate deviation
+     from the one written into the packet, reported rather than done quietly. `--on-solid` is the
+     token `console.css:50` names for exactly this role ("label on an ink or brand fill") and it
+     is the one the 6.94:1/7.74:1 measurement was taken against. It is also byte-identical to
+     `--bg` in BOTH palettes, so nothing renders differently either way -- only the next reader's
+     ability to see why the value is what it is. The two pairs of values are printed, with the
+     measurement that they are identical, in
+     `outputs/2026-09-10-ATTENTION-OS-admiral/ATT-6-vocabulary-and-commit-element.md`. #}
+  .att-act .att-btn{font:inherit;font-size:.72rem;padding:.22rem .5rem;border:1px solid var(--ws-causal,var(--brand));border-radius:4px;background:var(--ws-causal,var(--brand));color:var(--ws-on-causal,var(--on-solid));cursor:pointer;max-width:100%}
+  .att-act .att-btn[disabled],.att-act .att-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed}
+  {# F-02: the rule as a sentence beside the field, its own class so a scan can find it. #}
+  .att-hint{flex:1 1 100%;margin:0;font-size:.7rem;color:var(--ink-3);max-width:100%;overflow-wrap:anywhere}
+  {# ONE RULE FOR EVERY LINK ON THIS PAGE THAT IS A CONTROL, and the number in it is the only
+     number that matters here: 24 CSS pixels in BOTH dimensions, which is WCAG 2.2's 2.5.8 minimum
+     and the figure Closure's checklist measured every focusable against. It is written once and
+     worn by every anchor rather than tuned per place, because F2 is a class of defect and not four
+     of them.
+
+     A LINK IS INLINE AND AN INLINE BOX IGNORES A HEIGHT. That is the whole mechanism of F2:
+     `Inspect` measured 23 x 35 at 1440 and 40 x 16 at 375 not because anyone sized it but because
+     nobody did, and vertical padding on an inline box paints outside the line box without moving
+     anything. `display:inline-block` is what makes `min-height` and `min-width` mean something,
+     and `box-sizing:border-box` is what keeps the padding inside the 100% that `.att-table td`
+     already caps -- so this rule cannot be the next 26 pixels of E12. #}
+  .att-link{display:inline-block;box-sizing:border-box;min-height:24px;min-width:24px;padding:.3rem .34rem;line-height:1.25}
+  summary.att-link{display:list-item;list-style-position:inside;cursor:pointer}
+  {# ------------------------------------------------- F3: THE SORT CONTROLS AT NARROW WIDTHS
+     Closure MEASURED at 375: `Source / type` and `Freshness` are `a[href]`, not disabled, with a
+     bounding rect of **width 0 and height 0**, because the rule three lines below this one sets
+     `.att-table thead{display:none}` for the card layout. Two of the 65 focusable stops land on
+     something with no size and nothing to see -- and sorting, which this page's own intro sentence
+     offers in as many words ("a sort changes this view, never the working order"), has NO
+     REACHABLE CONTROL AT 375 AT ALL. That second half is C1-g's loss as well.
+
+     THE CHOICE, AND IT IS THE LEAST LAYOUT OF THE TWO THE PACKET NAMED. Making the `thead` visible
+     as a compact strip means undoing `display:block` on the table, the tbody, the rows and the
+     cells for the header alone -- the card layout IS those four rules -- and it would then show
+     NINE header cells, of which two are sortable, in a strip whose columns no longer line up with
+     anything below it. This is one `nav` of two links: it adds a single element, it is `display:
+     none` above 760 px so it is neither rendered nor focusable at a width where the header already
+     works, and it wraps rather than scrolling, so E12 is untouched. It also answers C1-g directly,
+     which the other option would only answer by accident.
+
+     THE URLS ARE THE HEADER'S OWN, held in two template variables set above the table and read by
+     both places. Two url expressions here and two in the `thead` would be two sorts that agree
+     today and drift at the next change to the direction toggle. #}
+  .att-sort{display:none}
+  .att-sort-lead{font-size:.72rem;color:var(--ink-3)}
+  .att-sort a[aria-current="true"]{color:var(--ink)}
+  .att-cannot{margin:0;font-size:.72rem;color:var(--ink-3);max-width:100%;overflow-wrap:anywhere}
+  {# F-01 / P3-03: THE ROW IS A HANDLE AND THE PROPOSAL IS ONE PRESS AWAY. The title cell carries
+     the bounded title; the whole proposal sits in a closed disclosure whose summary names its
+     length, and the same bytes are on the inspector under "Proposal, in full". Closed by default
+     so seven rows keep the shape the task rows have; `pre-wrap` keeps the producer's paragraphs
+     when it is open, `overflow-wrap:anywhere` keeps E12 (no sideways scroll at 375). #}
+  .att-proposal{margin:.15rem 0 0;font-size:.74rem;max-width:100%}
+  .att-proposal>div{white-space:pre-wrap;overflow-wrap:anywhere;color:var(--ink-2);margin:.2rem 0 .1rem;max-width:100%}
+  {# A NOTE BESIDE A CONTROL, NOT INSTEAD OF ONE, and it needs its own class for that reason
+     alone: `att-cannot` is the "No act here" sentence and a template that reached for it to style
+     a line under a working button would make the two indistinguishable to every later scan. Same
+     ink, different name. Packet ATT-8. #}
+  .att-aside{margin:.25rem 0 0;font-size:.7rem;color:var(--ink-3);max-width:100%;overflow-wrap:anywhere}
+  .att-err{margin-top:.3rem;font-size:.72rem;color:var(--dmg);max-width:100%;overflow-wrap:anywhere}
+  {# THE RECEIPT IS THE OTHER CAUSAL SURFACE, and it is causal for the coda's own reason: a stripe
+     exists on this page ONLY because the person pressed something. It is the runtime's `Because of
+     you` block -- the second of the coda's four lawful uses -- rendered per row instead of per day.
+
+     TWO ROLES, AND DELIBERATELY NOT MORE. The row takes the TINT (a paper-stock wash of a hue
+     whose word is already on screen: the stripe's own first sentence says "Your done is written")
+     and the receipt's headline sentence takes the TEXT rung. `console.css:46` states the law the
+     tint is written under, *"a tint never appears without the word its hue already required"*, and
+     this stripe cannot exist without its words.
+
+     THE SENTENCES UNDER IT STAY NEUTRAL -- `.att-moved`, `.att-note`, `.att-noundo`, `.att-why`,
+     `.att-stay`. They report where the STORE put the row and what the SERVER said about undo, which
+     is not the person's trace, and four more purple lines in one stripe is the decoration the coda
+     names. One restrained accent means one mark, not a palette. #}
+  .att-receipt td{background:var(--ws-causal-tint,var(--tint-brand));max-width:100%;overflow-wrap:anywhere}
+  .att-receipt-text{font-weight:700;font-size:.76rem;color:var(--ws-causal-text,var(--brand-text))}
+  .att-receipt .att-moved,.att-receipt .att-note{font-size:.72rem;color:var(--ink-2);margin-top:.2rem}
+  .att-receipt .att-undo{margin-top:.3rem;display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;max-width:100%}
+  .att-receipt .att-noundo{font-size:.72rem;color:var(--ink-2)}
+  .att-receipt .att-why,.att-receipt .att-stay{font-size:.7rem;color:var(--ink-3);margin-top:.2rem;display:block}
+  {# THE SIGHTED HALF OF F5'S FIX, and `:focus` rather than `:focus-visible` ON PURPOSE. `land()`
+     moves focus to the stripe after every act, a mouse-driven act included, and a browser does NOT
+     match `:focus-visible` for a programmatic focus that followed a pointer press: under it the
+     person who clicked would have their focus silently relocated with nothing on screen saying
+     where it went. Every other outline in this stack is `:focus-visible` because every other one
+     marks a focus the person moved themselves; this one marks a focus the page moved for them.
+     `outline-offset` is negative so the ring is drawn INSIDE the row and adds no layout width at
+     375 (E12). `--focus` is DS section 2.1's alias of `--run` (`console.css:45`), written with the
+     fallback the rest of the stack writes. #}
+  .att-receipt:focus{outline:2px solid var(--focus,var(--run));outline-offset:-2px}
+  [data-queue-row]:focus{outline:2px solid var(--focus,var(--run));outline-offset:-2px}
+  .att-compact-state{display:none}
+  .att-tabs a{flex:0 0 auto}
+  @media(min-width:761px){
+    .att-table th{overflow-wrap:normal;word-break:normal}
+    .att-table td[data-label="Inspector"]{min-width:4.5rem}
+    .att-table td[data-label="Inspector"] .att-link{white-space:nowrap}
+    .att-table td[data-label="Act"]{min-width:7rem}
+    .att-act .att-btn{overflow-wrap:normal;word-break:normal;white-space:nowrap}
+  }
+  @media(max-width:760px){
+    .att-compact-state{display:block;margin:.3rem 0;color:var(--ink-2);font-size:.78rem}
+    .att-table td[data-label="Item"]>.sub{display:none}
+    .att-table td[data-label="Source / type"],.att-table td[data-label="Rank / status"],
+    .att-table td[data-label="Freshness"],.att-table td[data-label="Impact"],
+    .att-table td[data-label="Permission"],.att-table td[data-label="Updated"]{display:none}
+    .att-table td[data-label="Inspector"]::before,.att-table td[data-label="Act"]::before{content:""}
+    .att-table td[data-label="Inspector"]{padding-top:.3rem}
+    .att-table [data-before-accept]{display:none}
+  }
+  {# THE RIGHT-HAND PANEL (A4 INFINITY-STREAMLINE, D-ALPHA-UX-1, 2026-09-14). At wide widths a row
+     opens its inspector beside the table (`attention-panel.js`, one GET); below 1100px the panel
+     is not drawn and Inspect navigates as before. The `.att-panel .att-*` rules restate the
+     inspector's own head styles, which the panel does not import; `test_attention_panel.py` goes
+     red when the inspector gains a class this block does not cover. No colour is new: rules,
+     raised ground and the focus ring are tokens this page already spends. #}
+  .att-help{font-size:.72rem;color:var(--ink-3);margin-right:auto;margin-left:.6rem}
+  .att-help p{margin:.2rem 0 0;max-width:36rem;color:var(--ink-2);overflow-wrap:anywhere}
+  .att-panel{display:none}
+  @media(min-width:1100px){
+    :root{--att-panel-w:min(36vw,540px)}
+    body.att-panel-open main#main-content{max-width:none;margin-left:1rem;margin-right:calc(var(--att-panel-w) + 1rem)}
+    .att-panel{display:block;position:fixed;right:0;bottom:0;width:var(--att-panel-w);box-sizing:border-box;overflow:auto;z-index:50;padding:.6rem .85rem 1rem;background:var(--bg-raised);border-left:1px solid var(--rule-strong)}
+    .att-panel[hidden]{display:none}
+    .att-panel-bar{display:flex;gap:.5rem;align-items:center;justify-content:space-between;position:sticky;top:-.6rem;padding:.35rem 0;background:var(--bg-raised);border-bottom:1px solid var(--rule)}
+    .att-panel-bar b{font-size:.82rem;overflow-wrap:anywhere}
+    .att-panel-close{font:inherit;font-size:.74rem;background:none;border:1px solid var(--rule-strong);border-radius:4px;color:var(--ink);cursor:pointer}
+    .att-table tbody tr[data-queue-row]{cursor:pointer}
+    .att-table tr.att-row-open{outline:2px solid var(--focus,var(--run));outline-offset:-2px}
+    .att-table td[data-label="Item"]>.sub{display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+    .att-table .att-chip .att-chip-why{display:none}
+    .att-panel .att-title{font:inherit;font-weight:700;margin:0}
+    .att-panel .att-kv{display:grid;grid-template-columns:auto 1fr;gap:.25rem .7rem;font-size:.8rem;margin:.5rem 0}
+    .att-panel .att-kv dt{color:var(--ink-3)}
+    .att-panel .att-kv dd{margin:0}
+    .att-panel .att-why{font-size:.72rem;color:var(--ink-3)}
+    .att-panel .att-unknown{color:var(--ink-3);font-style:italic}
+    .att-panel .att-steps{font-size:.78rem;padding-left:1.1rem;color:var(--ink-2)}
+    .att-panel .att-proposal-full{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%}
+  }
+  @media(max-width:760px){.att-bar{align-items:flex-start;flex-direction:column}.att-sort{display:flex;flex-wrap:wrap;gap:.3rem;align-items:center;margin:.35rem 0}.att-table thead{display:none}.att-table,.att-table tbody,.att-table tr,.att-table td{display:block}.att-table tr{border:1px solid var(--rule);border-radius:7px;margin:.45rem 0;padding:.3rem}.att-table td{border:0;padding:.18rem;max-width:100%}.att-table td::before{content:attr(data-label) ": ";color:var(--ink-3);font-size:.64rem;text-transform:uppercase}.att-table td:first-child::before{content:""}.att-receipt td::before{content:""}}
+</style>
+{% endblock %}
+{% block body %}
+{% from "attention/controls.html" import act_cell %}
+{# THE "READ ONLY" LINE WENT, BECAUSE IT STOPPED BEING TRUE IN THIS COMMIT AND A STALE PROMISE ON
+   A PAGE THAT NOW WRITES IS WORSE THAN NO LINE AT ALL. SEVEN verbs are reachable from this room
+   (`web/rooms.py`; the ruling `_system/attention/RECEIPT-EXPECTATIONS-2026-09-10.md` for five of
+   them and Andrew's D4 for `accept` and `recommend accept`) and this page renders controls for
+   FOUR of them. What replaces it says what the page can do and what it still cannot, which is the
+   same sentence's job done against the new facts.
+
+   THE COUNTS ARE WRITTEN OUT AND THEY HAVE BEEN STALE BEFORE, which is why the ones on screen
+   below are the four ACTS rather than a number: a reader who counts the buttons and a reader who
+   counts this comment must not be able to get two answers. The three that render no control are
+   `unaccept work` and `reopen`, which are undos built in the browser out of an act response, and
+   `recommend accept`, whose option rail this view has no option rows to draw. #}
+{# A4 INFINITY-STREAMLINE (STREAMLINE item 10, 2026-09-14): the two sentences above no longer sit in
+   a dashed box on every visit. They are kept VERBATIM in the closed "How this page works" disclosure
+   in the title row below, one press away, so nothing they promise is lost and about 30px of chrome
+   leaves the top of the table. Pinned by `web/tests/test_attention_help_note.py`. #}
+<section data-attention-queue="true" aria-label="Attention queue"
+         data-att-total="{{ view.filtered_total if view.has_denominators else '' }}"
+         data-att-offset="{{ view.offset }}" data-att-limit="{{ view.limit }}"
+         data-att-admitted="{{ view.admitted }}" data-att-refused="{{ view.refused }}"
+         data-att-blocked="{{ view.blocked }}" data-att-deferred="{{ view.deferred }}"
+         data-att-csrf="{{ csrf_for('attention') }}">
+  {# A bare "0 shown" is the same four characters over an empty store and over ten thousand rows.
+     Measured 2026-09-09: 100 rows in brain.queue_open, 0 rendered, and this said "0 shown". The
+     denominator goes wherever the count goes. This is the section header, not a row: item 8's
+     condition is that the score never appears BESIDE A ROW and never travels to the nav, and
+     neither happens here. #}
+  {# EXACTLY ONE h1, AND IT WAS ALWAYS MINE TO ADD. term-12 measured 0 h1 and 0 headings by either
+     route on this page against a predeclared "exactly one h1", and attributed the fix to base.html
+     as unowned. term-13 checked the source rather than the attribution: base.html:293 is a bare
+     `{% block body %}`, and the word "Attention" was already here at this line as a <b>. So the
+     page heading is inside my declared set and no ownership ruling was ever needed for it.
+     `<b>` carried the look and none of the meaning. Nothing selects on it -- checked before
+     changing it -- and the h1 is styled to render as it did, because this is a semantics repair
+     and not a visual change for term-12 to have to re-baseline.
+     The missing `main` landmark is NOT fixed here: that is page skeleton, it was not routed to me,
+     and one room quietly declaring a landmark inside a shared shell is how the chrome collision
+     happened in the first place. #}
+  <div class="att-bar"><h1>Attention</h1><details class="att-help" data-att-help><summary class="att-link">How this page works</summary><p>Inspect is read only; action buttons change your store.
+  Sorting changes this view, never the working order.</p></details><span class="att-muted"><span data-att-counts>{% if view.has_denominators %}{{ view.shown }} of {{ view.filtered_total }} shown{% else %}{{ view.shown }} shown, of an unreported total{% endif %}</span> &middot; <span data-evidence-origin>{{ attention_evidence_label }}</span></span></div>
+  <nav class="att-tabs" aria-label="Attention filters">
+    {% for key, label in filter_labels.items() %}
+      <a href="{{ url_for('attention.inbox', filter=key) }}" {% if filter_key == key %}aria-current="page"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+  {% if attention_intake_observation %}{% set intake = attention_intake_observation %}
+  <details class="note" data-intake-observation>
+    <summary>{{ intake.source }} observation, <time datetime="{{ intake.observed_at }}">{{ intake.when }}</time>: Intake has landed nothing but the daily heartbeat since 2026-09-03 because the intake door on 3106 is not running and the mail sweep fails its health check every tick.</summary>
+    <p>{{ intake.detail }}</p>
+    <p>This is a recorded observation. This page does not monitor recovery; the intake restart remains separate work.</p>
+  </details>
+  {% endif %}
+  {% if view.reordered %}<div class="note">{{ view.order_note }}</div>{% else %}<p class="att-why">{{ view.order_note }}</p>{% endif %}
+  {% if note %}<div class="note">{{ note }}</div>
+  {# The way back to the Queue tab is offered from a FILTER. On the Queue tab itself it was a link to
+     the page already on screen (A4, 2026-09-14). #}
+  {% elif view.empty %}<div class="note">{{ empty_message }}{% if filter_key != 'queue' %} <a href="{{ url_for('attention.inbox') }}">Open Queue</a>{% endif %}</div>
+  {% else %}
+    {# ONE EXPRESSION PER SORT, READ TWICE. The `thead` link and the narrow-width control below are
+       the same control at two widths, so they are the same URL by construction rather than by two
+       authors keeping two copies of a direction toggle in step. #}
+    {% set sort_title_url = url_for('attention.inbox', filter=filter_key, sort='title', dir='desc' if view.sort_key == 'title' and not view.descending else 'asc') %}
+    {% set sort_freshness_url = url_for('attention.inbox', filter=filter_key, sort='freshness', dir='desc' if view.sort_key == 'freshness' and not view.descending else 'asc') %}
+    {# F3. The sort, where the header is not. `display:none` above 760 px, so at a width where the
+       sortable headers work this element is neither drawn nor focusable and no reader meets the
+       same two controls twice. #}
+    <nav class="att-sort" aria-label="Sort this view"><span class="att-sort-lead">Sort by</span><a class="att-link" href="{{ sort_title_url }}" {% if view.sort_key == 'title' %}aria-current="true"{% endif %}>Title</a><a class="att-link" href="{{ sort_freshness_url }}" {% if view.sort_key == 'freshness' %}aria-current="true"{% endif %}>Freshness</a></nav>
+    <table class="att-table"><thead><tr><th><a class="att-link" href="{{ sort_title_url }}">Title</a></th><th>Source / type</th><th>Rank / status</th><th><a class="att-link" href="{{ sort_freshness_url }}">Freshness</a></th><th>Impact</th><th>Permission</th><th>Updated</th><th>Inspector</th><th>Act</th></tr></thead><tbody>
+    {% for item in view.items %}{% set evidence = item.status_evidence %}{% set inspect_url = url_for('attention.inspect', item_id=item.item_id, filter=filter_key, sort=view.sort_key, dir='desc' if view.descending else 'asc', offset=view.offset, limit=view.limit) %}
+      <tr id="attention-{{ item.item_id }}" data-queue-row="{{ item.item_id }}" tabindex="-1"
+          data-att-kind="{{ item.kind }}" data-att-readable="{{ 'yes' if item.readable else 'no' }}">
+        <td data-label="Item"><b>{{ item.title }}</b>{% if item.proposal_is_bounded or item.counterargument_is_bounded %}<details class="att-proposal" data-att-proposal><summary class="att-link">{% if item.proposal_is_bounded %}Full proposal{% if item.counterargument_is_bounded %} and argument against{% endif %}{% else %}Full argument against{% endif %}</summary><div>{% if item.proposal_is_bounded %}{{ item.proposal }}{% endif %}{% if item.counterargument_is_bounded %}{% if item.proposal_is_bounded %}
+
+{% endif %}Argument against, in full: {{ item.counterargument }}{% endif %}</div></details>{% endif %}<span class="att-compact-state">#{{ item.rank }} · {% if not item.readable %}Restricted{% elif item.kind == 'review' %}Awaiting acceptance{% elif item.kind == 'human' %}Your unfinished task{% elif item.kind == 'question' %}Awaiting your answer{% elif item.kind == 'recommendation' %}Awaiting approval or rejection{% else %}{{ item.kind }}{% endif %}</span><span class="sub">{{ item.why }}</span></td>
+        <td data-label="Source / type">{{ item.provenance.source_label }}<span class="sub">{{ item.kind }}</span></td>
+        <td data-label="Rank / status"><a class="att-chip {{ 'wait' if item.tier in (1,2) else 'run' if item.tier == 3 else 'rest' }}" href="{{ inspect_url }}#evidence-rank" data-evidence="{{ evidence['rank']['at'].isoformat() }}">#{{ item.rank }} {{ item.tier_label }}</a>{% if item.incomplete %}<a class="att-chip stale" href="{{ inspect_url }}#evidence-completeness" data-evidence="{{ evidence['completeness']['at'].isoformat() }}">{{ item.completeness.render() }}</a>{% endif %}{% if item.explain_rank() %}<span class="sub">{{ item.explain_rank() }}</span>{% endif %}</td>
+        {# Headline and reason in two spans, so a wide row can show the headline alone while the whole
+           sentence stays in the markup, the tooltip and the panel (A4, STREAMLINE item 3). Below the
+           wide breakpoint the text reads byte for byte as `render()`. #}
+        <td data-label="Freshness"><a class="att-chip {{ 'stale' if item.freshness.state == 'stale' else '' }}" href="{{ inspect_url }}#evidence-freshness" data-evidence="{{ evidence['freshness']['at'].isoformat() }}" title="{{ item.freshness.render() }}"><span class="att-chip-head">{{ item.freshness.headline() }}</span>{% if item.freshness.reason() %}<span class="att-chip-why"> ({{ item.freshness.reason() }})</span>{% endif %}</a></td>
+        <td data-label="Impact"><a class="att-chip" href="{{ inspect_url }}#evidence-impact" data-evidence="{{ evidence['impact']['at'].isoformat() }}" title="{{ item.impact.render() }}"><span class="att-chip-head">{{ item.impact.headline() }}</span>{% if item.impact.reason() %}<span class="att-chip-why"> ({{ item.impact.reason() }})</span>{% endif %}</a></td>
+        <td data-label="Permission"><a class="att-chip" href="{{ inspect_url }}#evidence-permission" data-evidence="{{ evidence['permission']['at'].isoformat() }}">{{ evidence['permission']['detail'] }}</a></td>
+        <td data-label="Updated"><time datetime="{{ evidence['rank']['at'].isoformat() }}">{{ evidence['rank']['at'].astimezone(display_zone()).strftime('%d %b, %H:%M %Z') }}</time></td>
+        {# F2's worst case, MEASURED by Closure at 23 x 35 (1440) and 40 x **16** (375): the only
+           route from a row to its evidence was 16 px tall on a phone. #}
+        <td data-label="Inspector"><a class="att-link" href="{{ inspect_url }}" data-att-panel-src="{{ inspect_url }}">Inspect</a><span class="att-compact-state">{% if not item.readable %}Access boundary and recovery{% elif item.kind == 'review' %}Report, artifacts and full evidence{% else %}Full evidence and available actions{% endif %}</span></td>
+        <td data-label="Act">{% if item.readable and item.kind == 'review' and item.item_id.startswith('work_item:') %}<a class="att-link" href="{{ inspect_url }}" data-before-accept>Read report &amp; artifacts</a>{% endif %}{{ act_cell(item, min_reason) }}</td>
+      </tr>
+    {% endfor %}</tbody></table>
+  {% endif %}
+  {# UNDER THE TABLE, AND NOWHERE ELSE. web/MUST-NOT-BUILD.md at 0180a51, item 8: the condition is
+     the decision, and it is that the score is overruled ONLY where he cannot act on it and NEVER
+     BESIDE A ROW. Placement is what that condition governs. Under the table these are
+     denominators; printed next to a tier's rows the same numbers are a score. The overrule does
+     not travel to the nav, and nothing here is rendered there.
+
+     It renders on the EMPTY branch too, which is the case that matters most: "nothing shown" with
+     "100 match" underneath is the whole finding on one screen. #}
+  <p class="att-muted" data-attention-denominators="true">{{ view.denominator_note }}</p>
+  {% if view.refusal_items %}
+  <details class="card" data-attention-preparation>
+    <summary>Needs preparation — {{ view.refusal_items|length }} outside the actionable queue</summary>
+    <p>These items still need handling. Open a preparation route to read the original and identify what is missing.</p>
+    <ul>{% for refusal in view.refusal_items %}<li data-refused-item="{{ refusal.item_id }}">
+      <b>{{ refusal.title }}</b> <span class="att-muted">{{ refusal.item_id }}</span>
+      <p>{{ refusal.reason }} Owner: {{ refusal.owner }}.</p>
+      <a class="att-link" href="{{ url_for('attention.preparation', item_id=refusal.item_id, filter=filter_key, sort=view.sort_key, dir='desc' if view.descending else 'asc', offset=view.offset, limit=view.limit) }}">Prepare / handle {{ refusal.item_id }}</a>
+    </li>{% endfor %}</ul>
+  </details>
+  {% endif %}
+    {# Every link carries filter, sort and direction. A pager that drops the filter silently moves
+       the reader to a different population and page 2 of the wrong list looks exactly like page 2
+       of the right one. #}
+    <nav class="att-muted" aria-label="Attention pages" data-att-pages>
+      {% if view.has_prev %}<a class="att-link" href="{{ url_for('attention.inbox', filter=filter_key, sort=view.sort_key, dir='desc' if view.descending else 'asc', offset=[view.offset - view.limit, 0]|max, limit=view.limit) }}" rel="prev">Previous</a>{% endif %}
+      {% if view.has_next and view.has_prev %} &middot; {% endif %}
+      {% if view.has_next %}<a class="att-link" href="{{ url_for('attention.inbox', filter=filter_key, sort=view.sort_key, dir='desc' if view.descending else 'asc', offset=view.offset + view.shown, limit=view.limit) }}" rel="next">Next</a>{% endif %}
+    </nav>
+</section>
+{# ---------------------------------------------------------------- THE PAGE'S OWN RECEIPT STRIPE
+   Packet ATT-1d, author A3, 2026-09-10. Every sentence below is E1 to E9 of
+   `_system/attention/RECEIPT-EXPECTATIONS-2026-09-10.md`.
+
+   WHY THIS PAGE STATES ITS OWN RECEIPT INSTEAD OF USING THE CONSOLE'S. Three measured facts, all
+   in that file's fact table and none of them fixable from inside this lane:
+
+     * `console.js`'s `say()` lives inside an IIFE (`console.js:11`, `:161`) and no page script can
+       reach it. It is not a global that happens to be undefined here; it is unreachable by
+       construction.
+     * `console.js`'s handler for `form.act-form` shows a NINE-SECOND toast and then calls
+       `patch()`. A receipt that deletes itself on a timer is what E2 forbids.
+     * `/api/patch/attention` falls to the `else` branch of the patch route and returns
+       `{"regions": {}}`, so the swap that would re-render this page's rows swaps nothing.
+
+   So the forms carry class `att-act`, which `console.js` does not bind, and this script is the
+   whole behaviour. `console.js`, `base.html` and `web/app.py` are not edited by this packet.
+
+   THE ORDER IN `land()` IS THE POINT AND IT IS ITEM 10'S ACTUAL TEST (E1): the stripe element is
+   built and inserted BEFORE the row is removed, so there is no instant in which the row is gone
+   and its receipt does not exist. Written as three statements in that order rather than as a
+   replace, because a replace hides which came first.
+
+   NO TIMER APPEARS ANYWHERE BELOW (E2). Nothing calls `setTimeout` and nothing removes a stripe;
+   a second act adds a second stripe rather than clearing the first. The seven-second global
+   receipt list (`web/app.py:86`, `RECEIPT_SECONDS`) is a different surface and this page neither
+   reads it nor pretends to.  #}
+<script>
+(function () {
+  var section = document.querySelector('section[data-attention-queue]');
+  if (!section) return;
+
+  /* The room's token, minted by `guard.token_for("attention")` and rendered by the server. An
+   * undo form built in the browser carries the SAME token the server put in every other form on
+   * this page (E8); the client mints nothing. */
+  var token = section.getAttribute('data-att-csrf') || '';
+  var columns = document.querySelectorAll('.att-table thead th').length || 1;
+
+  /* E2's sentence, in words a person can act on. It is the sentence for a stripe that carries NO
+   * inverse, and it is unchanged: there is nothing to point a person at. */
+  var STAY = 'This receipt stays until you leave this page. The record is on the item’s own thread.';
+
+  /* F5, CLOSURE'S PANE PASS (`P14-RESULT-attention-actdoor-eb4c495.md`), AND IT IS A LIFETIME
+   * FINDING RATHER THAN A MISSING CONTROL. E3's inverse is real -- the tester posted it and the
+   * store took it -- but after ONE reload the affordance measured 0 on the queue, 0 on the 99-row
+   * page and 0 on the row's own inspector, which is read-only by design. The row's state was
+   * recoverable in the store and not by the person.
+   *
+   * So a stripe that carries an inverse now says WHERE THAT INVERSE LIVES AFTERWARDS, and hands
+   * over the link. The durable page is `/task/<bare source_id>` (`web/app.py:998`), which carries
+   * `Unaccept` and `Send back`, each behind a typed reason -- the exact inverse of `accept work`,
+   * and for `done` the same `reopen` verb `undo_done` dispatches (`web/actions.py:228`).
+   *
+   * THREE SENTENCES AND THE CHOICE BETWEEN THEM IS `stayLine()`, so that "which sentence does a
+   * person read" is one decision in one place rather than a property of which branch built the
+   * stripe. Each keeps E2's own clause -- the receipt's lifetime, and the record on the thread --
+   * because F5 is about what happens AFTER this page, and E2 is about this page. A clause that
+   * replaced E2's would answer Closure's finding by dropping the expectation that was already met.
+   *
+   * THE THIRD SENTENCE IS THE HONEST ONE AND IT IS NOT DEAD CODE BY ACCIDENT. Where the row has no
+   * page that carries an inverse, the fragment comes from the SERVER, off `data-att-no-home` on the
+   * form, in that kind's own terms -- `an accepted objective has no page with an inverse yet` is
+   * the objective's, and it is the reason the no-undo branch already gives. A fragment composed
+   * here would be this page guessing at a kind it cannot see, which is the same class of claim
+   * E6-as-amended stopped making about the window. */
+  /* ATT-1s, A18R: E2 stays one string, followed by the durable control's own label.
+   * `Send back` and the stripe's immediate undo both dispatch `reopen`; the label on
+   * `detail_task.html` remains owned by Platform. One chooser returns clause and link
+   * label together so they cannot take different verb branches. */
+  var AFTER_DONE_CLAUSE =
+    ' After that, send it back from the row’s own page (the Send back button runs the same reopen).';
+  var AFTER_ACCEPT_CLAUSE = ' After that, unaccept from the row’s own page.';
+  var AFTER_INVERSE_CLAUSE = ' After that, the inverse is on the row’s own page.';
+  var STAY_NO_PAGE_HEAD =
+    ' After that there is no inverse anywhere else: ';
+  var STAY_NO_PAGE_TAIL = '.';
+  var NO_HOME_FALLBACK = 'this kind of row has no page with an inverse yet';
+
+  /* E6 AS AMENDED 2026-09-10 19:10Z, AND THE AMENDMENT IS A MEASUREMENT RATHER THAN AN OPINION.
+   * Packet ATT-1f, author A5. X1's sentence for `done` ended with a promise that a reload would
+   * put the row in front of the person, and T2 reloaded:
+   * `artefacts/2026-09-10/ATTENTION-OS-admiral/evidence/ATT-1e-measurement-b3e1304.md`, E6 row.
+   * The store had moved exactly as promised (`state=done`, `accepted_at` NULL, `agent_claimable`
+   * false -- arm 1, Accept work), and the row was STILL absent from the reloaded page, because
+   * this view is a RANKED WINDOW (7 of 99 on that fixture) and the row ranked outside it.
+   * `?filter=review` and `?filter=done` both read "0 of 0 shown", so there was no window that
+   * showed it either.
+   *
+   * A page may not promise what a window it does not rank decides. So each sentence below states
+   * the STORE fact and hands over a link that does not depend on any window: the row's own
+   * inspector, rendered server-side onto every act form by `url_for('attention.inspect', ...)`
+   * (`web/templates/attention/controls.html`).
+   *
+   * PACKET ATT-1h, AUTHOR A6, 2026-09-10 23:0xZ, CLEARS THE RESIDUE ATT-1f DECLARED. (The packet
+   * said 2026-09-11; `date -u` at the time of the work said 2026-09-10, and the measured day is
+   * what gets written.) A5 was routed to the
+   * `done` branch and said so in section 2 of `ATT-1f-x2.md`: `reopen` and `unaccept work` still
+   * carried the same falsified promise, for the same reason -- a reopened row re-enters arm 2 and
+   * an unaccepted row re-enters arm 1, and NEITHER is guaranteed to rank into the window. They
+   * are corrected here, on the same pattern, and the shared clause is a shared CONSTANT so that
+   * the three cannot drift apart again the way they drifted apart the first time.
+   *
+   * The sentences are deliberately named rather than inlined into `moved()`, so a test can read
+   * exactly the string the person sees and assert on it (`web/views/tests/test_act_door.py`).
+   *
+   * `DONE_MOVED_SENTENCE` renders BYTE-IDENTICALLY to X2's: the caveat begins with the space that
+   * used to sit after "not gone." This packet clears residue; it does not re-word what was already
+   * measured and cleared. */
+  var WINDOW_CAVEAT =
+    ' This page shows a ranked window of the queue, so the row may sit outside it and not ' +
+    'appear here on a reload; the row’s own inspector does not depend on the window.';
+
+  var DONE_MOVED_SENTENCE =
+    'Your done is written. This row is now finished work awaiting your acceptance in the store, ' +
+    'not gone.' + WINDOW_CAVEAT;
+
+  /* `reopen` is the inverse of the person's OWN `done` (`web/actions.py::undo_done` dispatches it),
+   * so the row leaves arm 1 and re-enters arm 2 of `queue/schema/0017`
+   * (`NOT agent_claimable AND state IN ('inbox','active')`, primary verb "Mark my task done"):
+   * it is the person's own unfinished task again. */
+  var REOPEN_MOVED_SENTENCE =
+    'Your done is withdrawn. This row is your own unfinished task again in the store, waiting ' +
+    'for you to mark it done.' + WINDOW_CAVEAT;
+
+  /* `unaccept work` puts the row back in arm 1 (`state='done' AND accepted_at IS NULL`, primary
+   * verb "Accept work"). The withdrawal is written to the item's thread rather than erasing the
+   * acceptance, which is `web/actions.py::unaccept_work` supplying its own reason where the form
+   * has none -- so the sentence says that too, because a person who has just undone something
+   * needs to know whether the first act left a trace. */
+  var UNACCEPT_MOVED_SENTENCE =
+    'The acceptance is withdrawn, and the withdrawal is written on the item’s thread rather than ' +
+    'erased. This row is finished work awaiting your acceptance in the store again.' +
+    WINDOW_CAVEAT;
+
+  /* D4'S TWO, packet ATT-8, author A10. Named constants like the three above, and for the same
+   * reason: a test reads exactly the string a person would see.
+   *
+   * `accept` is the objective triage act -- `brain.objective.state` goes inbox to accepted
+   * (`engine/swarm_engine/transitions.py:1813`) and arm 5's predicate is `o.state = 'inbox'`, so
+   * the row leaves the arm outright. NO WINDOW CAVEAT, on exactly the reasoning `accept work`
+   * carries none: a row that has left the queue cannot appear in ANY window of it, so there is
+   * nothing for a caveat to be about. It is also why `accept` is absent from INSPECTABLE_AFTER. */
+  var ACCEPTED_MOVED_SENTENCE =
+    'This intake item is accepted in the store and has left the waiting arm of this queue: an ' +
+    'accepted objective is not waiting on anybody. Reload and it is gone.';
+
+  /* `recommend accept` is the act on ONE OPTION of an objective's interpretation, and this
+   * sentence exists to say the half a person cannot see: the task exists now and THE ROW DID NOT
+   * MOVE. That is D4's structural line -- creating a task never counts as completing it -- and
+   * every other verb on this page moves the row it is pressed on, so silence here would be read
+   * as the opposite. The caveat and the link both apply, because the objective is still in the
+   * queue afterwards and its inspector still resolves.
+   *
+   * NO CONTROL ON THIS PAGE POSTS IT YET, and that is said here rather than left to be inferred:
+   * the port hands this view `has_option` and never the option rows, so `controls.html` renders
+   * the accept control and a sentence naming where the choice is made. The act door for it is
+   * built and server-side complete (`web/app.py::_perform_objective`), and it is proven by POST
+   * rather than by press. When the rail arrives this sentence is already the true one. */
+  var OPTION_DISPATCHED_SENTENCE =
+    'The task the option describes is posted. This row has NOT moved: an objective stays in your ' +
+    'intake until you accept it, because creating work off it is not the same act as filing it.' +
+    WINDOW_CAVEAT;
+
+  var ROW_INSPECT_LABEL = 'Open this row’s inspector';
+
+  /* THE VERBS AFTER WHICH THE ROW IS STILL IN THE OPEN QUEUE, so its inspector resolves and the
+   * window is the only thing that might not show it. One list, read by `stripe()`, so "which acts
+   * offer the link" is a decision in one place rather than a property of which forms happen to
+   * carry an id.
+   *
+   * `accept work` is deliberately ABSENT. An accepted row leaves `brain.queue_open` entirely (arm
+   * 1's predicate), so a link to its inspector would be a link to a row the inspector can no
+   * longer find -- and its sentence needs no caveat either, because a row that has left the queue
+   * cannot appear in ANY window of it. `answer` is absent because `amend` reports no movement.
+   *
+   * `accept` (D4's objective triage) is absent for the SAME reason as `accept work`: an accepted
+   * objective leaves arm 5. `recommend accept` is PRESENT for the opposite reason: dispatching an
+   * option posts a task and writes nothing to the objective, so the row is still there and its
+   * inspector still resolves. No control on this page posts `recommend accept` today, so that
+   * entry is unreachable for now and is here so the option rail, when it lands, inherits this
+   * decision rather than making a second one somewhere else. */
+  var INSPECTABLE_AFTER = ['done', 'reopen', 'unaccept work', 'recommend accept'];
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    /* textContent, never innerHTML: a receipt carries item titles, which are agent-written text.
+     * console.js:167 pays for this lesson already and it is not re-learned here. */
+    if (text) e.textContent = text;
+    return e;
+  }
+
+  function hidden(form, name, value) {
+    var i = document.createElement('input');
+    i.type = 'hidden';
+    i.name = name;
+    i.value = value;
+    form.appendChild(i);
+  }
+
+  /* E3. The inverse, where the SERVER says one exists. The label is `undo.label` verbatim and the
+   * action is `undo.action` verbatim: this page does not decide what undoes what.
+   *
+   * `undo.id || undo.qid` because `web/actions.py::answer` returns its inverse keyed `qid` while
+   * every other action keys it `id` (`macros.html:33` reads both for the same reason).
+   *
+   * `amend` CARRIES A FIELD, and that is a deliberate addition rather than a decoration:
+   * `actions.answer` refuses an amend with no text ("an answer with no text is a silence that
+   * pretends to be a decision"), so an amend button with nothing to type in it is a control that
+   * can only ever produce a refusal. */
+  function undoForm(undo) {
+    var f = document.createElement('form');
+    f.className = 'att-act';
+    f.method = 'post';
+    f.setAttribute('action', '/attention/act');
+    f.setAttribute('data-att-act', '1');
+    hidden(f, 'csrf', token);
+    hidden(f, 'action', undo.action || '');
+    hidden(f, 'id', undo.id || undo.qid || '');
+    if (undo.action === 'amend') {
+      /* F-02: the rule is visible text here too, and the field's accessible description. */
+      var h = el('p', 'att-hint', 'Amend needs at least 1 character.');
+      h.id = 'att-hint-amend-' + String(undo.id || undo.qid || '');
+      h.setAttribute('data-att-hint', '');
+      h.setAttribute('data-att-hint-base', 'Amend needs at least 1 character.');
+      f.appendChild(h);
+      var t = document.createElement('input');
+      t.type = 'text';
+      t.name = 'text';
+      t.className = 'att-field';
+      t.setAttribute('data-att-min', '1');
+      t.setAttribute('aria-label', 'The corrected answer');
+      t.setAttribute('aria-describedby', h.id);
+      t.placeholder = 'the corrected answer';
+      f.appendChild(t);
+    }
+    var b = el('button', 'att-btn', undo.label || undo.action || 'undo');
+    b.type = 'submit';
+    if (undo.action === 'amend') { b.setAttribute('aria-disabled', 'true'); b.setAttribute('data-att-gated', '1'); }
+    f.appendChild(b);
+    return f;
+  }
+
+  /* E5. Where the row went, said rather than assumed -- and the sentence names its own evidence,
+   * because this page has NOT re-read the store and must not sound as though it has. The arms are
+   * `queue/schema/0017`: arm 1 is `state='done' AND accepted_at IS NULL` with primary verb
+   * `Accept work`, arm 2 is `NOT agent_claimable AND state IN ('inbox','active')`. */
+  function moved(verb, subjectType) {
+    if (subjectType === 'recommendation' &&
+        (verb === 'recommend accept' || verb === 'recommend reject')) {
+      return 'The decision is recorded. This proposal has left the open queue. Reload to read the current queue.';
+    }
+    if (verb === 'done') {
+      return DONE_MOVED_SENTENCE;
+    }
+    if (verb === 'accept work') {
+      return 'This row has left this queue: an accepted item is no longer open. Reload and it ' +
+             'is gone.';
+    }
+    if (verb === 'reopen') {
+      return REOPEN_MOVED_SENTENCE;
+    }
+    if (verb === 'accept') {
+      return ACCEPTED_MOVED_SENTENCE;
+    }
+    if (verb === 'recommend accept') {
+      return OPTION_DISPATCHED_SENTENCE;
+    }
+    if (verb === 'unaccept work') {
+      return UNACCEPT_MOVED_SENTENCE;
+    }
+    return '';
+  }
+
+  /* F5's sentence, chosen in ONE place. `data.undo` is the server's own word on whether an inverse
+   * exists, which is the same term E3 and E4 are decided on, so this cannot disagree with the
+   * control the stripe renders two lines below it. */
+  function stayLine(data, taskUrl, noHomeNote) {
+    if (!data.undo) return STAY;
+    if (taskUrl) return STAY + afterPage(data.verb).clause;
+    return STAY + STAY_NO_PAGE_HEAD + (noHomeNote || NO_HOME_FALLBACK) + STAY_NO_PAGE_TAIL;
+  }
+
+  function afterPage(verb) {
+    if (verb === 'done') {
+      return {clause: AFTER_DONE_CLAUSE, label: 'The row’s own page, where Send back lives'};
+    }
+    if (verb === 'accept work') {
+      return {clause: AFTER_ACCEPT_CLAUSE, label: 'The row’s own page, where Unaccept lives'};
+    }
+    return {clause: AFTER_INVERSE_CLAUSE, label: 'The row’s own page, where the inverse lives'};
+  }
+
+  function stripe(data, inspectUrl, taskUrl, noHomeNote) {
+    var tr = el('tr', 'att-receipt');
+    tr.setAttribute('data-att-receipt', '1');
+    /* F5 (`review/REVIEW-act-door-eb4c495.md`, section 8): the REFUSAL was announced and the
+     * SUCCESS was not. `showError()` sets `role="alert"`; this builder set no role and no live
+     * region at all, and `land()` then removed the row the person had just activated, destroying
+     * the focused element and dropping focus to `<body>` with nothing spoken. For a screen-reader
+     * user that made item 10's guarantee -- nothing vanishes before its receipt -- UNOBSERVABLE.
+     *
+     * Three attributes here and one focus call in `land()`, each doing a different job:
+     *
+     *   role="status"      names the element a status message, so a reader that lands on it says
+     *                      so instead of reading an anonymous table row. `status` and not `alert`
+     *                      deliberately: a refusal interrupts whatever is being spoken, a receipt
+     *                      answers something the person just did. E9's `role="alert"` on
+     *                      `showError()` is untouched.
+     *   aria-live="polite" announces the insertion. THIS IS NOT THE LOAD-BEARING HALF and saying
+     *                      otherwise would be dishonest: a live region inserted already populated
+     *                      is not reliably announced, because the region must be present before
+     *                      its content changes. It is the belt.
+     *   tabindex="-1"      makes the stripe focusable BY SCRIPT and not by the tab order -- the
+     *                      braces, and the half that actually speaks the receipt. `-1` not `0` so
+     *                      a keyboard user gains no new tab stop to step past on every later pass.
+     *                      The server-rendered queue rows (`data-queue-row`) already carry
+     *                      `tabindex="-1"`, so the stripe matches the row it replaces.
+     *
+     * THE THREE GO ON THE `tr` AND NOT ON THE CELL so that the element announced, the element
+     * focused and the element `land()` inserts are ONE element and cannot drift apart. The cost is
+     * stated rather than hidden: a `tr` carrying `role="status"` is no longer a row in the table's
+     * own semantics for assistive technology. That is the right trade for a receipt -- it is not a
+     * queue row, it is the answer to an act, and the row it replaces has gone.
+     *
+     * NO TIMER IS ADDED (E2). The focus move is synchronous and nothing takes focus away again. */
+    tr.setAttribute('role', 'status');
+    tr.setAttribute('aria-live', 'polite');
+    tr.setAttribute('tabindex', '-1');
+    /* THE ROW'S ID TRAVELS WITH ITS RECEIPT, and this is what lets an undo posted FROM this stripe
+     * reach the same inspector. The undo form is built in the browser out of the act response,
+     * which carries no item id at all, so without this the `reopen` and `unaccept work` stripes
+     * could only offer a link this page had guessed. It goes on the STRIPE and not on the undo
+     * form: `land()` reads the nearest ancestor that declares one, so `undoForm()` -- the undo
+     * control itself -- is left exactly as it was. */
+    if (inspectUrl) tr.setAttribute('data-att-inspect', inspectUrl);
+    /* AND THE SAME TWO TRAVEL WITH IT, for the same reason and by the same mechanism: `land()`
+     * reads the nearest ancestor that declares one, so an undo form this page BUILT -- which the
+     * server never saw and which carries no attribute of its own -- inherits the row's durable
+     * page from the stripe it sits inside. Without these two lines an `unaccept work` stripe would
+     * silently lose the link the `accept work` stripe above it had. */
+    if (taskUrl) tr.setAttribute('data-att-task', taskUrl);
+    if (noHomeNote) tr.setAttribute('data-att-no-home', noHomeNote);
+    var td = document.createElement('td');
+    td.colSpan = columns;
+    td.setAttribute('data-label', 'Receipt');
+    td.appendChild(el('div', 'att-receipt-text',
+                      data.receipt || 'the server reported success and sent no receipt text'));
+    if (data.note) td.appendChild(el('div', 'att-note', data.note));
+    var where = moved(data.verb, data.subject_type);
+    if (where) {
+      var shortState = data.verb === 'unaccept work' ? 'Awaiting acceptance again; the withdrawal remains recorded.' :
+        data.verb === 'accept work' ? 'Accepted; no longer pending.' :
+        data.verb === 'done' ? 'Finished; the completion was recorded.' :
+        data.verb === 'reopen' ? 'Unfinished again.' : '';
+      if (shortState) td.appendChild(el('div', 'att-moved', shortState));
+      var details = el('details', 'att-receipt-details');
+      details.appendChild(el('summary', 'att-link', 'State and record details'));
+      details.appendChild(el('div', 'att-moved', where));
+      td.appendChild(details);
+    }
+    /* E6 as amended: the link, not a promise about the window. It is only rendered where the
+     * server actually put one on the form, because a link this page invented from an id it had
+     * to reassemble is the same class of claim the sentence above just stopped making. Each
+     * sentence stands on its own without it, so an absent URL leaves a true stripe and not a
+     * dangling "open it here" with nothing to open. */
+    if (inspectUrl && data.subject_type !== 'recommendation' && INSPECTABLE_AFTER.indexOf(data.verb) !== -1) {
+      var whereLine = el('div', 'att-moved');
+      /* `att-link` for F2's 24 px, on the one anchor in a stripe that no server renders. */
+      var whereLink = el('a', 'att-link att-inspect', ROW_INSPECT_LABEL);
+      whereLink.setAttribute('href', inspectUrl);
+      whereLine.appendChild(whereLink);
+      td.appendChild(whereLine);
+    }
+    var line = el('div', 'att-undo');
+    if (data.undo) {
+      line.appendChild(undoForm(data.undo));
+    } else {
+      /* E4. "no undo", then the server's own reason VERBATIM. Where the server sent none, this
+       * page says that it sent none. It does not supply one: a reason invented by the client is
+       * exactly the sentence item 10 exists to forbid. */
+      line.appendChild(el('span', 'att-noundo', 'no undo'));
+      if (data.no_undo_reason) {
+        line.appendChild(el('span', 'att-why', '— ' + data.no_undo_reason));
+      } else {
+        line.appendChild(el('span', 'att-why',
+          '— the server sent no reason with this receipt, and this page will not invent one.'));
+      }
+    }
+    td.appendChild(line);
+    /* E2's sentence, and F5's clause where an inverse outlives this page. THE LINK IS RENDERED ONLY
+     * WHERE BOTH TERMS HOLD -- the server said an inverse exists AND the server rendered a page
+     * that carries one -- because the sentence chosen above is the one that names it, and a link
+     * under either of the other two sentences would contradict the words beside it. */
+    var stayBox = el('div', 'att-stay', stayLine(data, taskUrl, noHomeNote));
+    if (data.undo && taskUrl) {
+      var homeLink = el('a', 'att-link att-task', afterPage(data.verb).label);
+      homeLink.setAttribute('href', taskUrl);
+      stayBox.appendChild(document.createTextNode(' '));
+      stayBox.appendChild(homeLink);
+    }
+    td.appendChild(stayBox);
+    tr.appendChild(td);
+    return tr;
+  }
+
+  function clearError(form) {
+    var host = form.parentNode;
+    if (!host) return;
+    var old = host.querySelectorAll('.att-err');
+    for (var i = 0; i < old.length; i++) old[i].parentNode.removeChild(old[i]);
+  }
+
+  /* E9. The server's words, beside the control that posted, and the button comes back. Nothing
+   * here says or implies that the act reached the store. */
+  function showError(form, text, status) {
+    var host = form.parentNode || section;
+    var box = el('div', 'att-err', text);
+    box.setAttribute('role', 'alert');
+    box.setAttribute('data-att-status', String(status));
+    host.appendChild(box);
+  }
+
+  /* F5'S OTHER HALF, ON THE BRANCH F5 DID NOT COVER. `send()` disables the pressed button, which
+   * blurs it, and a refusal then re-enables it and leaves focus on `<body>`: T7 measured exactly
+   * that at `93363cb` (evidence `ATT-9-and-X6-measurement-93363cb.md`, A4) -- E9 MET, the alert
+   * spoken, and a keyboard user tabbing from the top of the page to find the control they had just
+   * pressed. A screen-reader user is served by `role="alert"` either way; this is for the person
+   * with a keyboard and no pointer.
+   *
+   * IT RUNS AFTER `gate()`, AND WHERE IT LANDS DEPENDS ON THE GATE (F-02, 2026-09-13). `gate()`
+   * no longer sets `disabled`; it marks the button `aria-disabled` when the note is too short, and
+   * `send()` has already cleared the in-flight `disabled` before this runs. So the one focus call
+   * below goes to the FIELD when the gate is closed (the server said the note was too short, or
+   * it re-closed), the same place a client refusal puts it, and to the pressed button otherwise.
+   * ONE `focus()` CALL, on `btn`, which is rebound to the field when the gate is closed: the
+   * legacy pane test counts the call and reads the `!btn.disabled` guard by name. No timer: a
+   * focus move is synchronous, and E2 is a constraint on this fix rather than something it
+   * changes. */
+  function refocus(btn) {
+    if (!btn) return;
+    var form = btn.form || btn.closest('form');
+    var field = form && form.querySelector('[data-att-min]');
+    if (btn.getAttribute('aria-disabled') === 'true' && field) btn = field;
+    if (!btn.disabled) btn.focus();
+  }
+
+  /* F-02 / P3-04: THE BROWSER COUNTS THE WAY THE SERVER COUNTS. `web/actions.py::_need` strips
+   * Python whitespace from both ends and compares `len()`, which is CODE POINTS. `String.trim()`
+   * strips a different set (no U+0085, for one) and `.length` is UTF-16 units, so six emoji read
+   * as twelve here and as six there: the button enabled and the server refused (W-12, P3-04).
+   * The class below is Python's `str.isspace` set, the same one `console.js` carries for the
+   * task page's words rule; `Array.from` counts code points. A test reads this class out of the
+   * template and compares it with Python's own set, so the two cannot drift silently. */
+  /* Python's str.isspace set, as inclusive code point ranges, built at load so no control
+   * character has to sit in this file: 9-13 (tab to CR), 28-32 (the four separators and
+   * space), 133 (NEL), 160 (NBSP), 5760, 8192-8202, 8232, 8233, 8239, 8287, 12288. */
+  var PY_WS_RANGES = [[9, 13], [28, 32], [133, 133], [160, 160], [5760, 5760], [8192, 8202],
+                      [8232, 8233], [8239, 8239], [8287, 8287], [12288, 12288]];
+  var PY_WS_CLASS = PY_WS_RANGES.map(function (r) {
+    return String.fromCharCode(r[0]) + (r[1] > r[0] ? '-' + String.fromCharCode(r[1]) : '');
+  }).join('');
+  var PY_WS_EDGES = new RegExp('^[' + PY_WS_CLASS + ']+|[' + PY_WS_CLASS + ']+$', 'g');
+  function count(value) {
+    return Array.from((value || '').replace(PY_WS_EDGES, '')).length;
+  }
+
+  /* THE GATE IS SHOWN, NOT ENFORCED BY SILENCE. `aria-disabled` keeps the control focusable and
+   * pressable so a press can be ANSWERED (see the submit handler); `disabled` is reserved for the
+   * in-flight state `send()` sets. The hint beside the field keeps naming the rule and says how
+   * many characters remain, so the sentence survives the placeholder's disappearance. */
+  function gate(form) {
+    var field = form.querySelector('[data-att-min]');
+    if (!field) return;
+    var min = parseInt(field.getAttribute('data-att-min') || '1', 10);
+    var n = count(field.value);
+    var btn = form.querySelector('button');
+    if (btn) btn.setAttribute('aria-disabled', n < min ? 'true' : 'false');
+    var hint = form.querySelector('[data-att-hint]');
+    if (hint) {
+      var base = hint.getAttribute('data-att-hint-base') || '';
+      hint.textContent = base + (n < min ? ' ' + (min - n) + ' more to go.' : ' That is met.');
+    }
+  }
+
+  /* A press on a gated control is answered in the same words, with the count, and focus goes
+   * to the field the person has to type into. Nothing is sent: the refusal is this page's, not
+   * the server's, and it says so. */
+  function refuseGated(form, btn) {
+    var field = form.querySelector('[data-att-min]');
+    var min = field ? parseInt(field.getAttribute('data-att-min') || '1', 10) : 1;
+    var n = count(field ? field.value : '');
+    clearError(form);
+    showError(form, (btn.textContent || 'This control').trim() + ' needs at least ' + min +
+                    (min === 1 ? ' character' : ' characters') + '; you have typed ' + n +
+                    '. Nothing was sent.', 0);
+    if (field) field.focus();
+  }
+
+  function land(form, data) {
+    /* The inspector URL the SERVER rendered, read while the form that posted is still in hand:
+     * the act response carries no item id, and reassembling one in the browser from the bare
+     * `source_id` would mean guessing the `source_type` prefix.
+     *
+     * `closest` rather than `getAttribute`, and that ONE WORD is what carries the link through an
+     * undo (packet ATT-1h). A row's own act form declares the attribute and matches itself; an
+     * undo form, which this page built and the server never saw, has no attribute of its own and
+     * matches the STRIPE it sits inside. So a `reopen` or an `unaccept work` inherits the id of
+     * the act it undoes, and `undoForm()` needed no change at all.
+     *
+     * E1's three statements below are untouched by this line. */
+    var carrier = form.closest('[data-att-inspect]');
+    /* F5's two, read the SAME way and for the same reason `closest` carries the inspector through
+     * an undo: the row's own form matches itself, the undo form this page built matches the stripe
+     * it sits inside. One of the two is present on any given form and never both. */
+    var home = form.closest('[data-att-task]');
+    var noHome = form.closest('[data-att-no-home]');
+    var s = stripe(data, carrier ? carrier.getAttribute('data-att-inspect') : '',
+                   home ? home.getAttribute('data-att-task') : '',
+                   noHome ? noHome.getAttribute('data-att-no-home') : '');
+    var origin = form.closest('tr');
+    if (!origin) {
+      /* The fallback path: a form that is not inside a row. It focuses its stripe too, so that
+       * "the receipt is where you are now" is true of EVERY path that inserts one rather than of
+       * the two the F5 finding named. Three insertion paths, three focus calls, counted against
+       * that denominator by `TheReceiptStripeIsAnnouncedAndFocused` in
+       * `web/views/tests/test_act_door.py`. */
+      section.appendChild(s);
+      s.focus();
+      return;
+    }
+    if (origin.classList.contains('att-receipt')) {
+      /* An undo posted FROM a stripe. The first receipt is not deleted -- it is the record that
+       * the first act happened -- so the new one goes under it and the spent control is replaced
+       * by a sentence about this page's own DOM, which is the only thing it can honestly say. */
+      origin.parentNode.insertBefore(s, origin.nextSibling);
+      var spent = el('span', 'att-noundo', 'undone — its receipt is the next line.');
+      form.parentNode.insertBefore(spent, form);
+      form.parentNode.removeChild(form);
+      /* A SUBSEQUENT STRIPE IS ANNOUNCED THE SAME WAY (F5). The spent-inverse replacement above is
+       * unchanged -- the first receipt is still not deleted and the spent control is still
+       * replaced by a sentence -- but the button the person pressed has just left the DOM here
+       * too, so without this line an undo drops focus to `<body>` exactly as an accept did. */
+      s.focus();
+      return;
+    }
+    /* E1, AND THE ORDER IS THE TEST. Stripe into the row's slot first; the row leaves after.
+     *
+     * The focus move comes LAST, after both and not between them: E1's order is the one thing on
+     * this page that item 10 actually tests, and a line inserted into the middle of it would make
+     * the next reader re-derive whether the order still holds. Focusing an element already in the
+     * document, whose row has already gone, changes nothing that came before it. */
+    origin.parentNode.insertBefore(s, origin);
+    origin.parentNode.removeChild(origin);
+    s.focus();
+  }
+
+  function send(form) {
+    var btn = form.querySelector('button');
+    clearError(form);
+    if (btn) btn.disabled = true;
+    /* The one write door, named as a constant. Every form on this page declares the same URL in
+     * its own `action` and a test asserts that the set of form actions is exactly
+     * {/attention/act} (E7), so the constant and the markup cannot disagree without a red test.
+     * `credentials: same-origin` keeps the session cookie the CSRF token is bound to. */
+    fetch('/attention/act', { method: 'POST', body: new FormData(form), credentials: 'same-origin' })
+      .then(function (r) {
+        return r.text().then(function (body) {
+          var parsed = null;
+          try { parsed = JSON.parse(body); } catch (e) { parsed = null; }
+          return { status: r.status, data: parsed };
+        });
+      })
+      .then(function (res) {
+        if (!res.data || !res.data.ok) {
+          var msg = (res.data && res.data.error) ||
+                    ('the write door answered ' + res.status + ' with a body this page could ' +
+                     'not read as JSON. Nothing here can say whether the act reached the store.');
+          showError(form, msg, res.status);
+          if (btn) btn.disabled = false;
+          gate(form);
+          refocus(btn);
+          return;
+        }
+        land(form, res.data);
+        section.dispatchEvent(new CustomEvent('attention:changed', {detail: res.data}));
+      })
+      .catch(function (e) {
+        showError(form, 'this page could not reach the write door: ' + String(e) +
+                        '. Nothing here can say whether the act reached the store.', 0);
+        if (btn) btn.disabled = false;
+        gate(form);
+        refocus(btn);
+      });
+  }
+
+  /* Delegated, so a stripe's undo form -- built after this listener was attached -- is wired by
+   * construction rather than by remembering to wire it. */
+  section.addEventListener('submit', function (e) {
+    var f = e.target && e.target.closest ? e.target.closest('form[data-att-act]') : null;
+    if (!f) return;
+    e.preventDefault();
+    var gated = f.querySelector('button[aria-disabled="true"]');
+    if (gated) { refuseGated(f, gated); return; }
+    send(f);
+  });
+  section.addEventListener('input', function (e) {
+    var f = e.target && e.target.closest ? e.target.closest('form[data-att-act]') : null;
+    if (f) gate(f);
+  });
+  var forms = section.querySelectorAll('form[data-att-act]');
+  for (var i = 0; i < forms.length; i++) gate(forms[i]);
+})();
+</script>
+<script src="{{ url_for('static', filename='attention-progress.js') }}"></script>
+<script src="{{ url_for('static', filename='attention-navigation.js') }}"></script>
+{# OUTSIDE the queue section on purpose: the section's forms, rows and counts are read by the act
+   door's tests, and a detail pane is none of those. Closed until a row is chosen. #}
+<aside class="att-panel" data-att-panel hidden aria-label="Row detail" tabindex="-1">
+  <div class="att-panel-bar"><b data-att-panel-title>Row detail</b><span><a class="att-link" data-att-panel-full>Open full page</a> <button type="button" class="att-panel-close" data-att-panel-close>Close</button></span></div>
+  <div data-att-panel-body></div>
+</aside>
+<script src="{{ url_for('static', filename='attention-panel.js') }}"></script>
+{% endblock %}

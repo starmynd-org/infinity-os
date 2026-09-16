@@ -1,0 +1,42 @@
+[Unit]
+Description=Tick due routines every five minutes
+Documentation=file://@REPO@/systemd/README.md
+
+[Timer]
+# 240s after the user manager comes up, so the first tick lands after brain-health's 180s sweep
+# and well after the store gate can have finished waiting on dockerd. A routine that is due is
+# still due four minutes later; a tick that races a cold boot just fails and goes red for nothing.
+OnStartupSec=240
+
+# FIVE MINUTES IS THE RESOLUTION OF THE WHOLE SCHEDULER, and it is the one number here worth
+# arguing about. It bounds how late a routine can be: a slot crossed at 07:00 is dispatched by
+# 07:05. Cheaper would buy nothing, since the smallest cadence anyone on this box wants is hourly;
+# more often would be a query every minute for a table that changes twice a day.
+#
+# IT IS NOT A DEADLINE DRIP. `queue default fire` deliberately has TWO fixed checkpoints because
+# "a drip of deadlines is a slot machine: it teaches the operator to watch the queue because
+# something might be about to happen". That argument is about when SILENCE DECIDES something, and
+# it still holds. This timer decides nothing: it asks whether a slot the operator himself set has
+# been crossed. Nothing here can surprise him at 07:03 that he did not schedule for 07:00.
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+# No Persistent=, and that is deliberate rather than forgotten. Persistent replays a missed
+# CALENDAR window, which is the wrong repair here: the routine's own `anchor_at` and
+# `period_minutes` already say which slot is current, so a machine that was off simply finds the
+# current slot at its first tick and decides it, once. The MISSED case is data, not a timer
+# setting: a slot older than `misfire_grace_minutes` is recorded in brain.routine_run as `missed`
+# rather than fired, because backfilling posts work for a period that has already gone.
+#
+# No RandomizedDelaySec, for brain-transcript-verify.timer's reason: its job is to stagger a
+# fleet and this is one host.
+#
+# AND A DOUBLE FIRE IS HARMLESS IF THE CLOCK JUMPS, which on WSL after a Windows sleep it can.
+# `brain.routine_run` carries UNIQUE (routine_id, scheduled_for), so a second tick inside one slot
+# is refused by Postgres with 23505 and the transaction that would have posted a duplicate cannot
+# commit. That is measured, not assumed: engine/tests/test_routines.py scenes 2 and 3 run eight
+# concurrent processes at one slot with the constraint dropped and then in place.
+Unit=brain-routine-tick.service
+
+[Install]
+WantedBy=timers.target

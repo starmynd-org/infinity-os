@@ -1,0 +1,81 @@
+# The denominator ratchet floor. Task 0292.
+#
+# Every path below prints a counter verdict (`N passed, M failed`) and does NOT refuse
+# a zero counter, so it reports green over an empty comparison set. These are the files
+# that were already this way when the rule landed on 2026-08-19. They are DEBT, and the
+# lint does not fail on them.
+#
+# THIS LIST MAY ONLY SHRINK. When you add the four-line guard to a file, delete its line
+# here in the same change; `engine/bin/denominator-lint.py` fails until you do, which is
+# what keeps the number honest rather than decorative. A file added here is a decision
+# somebody has to defend in a task, not a formatting fix.
+#
+# Regenerate with: python3 engine/bin/denominator-lint.py --write-baseline
+
+budget/test_budget.py
+engine/tests/test-auto-accept-measurement.py
+engine/tests/test-budget-wiring.sh
+engine/tests/test-claim-race.sh
+engine/tests/test-codex-guard.sh
+engine/tests/test-lane-budget-gate.sh
+engine/tests/test-ratelimit.sh
+engine/tests/test-scratch-reaper.sh
+engine/tests/test-surface-doors.py
+engine/tests/test_actor_gate.py
+engine/tests/test_brief_survives_finishers.py
+engine/tests/test_cancel_withdraws_questions.py
+engine/tests/test_claimer_predicate.py
+engine/tests/test_contract.py
+engine/tests/test_double_claim.py
+engine/tests/test_hold_over_a_live_run.py
+engine/tests/test_parent_cycle_guard.py
+engine/tests/test_question_paging_join.py
+engine/tests/test_start_is_not_silent.py
+engine/tests/test_steering_exclusion.py
+engine/tests/test_stop_leaves_a_trail.py
+engine/tests/test_workdir_gate.py
+ingest/tests/test_event_emit_wiring.py
+mcp/tests/test_tools.py
+outputs/2026-08-16-T1-0169-brief-column-transition/render_proof.py
+outputs/2026-08-18-T4-0379-durability/scripts/tier-tests.sh
+outputs/2026-08-18-V-SHELL-1-mode-contract/measure_390_0175.py
+outputs/2026-08-18-V-SHELL-1-mode-contract/verify_0175.py
+outputs/2026-08-18-V10-E-revision/smoke_door_0155.py
+outputs/2026-08-18-V10-E-revision/verify_v10e.py
+outputs/2026-08-18-V10-design/V10-B/verify_v10b.py
+outputs/2026-08-18-V10-design/synthesis/verify_synthesis.py
+outputs/2026-08-18-V10-design/verification/verify_absoluteness_0127.py
+outputs/2026-08-18-V10-design/verification/verify_serverside_0171.py
+outputs/2026-08-18-V10-design/verification/verify_v10ac.py
+outputs/2026-08-18-V1a-cutover-staged/cutover.sh
+outputs/2026-08-18-V3-action-layer/verify_rail.py
+outputs/2026-08-18-V7a-vps-staged/vps-cutover.sh
+outputs/2026-08-19-T2-0176-deep-room/verify_door_0176.py
+outputs/2026-08-19-T3-0226-celebration-layer/verify_v10f.py
+queue/tests/test_ask_default_refusal.py
+queue/tests/test_defer_and_demote_joins.py
+queue/tests/test_human_actor_identity.py
+queue/tests/test_no_self_execution.py
+queue/tests/test_queue_mechanics.py
+queue/tests/test_queue_open_is_the_complement.py
+queue/tests/test_spawned_workdir.py
+queue/tests/test_time_ledger.py
+store/bin/brain-drop-test.sh
+store/test_git_ref_repo_identity.sh
+store/test_lineage_by_construction.sh
+store/test_narrow_waist.py
+store/test_thread_budget_kind.sh
+subscribers/tests/test_paging_delivery_truth.py
+subscribers/tests/test_paging_retraction.py
+voice/tests/test-failure-demonstrations.py
+web/tests/test_allowlist.py
+web/tests/test_because_of_you.py
+web/tests/test_browser.py
+web/tests/test_defer_and_demote_at_the_surface.py
+web/tests/test_done_reads_the_row.py
+web/tests/test_leverage_ratio.py
+web/tests/test_option_dispatch.py
+web/tests/test_phone_surface.py
+web/tests/test_runfeed_browser.py
+web/tests/test_scoping.py
+web/tests/test_stopwatch_at_the_surface.py

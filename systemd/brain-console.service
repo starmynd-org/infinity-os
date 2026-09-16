@@ -1,0 +1,43 @@
+[Unit]
+Description=Infinite Brain console (one shell, five rooms, one write door) on 127.0.0.1:3103
+Documentation=file://%h/repos/your-brain/tools/port-registry.md
+
+# Requires, not Wants. The console's /api/health opens a read transaction against the store, so a
+# console running without Postgres does not degrade -- it serves HTTP 500 from its own health
+# endpoint, which is worse than being absent, because an absent service is obviously absent and a
+# 500 looks like a console bug. If the store cannot come up, this must not come up either.
+Requires=brain-store.service
+After=brain-store.service
+
+# Five restarts in five minutes and it stays failed. A flask that cannot bind 3103 because some
+# hand-started console still holds it would otherwise loop forever and bury the reason in journal
+# noise. Failed-and-visible beats restarting-and-silent. These two live in [Unit], not [Service]:
+# systemd moved them in v229 and the user manager silently ignores the [Service] spelling.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+Environment=CONSOLE_HOST=127.0.0.1
+Environment=CONSOLE_PORT=3103
+
+# The ordering edge above guarantees brain-store.service reached `active`. It does NOT guarantee
+# Postgres is serving: `docker start` on an existing container returns before crash recovery is
+# done. This is the gate that turns the registry's sentence into an enforced precondition.
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=@REPO@/web/bin/console
+
+# on-failure, never always: a supervisor must not restart an intentional clean exit. Same rule the
+# existing buzz-agent.service on this host cites.
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

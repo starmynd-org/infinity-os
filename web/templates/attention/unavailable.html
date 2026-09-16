@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Item unavailable · Attention{% endblock %}
+{% block body %}
+<p class="ro">Attention · read only</p>
+<article class="card" data-attention-unavailable style="overflow-wrap:anywhere">
+  <h1>Item unavailable in this view</h1>
+  {% if has_refusal %}
+  <p>This item is outside Attention's actionable queue. Its recorded reason and handling route are available.</p>
+  <p><a href="{{ url_for('attention.preparation', item_id=item_id, **return_context) }}">Read the preparation or handling reason</a></p>
+  {% else %}
+  <p>This view cannot show the item. It may have left the queue or be outside what this view can show; this page does not establish whether the source exists.</p>
+  <p>No source contents or actions are exposed here. Return to Attention to read the available work.</p>
+  {% endif %}
+  <p><a data-unavailable-return href="{{ url_for('attention.inbox', **return_context) }}">Return to Attention</a></p>
+</article>
+{% endblock %}

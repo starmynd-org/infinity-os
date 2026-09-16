@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% import "runfeed_parts.html" as rf %}
+{% block title %}{{ name }}{% endblock %}
+{% block body %}
+{# THE LIVE TERMINAL VIEW. One agent's work, followed across tasks the way `swarm-fleet watch`
+   does, rendered as narrative rather than as a terminal: no PTY text exists to render, because
+   the runner writes structured stream-json and this reads that.
+
+   THE THREE SIBLING RULE, which is the caret test expressed as markup. The feed is appended to
+   by the poller; the vitals and the live tool line are replaced by id. Everything the operator
+   can TYPE INTO -- the steering input, the picker -- is a SIBLING of the feed container and
+   never a child of it, so a repaint cannot reach it at all. The patcher also refuses any node
+   containing `document.activeElement`, which is the belt to this braces. #}
+{{ m.receipts(receipts, room) }}
+
+{% if steering %}
+{# Unmissable, not dismissible, and orange because steering IS operator causality -- the one
+   thing brand is reserved for. #}
+<div class="steerband">
+  <b>YOU ARE STEERING {{ name }}</b> — every word lands on the thread
+  <span class="dim">seized {{ steering.ts.strftime('%H:%MZ') if steering.ts }} ·
+    run {{ steering.task }} is marked steered</span>
+</div>
+{% endif %}
+
+<div class="rfhead">
+  <div class="ctitle">{{ m.agent_line(name, 30) }}</div>
+  <div class="cmeta">
+    {% if agent %}<span>role {{ agent.role }}</span><span>host {{ agent.host or 'unset' }}</span>
+    <span>heartbeat {{ agent.updated.strftime('%H:%M:%SZ') if agent.updated }}</span>
+    {% if agent.stopped_at %}<span style="color:var(--rest)">STOPPED</span>{% endif %}
+    {% else %}<span>no agent row: this name has never heartbeated</span>{% endif %}
+    <a class="go" href="/fleet">back to Fleet ▸</a>
+  </div>
+</div>
+
+<div class="rfcols">
+<div class="runfeed">
+  <div id="vt" class="vtwrap">{% if feed.vitals %}{{ rf.vitals(feed.vitals, name) }}{% endif %}</div>
+
+  {% for f in feed.findings %}{{ rf.finding(f) }}{% endfor %}
+
+  {# THE CURSOR IS THE SERVER'S, not a maximum over what happens to be on screen. The feed
+     shows the last three runs and stream positions are per FILE, so the highest `data-pos`
+     in the DOM is routinely a position from an OLDER run's file -- measured: the poller
+     asked `since=30` against a current run whose newest line was 16 and appended nothing
+     for as long as the page was open. #}
+  <div id="feed" class="feedbody" data-steering="{{ 1 if steering else 0 }}"
+       data-since="{{ feed.position }}" data-seq="{{ feed.seq }}"
+       data-run="{{ feed.vitals.task ~ '-' ~ feed.vitals.attempt if feed.vitals else '' }}">
+    {% for b in feed.runs|reverse %}
+      {{ rf.seam(b.seam, b.steered) }}
+      {% if b.degraded %}{{ rf.degraded(b.degraded) }}{% endif %}
+      {% for e in b.entries %}{{ rf.entry(e, b.path, name) }}{% endfor %}
+      {% if b.current %}
+        {% for e in b.said %}
+          {% if e.kind == 'mark' %}
+          <div class="mark" data-key="{{ e.key }}">{{ e.text }}</div>
+          {% else %}
+          <div class="ev{{ ' mine' if e.operator }}" data-key="{{ e.key }}">
+            <div class="evh">{% if e.operator %}you → {{ name }}{% else %}{{ e.who }}{% endif %}
+              · {{ e.verb }}{% if e.at %} · {{ e.at.strftime('%H:%M:%SZ') }}{% endif %}</div>
+            <div class="evb">{{ e.text }}</div>
+          </div>
+          {% endif %}
+        {% endfor %}
+      {% endif %}
+    {% endfor %}
+  </div>
+
+  <div id="live" class="livewrap">
+    {% for b in feed.runs %}{% if b.current %}{{ rf.live(b) }}{% endif %}{% endfor %}
+  </div>
+</div>
+
+<aside class="rfside">
+  {# ------------------------------------------------------------------ the picker.
+     Two rows, and the split IS the meaning: what this run is using, which cannot change, and
+     what the next claim will use, which the operator picks. `permission_mode` and anything
+     touching `bypassPermissions` do not render, in any state, disabled or otherwise -- and the
+     absence is a decision, enforced in `swarm_engine/fleet_config.py` by a refusal in the verb,
+     so a reviewer finding a fourth select knows it is a defect rather than a feature. #}
+  <div class="picker">
+    <h4>This run</h4>
+    <div class="thisrun">{{ picker.this_run }}</div>
+    <div class="why">{{ picker.this_run_why }}</div>
+
+    <h4>Next claim</h4>
+    <form class="act-form pickform" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="picker_set">
+      <input type="hidden" name="id" value="{{ name }}">
+      <label>model
+        <select name="model">
+          {% for o in picker.models %}
+          <option value="{{ o.value }}"{{ ' selected' if o.value == picker.model else '' }}>
+            {{ o.value }} — {{ o.against }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>effort
+        <select name="effort">
+          {% for o in picker.efforts %}
+          <option value="{{ o.value }}"{{ ' selected' if o.value == picker.effort else '' }}>
+            {{ o.label }} — {{ o.against }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>preferred account
+        <select name="account">
+          {% for o in picker.accounts %}
+          <option value="{{ o.value }}"{{ ' selected' if o.value == picker.account else '' }}>
+            {{ o.value }}{% if not o.present %} — not on disk yet{% endif %}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <button class="sec" type="submit">Set for next claim</button>
+    </form>
+    {% if picker.pending %}
+    <div class="pending">applies at next claim — this run is unaffected
+      <div class="why">{{ picker.pending }}</div></div>
+    {% elif picker.applied %}
+    <div class="applied">{{ picker.applied }}</div>
+    {% endif %}
+    <div class="why">The account applies at the next runner start, not the next claim: the
+      account ring is built once when a runner starts and it keeps the ring it built. Model and
+      effort apply at the next claim, because the runner re-resolves config each loop — a runner
+      that has been up since before 2026-08-18 re-reads only when it restarts.</div>
+  </div>
+
+  {# ------------------------------------------------------------------ take-control.
+     ENTRY IS TWO ACTS ON TWO TARGETS. The consequence panel is the only path in, and there is no
+     input to fall into because THE INPUT DOES NOT EXIST IN THE DOM until control is entered. #}
+  <div class="takectl">
+    {% if not feed.vitals or not feed.vitals.task or feed.vitals.ended %}
+    <h4>Take control</h4>
+    <div class="why">{{ name }} is not running anything right now. Take-control is control of a
+      RUN, so there is nothing here to seize.</div>
+    {% elif steering %}
+    <h4>You are steering</h4>
+    <form class="act-form sayform" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="steer_say">
+      <input type="hidden" name="id" value="{{ feed.vitals.task }}">
+      <input type="hidden" name="agent" value="{{ name }}">
+      <textarea name="text" id="steerinput" rows="3"
+                placeholder="to {{ name }} — this lands on the thread"></textarea>
+      <button class="act" type="submit">Send to {{ name }}</button>
+    </form>
+    <div class="why">It lands on the thread and in {{ name }}'s mailbox. A terminal reads its
+      mailbox when it checks, which is not the instant you press send.</div>
+    <form class="act-form" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="steer_release">
+      <input type="hidden" name="id" value="{{ feed.vitals.task }}">
+      <input type="hidden" name="agent" value="{{ name }}">
+      <button class="sec" type="submit">Release control</button>
+    </form>
+    <div class="why">The run stays marked steered either way. Control also ends when the run
+      does.</div>
+    {% else %}
+    <h4>Take control</h4>
+    <button class="sec" data-toggle="seize">Take control</button>
+    <div id="seize" class="consequence" hidden>
+      <p>{{ consequence }}</p>
+      <form class="act-form" method="post" action="/{{ room }}/act">
+        <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+        <input type="hidden" name="action" value="steer_take">
+        <input type="hidden" name="id" value="{{ feed.vitals.task }}">
+        <input type="hidden" name="agent" value="{{ name }}">
+        <input type="hidden" name="attempt" value="{{ feed.vitals.attempt }}">
+        <button class="act" type="submit">Seize this run</button>
+      </form>
+      <button class="sec" data-toggle="seize">Leave it</button>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="blk"><h4>Items it claimed</h4>
+    {% for i in items %}
+    <div class="ln"><a href="/task/{{ i.id }}">{{ i.id }}</a> · {{ i.state }} · {{ i.title }}</div>
+    {% else %}<div class="ln">none</div>{% endfor %}
+  </div>
+</aside>
+</div>
+{% endblock %}

@@ -1,0 +1,232 @@
+#!/usr/bin/env python3
+"""Copy `~/.claude/projects` out of the harness sweep's reach, hash it, and verify the copy.
+
+Task 0337. The harness deletes session transcripts on its own schedule -- the `cleanupPeriodDays`
+default, roughly 30 days -- and 0324 measured the result: 61 pointers in `brain.transcript` name
+files that no longer exist, 47,184,977 bytes of session history that is gone and not recoverable.
+The whole corpus on disk spans one month and rolls over completely inside it.
+
+The lever that would stop this is `cleanupPeriodDays` in the OPERATOR's `~/.claude/settings.json`,
+and how long he wants to keep history is his call, not a lane's. This script therefore does the
+half that is time-sensitive and leaves the half that is policy alone:
+
+  * It COPIES. It never moves, never deletes, and never touches `~/.claude/settings.json`. The
+    harness still owns `~/.claude/projects` and still sweeps it on its own schedule. This takes a
+    copy out of the way; it does not fight the sweep.
+  * It leaves `BRAIN_TRANSCRIPT_RETENTION_DAYS` and `config.transcript_retention_days()` alone.
+    `transcript verify` keeps classifying swept files as `aged-out`, which stays CORRECT: on disk
+    in `~/.claude/projects` they genuinely are gone. The archive is a second location the brain's
+    index does not know about, and teaching the index about it is a separate decision.
+
+## Order of work: expiry, not size
+
+Files are archived oldest-mtime-first, because the oldest are the ones the sweep reaches next. If
+the run is interrupted, what got copied is what was closest to deletion.
+
+## What counts as verified
+
+Every file copied in a run is hashed on BOTH sides after the copy and the two sha256 digests are
+compared. The run reports the number compared and the number identical, never a bare verdict.
+
+A live transcript -- the session running this script is appending to one -- can change between the
+copy and the source hash. That is not corruption of the archive; it is a snapshot taken of a moving
+file. Such a file is re-copied once, and if it still moves it is reported by name as `live` and the
+manifest records the digest of the ARCHIVED bytes, which is what actually exists at the destination.
+
+## Scope: the whole tree, not just `*.jsonl`
+
+`brain.transcript` indexes `.jsonl` only, but `~/.claude/projects` also holds ~40 MiB of agent
+memory files and per-project indexes in the same directories the sweep owns. Nobody has established
+that the sweep only takes `.jsonl`, so excluding the rest would be betting on an unmeasured claim to
+save 3 percent of the bytes. Everything under the root is archived; the report splits the counts.
+
+Default is a dry run. `--apply` writes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import shutil
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+DEFAULT_SOURCE = Path.home() / ".claude" / "projects"
+#: Absolute, and on THIS host (see the report: host is recorded next to it). A later move to a VPS
+#: breaks this path silently, which is why the run report names both.
+DEFAULT_DEST = Path("/mnt/c/Users/you/claude-archive")
+
+
+def sha256(path: Path, buf: int = 1 << 20) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as fh:
+        while True:
+            chunk = fh.read(buf)
+            if not chunk:
+                break
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def enumerate_source(root: Path) -> list[dict]:
+    """Every regular file under `root`, oldest mtime first -- closest to the sweep goes first."""
+    rows = []
+    for path in root.rglob("*"):
+        if not path.is_file() or path.is_symlink():
+            continue
+        st = path.stat()
+        rows.append(
+            {
+                "rel": str(path.relative_to(root)),
+                "size": st.st_size,
+                "mtime": st.st_mtime,
+                "jsonl": path.suffix == ".jsonl",
+            }
+        )
+    rows.sort(key=lambda r: r["mtime"])
+    return rows
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    ap.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    ap.add_argument("--dest", type=Path, default=DEFAULT_DEST)
+    ap.add_argument("--apply", action="store_true", help="write; default is a dry run")
+    ap.add_argument(
+        "--rehash-existing",
+        action="store_true",
+        help="hash files already archived and unchanged by size+mtime, instead of trusting them",
+    )
+    args = ap.parse_args()
+
+    source: Path = args.source.expanduser()
+    dest: Path = args.dest.expanduser()
+    if not source.is_dir():
+        print(f"source is not a directory: {source}", file=sys.stderr)
+        return 2
+
+    started = datetime.now(timezone.utc)
+    stamp = started.strftime("%Y-%m-%dT%H%M%SZ")
+    rows = enumerate_source(source)
+    total_bytes = sum(r["size"] for r in rows)
+    print(f"source     {source}")
+    print(f"dest       {dest / 'projects'}")
+    print(f"host       {os.uname().nodename}")
+    print(f"enumerated {len(rows)} files, {total_bytes} bytes ({total_bytes / 1048576:.1f} MiB)")
+    print(f"  of which {sum(1 for r in rows if r['jsonl'])} are .jsonl transcripts, "
+          f"{sum(r['size'] for r in rows if r['jsonl'])} bytes")
+    if rows:
+        oldest = datetime.fromtimestamp(rows[0]["mtime"], timezone.utc).date()
+        newest = datetime.fromtimestamp(rows[-1]["mtime"], timezone.utc).date()
+        print(f"mtime span {oldest} .. {newest}")
+    if not args.apply:
+        print("\nDRY RUN. Nothing written. Re-run with --apply.")
+        return 0
+
+    tree = dest / "projects"
+    tree.mkdir(parents=True, exist_ok=True)
+
+    copied = identical = mismatched = skipped = failed = 0
+    copied_bytes = 0
+    live: list[str] = []
+    problems: list[str] = []
+    manifest_path = dest / "manifests" / f"manifest-{stamp}.tsv"
+    manifest_path.parent.mkdir(parents=True, exist_ok=True)
+    t0 = time.time()
+
+    with manifest_path.open("w", encoding="utf-8") as manifest:
+        manifest.write("status\tsize\tmtime_utc\tsha256_archived\trelpath\n")
+        for i, row in enumerate(rows, 1):
+            src = source / row["rel"]
+            dst = tree / row["rel"]
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            status = "copied"
+
+            if dst.exists():
+                dst_st = dst.stat()
+                if dst_st.st_size == row["size"] and abs(dst_st.st_mtime - row["mtime"]) < 1:
+                    if not args.rehash_existing:
+                        skipped += 1
+                        manifest.write(
+                            f"present\t{row['size']}\t"
+                            f"{datetime.fromtimestamp(row['mtime'], timezone.utc).isoformat()}\t"
+                            f"-\t{row['rel']}\n"
+                        )
+                        continue
+                    status = "present"
+
+            try:
+                if status == "copied":
+                    shutil.copy2(src, dst)
+                    copied += 1
+                    copied_bytes += row["size"]
+                dst_hash = sha256(dst)
+                src_hash = sha256(src)
+                if src_hash != dst_hash and status == "copied":
+                    # The source moved under us. One retry, then report it as a snapshot.
+                    shutil.copy2(src, dst)
+                    dst_hash = sha256(dst)
+                    src_hash = sha256(src)
+                if src_hash == dst_hash:
+                    identical += 1
+                else:
+                    mismatched += 1
+                    live.append(row["rel"])
+            except OSError as exc:  # noqa: PERF203 -- one bad file must not lose the rest
+                failed += 1
+                problems.append(f"{row['rel']}: {exc}")
+                manifest.write(f"failed\t{row['size']}\t-\t-\t{row['rel']}\n")
+                continue
+
+            manifest.write(
+                f"{status}\t{row['size']}\t"
+                f"{datetime.fromtimestamp(row['mtime'], timezone.utc).isoformat()}\t"
+                f"{dst_hash}\t{row['rel']}\n"
+            )
+            if i % 100 == 0:
+                print(f"  ... {i}/{len(rows)} ({time.time() - t0:.0f}s)", flush=True)
+
+    elapsed = time.time() - t0
+    print(f"\ncopied     {copied} files, {copied_bytes} bytes ({copied_bytes / 1048576:.1f} MiB)")
+    print(f"present    {skipped} files already archived, size+mtime match, not re-hashed"
+          if not args.rehash_existing else f"present    {skipped} (rehash mode)")
+    print(f"compared   {copied + (skipped if args.rehash_existing else 0) - failed} files hashed "
+          f"on both sides")
+    print(f"identical  {identical}")
+    print(f"differing  {mismatched}" + (f"  -> {', '.join(live)}" if live else ""))
+    print(f"failed     {failed}" + (f"  -> {'; '.join(problems)}" if problems else ""))
+    print(f"elapsed    {elapsed:.0f}s")
+    print(f"manifest   {manifest_path}")
+
+    summary = {
+        "task": "0337",
+        "started_utc": started.isoformat(),
+        "host": os.uname().nodename,
+        "source": str(source),
+        "dest": str(tree),
+        "enumerated": len(rows),
+        "enumerated_bytes": total_bytes,
+        "jsonl": sum(1 for r in rows if r["jsonl"]),
+        "copied": copied,
+        "copied_bytes": copied_bytes,
+        "present_skipped": skipped,
+        "identical": identical,
+        "differing": mismatched,
+        "differing_paths": live,
+        "failed": failed,
+        "failed_paths": problems,
+        "manifest": str(manifest_path),
+        "elapsed_s": round(elapsed, 1),
+    }
+    (dest / "manifests" / f"run-{stamp}.json").write_text(
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8"
+    )
+    return 0 if failed == 0 else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

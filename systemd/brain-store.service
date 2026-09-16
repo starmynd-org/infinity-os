@@ -1,0 +1,31 @@
+[Unit]
+Description=Brain Postgres (event fabric + wager-ledger store) on 127.0.0.1:5432
+Documentation=file://%h/repos/your-brain/tools/port-registry.md
+
+# There is deliberately NO After=docker.service here, and its absence is the whole reason
+# ExecStartPre exists. A `systemd --user` unit cannot declare an ordering edge against a unit in
+# the SYSTEM manager; the directive would be silently unsatisfiable rather than an error. So the
+# wait for dockerd happens inside the unit, where it can actually be enforced.
+# Measured 2026-08-17: `systemctl is-enabled docker` = enabled and /etc/wsl.conf has
+# [boot] systemd=true, so dockerd DOES come back on a WSL start. Only the race is open.
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+ExecStartPre=@REPO@/store/bin/brain-docker-wait.sh 180
+ExecStart=@REPO@/store/bin/brain-postgres-service.sh ensure-running
+ExecStop=@REPO@/store/bin/brain-postgres-service.sh stop
+
+# ensure-running polls pg_isready for up to 30s, and a cold WSL start adds crash recovery on top
+# of a first-touch drvfs-cold docker layer read. 180 + 300 is slack, not an estimate.
+TimeoutStartSec=600
+TimeoutStopSec=120
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

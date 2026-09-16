@@ -1,0 +1,38 @@
+{# A change that has NOT happened. Rendered by POST /routines/<id>/preview, which writes nothing.
+
+   The save control is deliberately not in this fragment: saving is a verb on the console's one
+   write door, and this partial is rendered into the page beside that form. What this fragment
+   owns is the sentence a user reads before agreeing. #}
+<div class="ro">Fixture routine proposal &middot; not saved. <a href="{{ url_for('routines.index', tab=return_tab) }}#routine-{{ routine.routine_id }}">Return to workbench</a></div>
+<div class="card">
+  <b>Proposed change, not saved yet</b>
+
+  {% if proposal.empty %}
+    <p>Nothing is different yet.</p>
+  {% else %}
+    <ul style="margin:.3rem 0 .4rem 1.1rem;padding:0;font-size:.84rem">
+      {% for change in proposal.changes %}<li>{{ change }}</li>{% endfor %}
+    </ul>
+
+    {% if proposal.requires_new_grant %}
+      {# AMBER, NOT RED. MUST-NOT-BUILD item 7: red means damage and nothing else, shell wide.
+         A permission boundary that needs a decision is waiting on a human, which is amber. #}
+      <div class="note gap"><b>This needs a new permission.</b> {{ proposal.reason }}</div>
+    {% else %}
+      <div class="note">No new permission needed. What this routine may read and where its result
+        goes are unchanged.</div>
+    {% endif %}
+
+    {% if preview_next %}
+      <p style="font-size:.8rem">After saving, the next run would be
+        <b>{{ preview_next.local.strftime('%a %d %b %Y, %H:%M %Z') }}</b>.
+        {% if preview_next.surprising %}{{ preview_next.explain() }}{% endif %}
+      </p>
+    {% elif routine.state == 'draft' %}
+      <p style="font-size:.8rem">This is a draft. Saving changes what it will do after its standing grant is accepted and it is activated.</p>
+    {% elif routine.state != 'active' %}
+      <p style="font-size:.8rem">This routine is paused, so saving this changes what it will do
+        when you resume it, not when it next runs.</p>
+    {% endif %}
+  {% endif %}
+</div>

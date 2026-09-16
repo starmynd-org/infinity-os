@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Needs preparation{% endblock %}
+{% block body %}
+<p class="ro">Preparation · read only. <a href="{{ url_for('attention.inbox', **return_context) }}">Return to Attention</a></p>
+<article class="card" style="overflow-wrap:anywhere">
+  <h1>Needs preparation</h1>
+  <h2>{{ refusal.title }}</h2>
+  <p><b>{{ refusal.item_id }}</b> · {{ refusal.reason }}</p>
+  <p>Being outside the actionable queue does not mean this item is unimportant.</p>
+  {% if refusal.source_url %}<p><a data-preparation-source href="{{ refusal.source_url }}">Read and handle the original{% if refusal.needs_preparation %} in Intake{% endif %}</a>. Its current state and available handling instructions are on that entry.</p>
+  {% else %}<p><a href="{{ url_for('attention.inbox') }}">Refresh Attention</a> to reconcile this unavailable source.</p>{% endif %}
+  <h2>What happens next</h2>
+  {% if refusal.needs_preparation %}
+  <p>Attention owns connecting preparation to this queue. Intake has already stored the original;
+    it does not choose an action for you. An author must read the source, prepare one to four
+    grounded choices with their evidence, effect, uncertainty and inverse, then connect them
+    to this objective. That preparation path is not delivered yet.</p>
+  <p>You can give this handoff to Attention while handling the source in Intake. Nothing is submitted by this page.</p>
+  <label for="preparation-handoff">Preparation handoff</label>
+  <textarea id="preparation-handoff" readonly rows="6" style="display:block;box-sizing:border-box;width:100%;max-width:100%">Attention: prepare {{ refusal.item_id }} from its original intake entry. Explain the needed action or judgment, cite the source, and give one to four grounded choices with effect, uncertainty and inverse. Connect real choices to Attention without seeding placeholders. Report the remaining preparation integration gap before claiming this objective is actionable.</textarea>
+  {% else %}
+  <p>Read the source's current state, then refresh Attention. {{ refusal.owner }} owns representing its available actions here; a completion or dependency guard may also make an action unavailable. This page grants no action and changes no state.</p>
+  {% endif %}
+</article>
+{% endblock %}

@@ -1,0 +1,623 @@
+{
+  "exact_repeats": [
+    "e000",
+    "e001",
+    "e002",
+    "e003",
+    "e004",
+    "e005",
+    "e006",
+    "e007",
+    "s000",
+    "m000"
+  ],
+  "fixture": "F-CAPTURE/1",
+  "identities": {
+    "e000": {
+      "final_revision": 1,
+      "first_capture_id": "cap_dbc4a675627a90a7efbcf1205836ce165f53c711",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_6e370fb033008707d4c0d4af7133d687",
+      "tombstone_capture_id": null
+    },
+    "e001": {
+      "final_revision": 1,
+      "first_capture_id": "cap_36d00298e3dc29c35da0e55e36240c3942b337f1",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_25b1af4c3d3c58926cac64a9ecc0d7a6",
+      "tombstone_capture_id": null
+    },
+    "e002": {
+      "final_revision": 1,
+      "first_capture_id": "cap_9b48e0f2f83005dec142d90838dd8910214e6911",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_6a4f5bd3e1245e3400eead1f4b273066",
+      "tombstone_capture_id": null
+    },
+    "e003": {
+      "final_revision": 1,
+      "first_capture_id": "cap_d8d4b255101ea40b274a77e3393532a9c3924b5b",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_8c5ea78288132b8837770ed062429968",
+      "tombstone_capture_id": null
+    },
+    "e004": {
+      "final_revision": 1,
+      "first_capture_id": "cap_3e5b211e4f916631752c7d2f4eb4204cc1c6fbe7",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_d9c71c1d04622e19d75d6b2d9b3b7e78",
+      "tombstone_capture_id": null
+    },
+    "e005": {
+      "final_revision": 1,
+      "first_capture_id": "cap_001d08f2c110220ca9ad44e8996b1591100bbdc4",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_a4921855b820b06fc089f22fe37e59f5",
+      "tombstone_capture_id": null
+    },
+    "e006": {
+      "final_revision": 1,
+      "first_capture_id": "cap_a12f024f9a23884f9a4bc848888605df8bd9d5bd",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_298b57f9c1ddd85b2a4f12b550c338d0",
+      "tombstone_capture_id": null
+    },
+    "e007": {
+      "final_revision": 1,
+      "first_capture_id": "cap_811ec58c57fff47b3f9a30f7419b6e697a6fd7e0",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_d4a82ff0540f7a529c05a72b3356f9f4",
+      "tombstone_capture_id": null
+    },
+    "e008": {
+      "final_revision": 1,
+      "first_capture_id": "cap_12893816b0d308309edadf546f86727d2b8aaf55",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_058e57c1ac74736cdc172d2b0994d7e5",
+      "tombstone_capture_id": null
+    },
+    "e009": {
+      "final_revision": 1,
+      "first_capture_id": "cap_56f4c112554ca5e70c696fdcb42e7604861d6ba1",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_f34655387082ce9ef1099bd2bb6f358a",
+      "tombstone_capture_id": null
+    },
+    "e010": {
+      "final_revision": 2,
+      "first_capture_id": "cap_7e314e276b14f3645c328cff0fac759aae4d55cd",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_3a13efb27d6ec60c4128c588e5f732ee",
+      "tombstone_capture_id": null
+    },
+    "e011": {
+      "final_revision": 2,
+      "first_capture_id": "cap_b10678d928e7aeb5af57ba311a8f01f4bd0fcaa0",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_bd18c490ca36dd3b9dbde173d82c8151",
+      "tombstone_capture_id": null
+    },
+    "e012": {
+      "final_revision": 1,
+      "first_capture_id": "cap_3091008d2ed64a16ab4d4f1c8bfb3751a65f7f2b",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_c59e178fcaea22c382b50183023c10fe",
+      "tombstone_capture_id": null
+    },
+    "e013": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8f68ee858c444c5ac980afeec5251fc7b22cce6e",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_55e7102ee8580f5f14965c665621dda3",
+      "tombstone_capture_id": null
+    },
+    "e014": {
+      "final_revision": 1,
+      "first_capture_id": "cap_f140914c10f1a12b4a00f42891d4b730f28cdfa1",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_854c478b5edb73a5297b09914ea05a1c",
+      "tombstone_capture_id": null
+    },
+    "e015": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8e2bc685e17d5a8250b5d9a10a93f9453fd4404f",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_b360a76ca5695431baf777fbc1a71a86",
+      "tombstone_capture_id": null
+    },
+    "e016": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8dc37e4d7f8e838a2c7d4451117544a4e3bc93f5",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_90b050b07fba3d007bdd88ffcc547da6",
+      "tombstone_capture_id": null
+    },
+    "e017": {
+      "final_revision": 1,
+      "first_capture_id": "cap_ac629563f03d904abbeb6654c8dc41f3515d8c6c",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_6a8513ce529e8f531c3538dca8b0cfef",
+      "tombstone_capture_id": null
+    },
+    "e018": {
+      "final_revision": 1,
+      "first_capture_id": "cap_4bbe90b18c7e096b8133d2111a29f957f75d5103",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_80cdee5b5225cb3c07659f8f0a4917cc",
+      "tombstone_capture_id": null
+    },
+    "e019": {
+      "final_revision": 1,
+      "first_capture_id": "cap_128bd46f3e92ff63723b1680b7624467777e14b4",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_a3c615fe1924dfdfe0bb87d9fba2a357",
+      "tombstone_capture_id": null
+    },
+    "e020": {
+      "final_revision": 1,
+      "first_capture_id": "cap_b6c9eb22f6c3e04be1a84f2f220457ba051fa74d",
+      "live": false,
+      "provider": "email",
+      "source_key": "sk_2fc79a76f241038c2ca84b947d622af4",
+      "tombstone_capture_id": "cap_bf3b047c55285e627cca7c89ab5013975b82c797"
+    },
+    "e021": {
+      "final_revision": 1,
+      "first_capture_id": "cap_91dc265b989a26ef17af43cb0456d7041c56cddf",
+      "live": false,
+      "provider": "email",
+      "source_key": "sk_a7b3fa51d968ea03983ca95c4653ae9f",
+      "tombstone_capture_id": "cap_172fd19ece64ef547967bab17a059db74b54d9e0"
+    },
+    "e022": {
+      "final_revision": 1,
+      "first_capture_id": "cap_6516138b03db5d795f17033de84dc239ef6d9b0a",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_3c43fb9e9fa0b6db80eeac9325d8cf39",
+      "tombstone_capture_id": null
+    },
+    "e023": {
+      "final_revision": 1,
+      "first_capture_id": "cap_17fe182ef0eff9f872157d9bb0ff9925ae5ef61d",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_7559f76c9a7c4768225c7f6a84a9bb7b",
+      "tombstone_capture_id": null
+    },
+    "e024": {
+      "final_revision": 1,
+      "first_capture_id": "cap_9e484f6e2abf4e17155b3f4cd22d775c7b856676",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_2362d6a9aa43e1d98c19eebc384adc09",
+      "tombstone_capture_id": null
+    },
+    "e025": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8f075b204dfd580c23b199c1c142183f23719746",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_1a1d94278ee039d4c83d3a0849021973",
+      "tombstone_capture_id": null
+    },
+    "e026": {
+      "final_revision": 1,
+      "first_capture_id": "cap_28e900d4fe97c6e7b3db7cd2c7a1b728b26cd311",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_f4a055d7dd88aeb4ced990ee29fe4051",
+      "tombstone_capture_id": null
+    },
+    "e027": {
+      "final_revision": 1,
+      "first_capture_id": "cap_c8f34f391aa6faad95d7fb058f5a04ca24273160",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_fb7c83ceb5da8a7fc47da0a675910121",
+      "tombstone_capture_id": null
+    },
+    "e028": {
+      "final_revision": 1,
+      "first_capture_id": "cap_7b9c6cc3756f4d02f627aa62c383992a1b757f21",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_05819cd4032037a5c478329296ec4348",
+      "tombstone_capture_id": null
+    },
+    "e029": {
+      "final_revision": 1,
+      "first_capture_id": "cap_14936ac1f68bf920232f671426c8b4cbb2bd613a",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_dff5f86900c43dff559caa1348582138",
+      "tombstone_capture_id": null
+    },
+    "e030": {
+      "final_revision": 1,
+      "first_capture_id": "cap_dec38b57d423418795891005af00a3910f47f21e",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_ce86070debfd6e416dadeb945ae15f32",
+      "tombstone_capture_id": null
+    },
+    "e031": {
+      "final_revision": 1,
+      "first_capture_id": "cap_fdb53bad56e3389e6ad30c27156979b9ada0c11c",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_1c5bce4f378392c0cc3bc3a6cc04293c",
+      "tombstone_capture_id": null
+    },
+    "e032": {
+      "final_revision": 1,
+      "first_capture_id": "cap_7a90eff29e6428e1e23069e0f8c9be07a7f4c8b9",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_8873b9b87d66e1f7c2f96ae4f23a2ff6",
+      "tombstone_capture_id": null
+    },
+    "e033": {
+      "final_revision": 1,
+      "first_capture_id": "cap_101beb482e8c4cecff3be0b47ffc296fd23ef2fd",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_7201f92aaeb52e131e12158125d4e990",
+      "tombstone_capture_id": null
+    },
+    "e034": {
+      "final_revision": 1,
+      "first_capture_id": "cap_f309090cad1b163d9e12939b4edc2ba8462d1179",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_05874a391c760939e4f197a6ed4fd3be",
+      "tombstone_capture_id": null
+    },
+    "e035": {
+      "final_revision": 1,
+      "first_capture_id": "cap_2c25354e5373432246bfe60beb64f0c8482e9b80",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_d060cc9fa64b0f317b68a81657a260c9",
+      "tombstone_capture_id": null
+    },
+    "e036": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8ce0a1d9e66c857fbb824f7723f93cb2ed7de9ba",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_5592b63fe551de7c859e5485c6231fda",
+      "tombstone_capture_id": null
+    },
+    "e037": {
+      "final_revision": 1,
+      "first_capture_id": "cap_6950e105fdae681c530f485a644376de6bb9e027",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_ce056a0a9a862c946407697543d52d47",
+      "tombstone_capture_id": null
+    },
+    "e038": {
+      "final_revision": 1,
+      "first_capture_id": "cap_c9474b28c5b5c404dc355b4501fbb7c688db8bf1",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_8ffc8cb5eed9b6b28eab06b803cd0ebb",
+      "tombstone_capture_id": null
+    },
+    "e039": {
+      "final_revision": 1,
+      "first_capture_id": "cap_498c4f6b2ca64823d247e8c177c08c1cbd0394df",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_7070bcfb310f5cd4af1e4bafe1d4784c",
+      "tombstone_capture_id": null
+    },
+    "e040": {
+      "final_revision": 1,
+      "first_capture_id": "cap_11775fe85e9afa330c1a5e0789ac618f3a140fe5",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_94024835a507e61babc4cbfe50baa3bf",
+      "tombstone_capture_id": null
+    },
+    "e041": {
+      "final_revision": 1,
+      "first_capture_id": "cap_ddf473a5fb4f1d8dfef501e2a5b898305776109d",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_534cbe604fb5d479d930052c69802bd1",
+      "tombstone_capture_id": null
+    },
+    "e042": {
+      "final_revision": 1,
+      "first_capture_id": "cap_0cc5158e630b02aec6ccd02f14f4f6dd1299c66a",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_5c5aa94b967da09576d4b989b0071f47",
+      "tombstone_capture_id": null
+    },
+    "e043": {
+      "final_revision": 1,
+      "first_capture_id": "cap_afa8375ab538ab157d8fd5e33bd68b3a30daa443",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_818d836a9aaaf2ae41705f881d3a17e7",
+      "tombstone_capture_id": null
+    },
+    "e044": {
+      "final_revision": 1,
+      "first_capture_id": "cap_3f333d09c4d7dfb0578f9da9942c4d5afb5f1bfb",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_e41c06a1731097bf4d97fc71e3bc0edc",
+      "tombstone_capture_id": null
+    },
+    "e045": {
+      "final_revision": 1,
+      "first_capture_id": "cap_df1d6874fe0d4c61518110439a8afa34142ab715",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_808e18badb6ab1dd3ff4b0db37036e0f",
+      "tombstone_capture_id": null
+    },
+    "e046": {
+      "final_revision": 1,
+      "first_capture_id": "cap_070fd832710ca102be2d7fe900ce93ec09038dcc",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_f16c19eb41eccc232f4fe0a6cb655ff9",
+      "tombstone_capture_id": null
+    },
+    "e047": {
+      "final_revision": 1,
+      "first_capture_id": "cap_a296a823a8fd29cf8a7c25e361d20665556baadc",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_76a7e4bac835841baedc79ea6510f41e",
+      "tombstone_capture_id": null
+    },
+    "e048": {
+      "final_revision": 1,
+      "first_capture_id": "cap_b4a8d0d674b23fe7ea1a2ced28c077cb03f953ba",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_5f13003a58b418723e3c3fc7f606d1dc",
+      "tombstone_capture_id": null
+    },
+    "e049": {
+      "final_revision": 1,
+      "first_capture_id": "cap_cd09ea28bc944931f6ce8e27c0751f3883bb72e7",
+      "live": true,
+      "provider": "email",
+      "source_key": "sk_dfb355180b76db33df13abf7cc76c8d0",
+      "tombstone_capture_id": null
+    },
+    "m000": {
+      "final_revision": 1,
+      "first_capture_id": "cap_e13ca345ca889b0233258d14a9f3eb4b5e3c67fe",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_415d7f73bdad6041ec5af77844e3b266",
+      "tombstone_capture_id": null
+    },
+    "m001": {
+      "final_revision": 1,
+      "first_capture_id": "cap_0c4f379099a7e7341c9d00d58828e05e2699345b",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_d3c56a983aa0ad929298a31778ccfd73",
+      "tombstone_capture_id": null
+    },
+    "m002": {
+      "final_revision": 2,
+      "first_capture_id": "cap_226972d29db1e5c116acdf92d0e8339570eadde3",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_0b499f21e312e04fc260f9d96903e3ef",
+      "tombstone_capture_id": null
+    },
+    "m003": {
+      "final_revision": 2,
+      "first_capture_id": "cap_fdac7d481c939b9f92dbf8b730937f87c5308fd3",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_a608a3a2e27cff2838949e2d1c123afa",
+      "tombstone_capture_id": null
+    },
+    "m004": {
+      "final_revision": 1,
+      "first_capture_id": "cap_fd6b4cf9f51256a485ec9f763f506e9e5e651c8d",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_ef717bb359c6e54339195826204bac8c",
+      "tombstone_capture_id": null
+    },
+    "m005": {
+      "final_revision": 1,
+      "first_capture_id": "cap_3740f558731fc6e4142fe0bbdc2e022263403f10",
+      "live": false,
+      "provider": "tldv",
+      "source_key": "sk_cbf731465fcf0462ab5b6bff9de6c9ab",
+      "tombstone_capture_id": "cap_bc58df364b76dc7c00b46370d35c69ece87705b0"
+    },
+    "m006": {
+      "final_revision": 1,
+      "first_capture_id": "cap_1f9cedfa3ed8022059db06a930064a5fde26dd0f",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_6b2b8610dea3297236c9b3c7f8f46a85",
+      "tombstone_capture_id": null
+    },
+    "m007": {
+      "final_revision": 1,
+      "first_capture_id": "cap_c13f529408607d5ce249544c64ee6550a9e79756",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_0ce8db268eb85bdef6c88e52f1ab4f73",
+      "tombstone_capture_id": null
+    },
+    "m008": {
+      "final_revision": 1,
+      "first_capture_id": "cap_7a60ebf7554fee4b91dd8c3cd3657b95451df68d",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_fb1d77e88623818d0441dd8796d45689",
+      "tombstone_capture_id": null
+    },
+    "m009": {
+      "final_revision": 1,
+      "first_capture_id": "cap_2d88bf043c02e8522ecc537fa16bd3faab24b6bf",
+      "live": true,
+      "provider": "tldv",
+      "source_key": "sk_e279197aba4026399ad355e036eaaa89",
+      "tombstone_capture_id": null
+    },
+    "s000": {
+      "final_revision": 1,
+      "first_capture_id": "cap_27e78b047d85e7f286dc611199e48785fed6fd31",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_9ce68a6b349028cbc81ac268bbbce2e2",
+      "tombstone_capture_id": null
+    },
+    "s001": {
+      "final_revision": 1,
+      "first_capture_id": "cap_0ffea9b90623367e2eda921992bc30ae20f2e89f",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_c18734d2a9290db4df159a83236f1cda",
+      "tombstone_capture_id": null
+    },
+    "s002": {
+      "final_revision": 2,
+      "first_capture_id": "cap_16ae6441b7f2ea59b3444329677a7aea43fa7224",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_b122ea8b9b0bfc7b10f8a90a6dd470aa",
+      "tombstone_capture_id": null
+    },
+    "s003": {
+      "final_revision": 1,
+      "first_capture_id": "cap_616d1f92fe8a7ff8bd2de251440eacdc29c780d3",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_5df2ff3717283d19cc361a0970ad23de",
+      "tombstone_capture_id": null
+    },
+    "s004": {
+      "final_revision": 1,
+      "first_capture_id": "cap_dfb22884e4fd684e0371cfe25ba03d2dabd3b946",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_8243ce3915235bb54da49f24b4b38f80",
+      "tombstone_capture_id": null
+    },
+    "s005": {
+      "final_revision": 1,
+      "first_capture_id": "cap_add762a9cd9e102b8d193b2700306442debc6748",
+      "live": false,
+      "provider": "slack",
+      "source_key": "sk_af9d8793be9569ca874d6246bb53ec9d",
+      "tombstone_capture_id": "cap_1678ba0980a4d1609f36cf50456031efb96aeae6"
+    },
+    "s006": {
+      "final_revision": 1,
+      "first_capture_id": "cap_415a0781e29f0cceb332ff5206154702301ffd79",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_0327a5ba363dd22baf0be1536af093a0",
+      "tombstone_capture_id": null
+    },
+    "s007": {
+      "final_revision": 1,
+      "first_capture_id": "cap_91b4d0ce0f2d8ef47101612c5ecd57e63c5cff83",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_c0f42943363a98819c269651241783a6",
+      "tombstone_capture_id": null
+    },
+    "s008": {
+      "final_revision": 1,
+      "first_capture_id": "cap_2d1ad0abc2e8e316c4e0a51f7151beb92def8e02",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_e723c375a0721ce58faf842d53198690",
+      "tombstone_capture_id": null
+    },
+    "s009": {
+      "final_revision": 1,
+      "first_capture_id": "cap_be5a3636a43415019b1c58b030e9474d52b6b729",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_c4c9573729d502079da27e30f41b11a5",
+      "tombstone_capture_id": null
+    },
+    "s010": {
+      "final_revision": 1,
+      "first_capture_id": "cap_826c818d539fc6411b0d06778644e0005750f3da",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_bb556dfd71e0c4b8b3e59296c142c854",
+      "tombstone_capture_id": null
+    },
+    "s011": {
+      "final_revision": 1,
+      "first_capture_id": "cap_8ca9b3521870400143887f8d09325360c13a3899",
+      "live": true,
+      "provider": "slack",
+      "source_key": "sk_23c4f3201396e2b6704f7794a77cedca",
+      "tombstone_capture_id": null
+    }
+  },
+  "revised": [
+    "e010",
+    "e011",
+    "s002",
+    "m002",
+    "m003"
+  ],
+  "tombstoned": [
+    "e020",
+    "e021",
+    "s005",
+    "m005"
+  ],
+  "totals": {
+    "by_kind": {
+      "create": 72,
+      "revision": 5,
+      "tombstone": 4
+    },
+    "by_provider": {
+      "email": 50,
+      "slack": 12,
+      "tldv": 10
+    },
+    "delivery_attempts": 91,
+    "distinct_capture_events": 81,
+    "duplicate_attempts": 10,
+    "live_identities": 68,
+    "source_identities": 72
+  }
+}

@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ q.id }}{% endblock %}
+{% block body %}
+{{ m.receipts(receipts, room) }}
+<div class="card">
+  <div class="cid">{{ q.id }} · asked by {{ q.asked_by }}
+    {% if q.work_item_id %} · blocks <a href="/task/{{ q.work_item_id }}">{{ q.work_item_id }}</a>{% endif %}</div>
+  <div class="ctitle">{{ q.text }}</div>
+
+  {# ROW 0411: THE STATE, ON THE PAGE, IN A WORD, ABOVE THE FOLD.
+     This page used to render the history of a decision and none of its status. Measured on
+     `/question/q0042` after the operator answered it: the `if you say nothing` line present (it
+     read `Silence ships` until the 0420 ruling), the word `answered` present zero times in lower
+     case, his answer present only as a heading inside the
+     expansion block, and no state anywhere in the card head. He could not tell whether his own
+     answer had taken. The stamp is the shell's existing grammar and not a new one: green is
+     finished, amber is waiting on a human, grey is resting, and the state carries a word rather
+     than riding the colour. `is not none` rather than truthiness because that is the store's own
+     test for an open question (`WHERE answer IS NULL`). #}
+  <div class="cmeta">
+    {% if q.answer is not none %}
+    <span class="stamp acc">ANSWERED</span>
+    <span>by you{% if q.answered_at %}, {{ q.answered_at.strftime('%m-%d %H:%MZ') }}{% endif %}</span>
+    {% elif q.withdrawn_at %}
+    <span class="stamp">WITHDRAWN</span>
+    <span>by {{ q.withdrawn_by or 'an unnamed hand' }}, {{ q.withdrawn_at.strftime('%m-%d %H:%MZ') }}</span>
+    {% else %}
+    <span class="stamp q">WAITING ON YOU</span>
+    <span>asked {{ q.asked_at.strftime('%m-%d %H:%MZ') if q.asked_at }}</span>
+    {% endif %}
+  </div>
+
+  {% if q.answer is not none %}
+  {# THE ANSWERED VIEW. The `if you say nothing` line is deliberately NOT rendered here. It is a
+     claim in the present tense about what happens next, it was true while the question was open,
+     and it stops being true the instant an answer lands: silence ships nothing now, the answer
+     shipped. The wording of the line changed on 2026-08-29 (ruling 0420, `Silence ships:` became
+     `If you say nothing:`) and the rule about where it renders did not. The default is still on
+     the page, under the name the rest of this file already calls it by, because what the answer
+     overrode is part of the record. #}
+  <div class="exp">
+    <h5>Your answer{% if q.answered_at %}, {{ q.answered_at.strftime('%m-%d %H:%MZ') }}{% endif %}</h5>
+    {{ q.answer }}
+    {% if q.amended_from %}<h5>Amended from</h5>{{ q.amended_from }}{% endif %}
+    <h5>The stated default, which this replaced</h5>
+    {{ q.default_if_unanswered or 'nothing was stated' }}
+    {% if q.answer == q.default_if_unanswered %}
+    <div class="nakedcount">This answer is the stated default verbatim, which is how the Brief
+      computes what silence decided. An operator who typed the default by hand also lands here.</div>
+    {% endif %}
+    {% if q.work_item_id %}
+    <h5>What this unblocked</h5>
+    <a href="/task/{{ q.work_item_id }}">{{ q.work_item_id }}</a>
+    {% endif %}
+  </div>
+
+  {% elif q.withdrawn_at %}
+  {# A withdrawn question is closed without being decided, so the same rule applies twice over:
+     no `if you say nothing` line, because nothing is waiting on silence, and no answering
+     affordance, because the `answer` transition refuses a withdrawn question and an affordance
+     that cannot work is worse than one that is absent. #}
+  <div class="exp">
+    <h5>Withdrawn, not answered</h5>
+    {{ q.withdrawn_reason or 'no reason was recorded' }}
+    <h5>The default that never fired</h5>
+    {{ q.default_if_unanswered or 'nothing was stated' }}
+  </div>
+
+  {% else %}
+  <div class="cdef">If you say nothing: <b>{{ q.default_if_unanswered or 'nothing was stated, which is
+    a producer defect: without a default your silence stalls the task forever' }}</b></div>
+  <div class="btns">
+    {% if q.default_if_unanswered %}
+    <form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="accept_default">
+      <input type="hidden" name="id" value="{{ q.id }}">
+      <button class="act" type="submit">Go with default</button>
+    </form>
+    {% endif %}
+    <button class="sec" data-toggle="ans-{{ q.id }}">Answer</button>
+  </div>
+  {{ m.reason_box('queue', 'answer', {'id': q.id}, 'ans-' ~ q.id, 'Answer',
+                  'Your answer. This is the decision, and it wakes what is blocked on it.',
+                  'Recorded, and NOT requeued behind an agent still heartbeating on the task.', 2) }}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,28 @@
+{
+  "prompt_version": "OPTIONS/1.0",
+  "author": "2026-09-09-IOS-term-7",
+  "status": "draft for independent review",
+  "contract": {
+    "version": "ITEM/1.0",
+    "commit": "35cb22b",
+    "path": "outputs/2026-09-09-IOS-term-2/ITEM-CONTRACT-2026-09-09.md",
+    "sections": ["3", "5", "9c per-option citations"]
+  },
+  "governing_law": {
+    "commit": "0180a51",
+    "path": "web/MUST-NOT-BUILD.md",
+    "conditions": [
+      "every row must be decidable",
+      "score appears ONLY where he cannot act on it, and NEVER BESIDE A ROW",
+      "this item does not forbid undo. It forbids a lie about undo"
+    ]
+  },
+  "design": {
+    "grounding": "frozen Git objects, source digest, exact line span and exact supporting quote",
+    "generation": "caller-supplied agent function; no provider implementation or account action",
+    "tier": "no hint or override; empty signals and unknown impact; the store derives ordering",
+    "authority": "unknown; upstream authenticated receiver must decide authority and audience",
+    "execution": "unbuilt; this module emits proposals only",
+    "quality": "first ten options go through Admiral to Andrew; record his verbatim reaction"
+  }
+}

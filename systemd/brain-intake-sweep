@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Run the intake door over every configured drop folder, on a cadence.
+#
+# WHY THIS EXISTS AT ALL. `swarm intake --source <dir>` has existed and worked for weeks and
+# NOTHING EVER CALLED IT ON A SCHEDULE. Measured 2026-08-29: `brain.objective` held exactly one
+# row, taken in by hand on 2026-08-17. A door that only opens when a human types the verb is not
+# an intake system; it is a manual import. This sweep is the half that was missing, and it is
+# deliberately three lines of real work wrapped in a denominator, because the value is entirely
+# in it running unattended.
+#
+# THE DENOMINATOR IS PRINTED EVERY PASS, even a pass that takes in nothing. A sweep that prints
+# only when it finds something cannot be told apart from a sweep that has stopped running.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$REPO" || exit 1
+
+# The drop folders. One per line, absolute or repo-relative. `var/intake` is the folder n8n's
+# `intake-heartbeat` workflow writes into and the folder the operator can drop a .md into from
+# Windows Explorer: the repo lives under C:\Users\you\repos, so this path is
+# C:\Users\you\repos\internal\infinity-os\var\intake from that side.
+SOURCES=("$REPO/var/intake")
+
+# BRAIN_PG_DB is set explicitly rather than left to default. store/session.py DOES default to
+# `brain`, so this line changes nothing today, and that is exactly why it is here: a unit that
+# writes to a production store by relying on a default is one edit away from writing to the
+# wrong one silently.
+export BRAIN_PG_DB=brain
+
+rc=0
+total_took=0
+for src in "${SOURCES[@]}"; do
+  mkdir -p "$src"
+  # The denominator's numerator side: how many .md files the door was OFFERED this pass. The
+  # verb reports how many it TOOK, and the two differ by every file it has already seen, which
+  # is the normal steady state rather than a fault.
+  offered=$(find "$src" -maxdepth 1 -type f -name '*.md' 2>/dev/null | wc -l)
+  out="$(python3 engine/bin/swarm intake --source "$src" 2>&1)"
+  verb_rc=$?
+  took="$(printf '%s' "$out" | sed -n 's/^took in \([0-9]*\).*/\1/p' | head -1)"
+  [ -z "$took" ] && took=0
+  total_took=$((total_took + took))
+  # Exit 2 is the engine's EMPTY (`OK, ERR, EMPTY = 0, 1, 2` in engine/swarm_engine/cli.py),
+  # which `intake` returns when it took nothing in. That is the ordinary state of a folder whose
+  # files have all landed already, so it is NOT a failure here. Read from the source rather than
+  # assumed: an earlier draft of this line guessed 3 and would have reddened the unit on every
+  # quiet pass, which is the exact failure mode this sweep exists to make visible.
+  if [ "$verb_rc" -ne 0 ] && [ "$verb_rc" -ne 2 ]; then
+    echo "intake-sweep FAILED on $src (rc=$verb_rc): $out" >&2
+    rc=1
+  fi
+  echo "intake-sweep $src: offered $offered .md file(s), took in $took"
+done
+echo "intake-sweep total: took in $total_took across ${#SOURCES[@]} source(s)"
+exit "$rc"

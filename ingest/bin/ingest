@@ -1,0 +1,322 @@
+#!/usr/bin/env python3
+"""The D3 verb surface. Every surface enters here; none reimplements a transition.
+
+    ingest session register --key K [...]
+    ingest session end --key K [--reason R]
+    ingest session link-parent --key K --parent P
+    ingest transcript index PATH [PATH...]
+    ingest transcript verify [--limit N | --path P | --id N]
+    ingest backfill [--limit N] [--only-missing]
+    ingest coverage
+    ingest events drain
+    ingest events list [--status pending|emitted|failed]
+    ingest events requeue (--seq N | --all-failed)
+    ingest init-schema
+
+When the unified runtime CLI lands (D4 owns the dispatch half), it dispatches `session` and
+`transcript` here rather than reimplementing them. That is the narrow waist: subprocess vs
+in-process is a performance decision, one implementation is not.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+
+from ingest import config, events, store, verbs  # noqa: E402
+from ingest import backfill as backfill_mod  # noqa: E402
+from ingest import transcript as tx  # noqa: E402
+
+DEFAULT_PROJECTS_ROOT = os.environ.get(
+    "CLAUDE_PROJECTS_ROOT", os.path.expanduser("~/.claude/projects"))
+
+
+def _out(obj) -> None:
+    print(json.dumps(obj, indent=2, default=str))
+
+
+def cmd_init_schema(args) -> int:
+    """Create the scratch database and apply D3's schema files. Idempotent.
+
+    Every `schema/*.sql` in sorted order, not just 0001: a database built with only the first
+    file is missing `transcript_orphan`, and a missing counter table turns the countable gap
+    the verbs now record back into a raised exception. Still defaults to `d3_scratch` even
+    though the profile default is `brain` -- this command creates D3's own database, and D1's
+    `brain` is built from `migrations/`, never from here.
+    """
+    import glob
+    import psycopg2
+    here = os.path.dirname(os.path.abspath(__file__))
+    sql_paths = sorted(glob.glob(os.path.join(here, "..", "schema", "*.sql")))
+    dbname = os.environ.get("BRAIN_DB", config.SCRATCH_DB)
+    admin = psycopg2.connect(config.dsn("postgres"))
+    admin.autocommit = True
+    with admin.cursor() as cur:
+        cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (dbname,))
+        if cur.fetchone() is None:
+            cur.execute(f'CREATE DATABASE "{dbname}"')
+            created = True
+        else:
+            created = False
+    admin.close()
+    conn = psycopg2.connect(config.dsn(dbname))
+    conn.autocommit = True
+    for sql_path in sql_paths:
+        with open(sql_path) as fh:
+            sql = fh.read()
+        with conn.cursor() as cur:
+            cur.execute(sql)
+    conn.close()
+    _out({"database": dbname, "created": created,
+          "schema_applied": [os.path.abspath(p) for p in sql_paths],
+          "host_id": config.host_id()})
+    return 0
+
+
+def cmd_session_register(args) -> int:
+    res = verbs.session_register(
+        args.key, session_id=args.session_id, agent_id=args.agent_id, kind=args.kind,
+        harness=args.harness, harness_version=args.harness_version,
+        entrypoint=args.entrypoint, model=args.model,
+        model_source="hook-arg" if args.model else None,
+        permission_mode=args.permission_mode, git_branch=args.git_branch,
+        workdir=args.workdir, workdir_source="hook-arg" if args.workdir else None,
+        started_at=args.started_at, time_source="hook-arg" if args.started_at else None,
+        parent_session_key=args.parent, parent_source="hook-arg" if args.parent else None,
+        stated_goal=args.goal, stated_goal_source="hook-arg" if args.goal else None,
+        stated_goal_tier="A:explicit-brief" if args.goal else None,
+        produced_by=args.produced_by, actor_type=args.actor_type,
+        registration_source=args.source,
+    )
+    _out(res)
+    return 0
+
+
+def cmd_session_end(args) -> int:
+    try:
+        _out(verbs.session_end(args.key, ended_at=args.ended_at, end_reason=args.reason))
+    except KeyError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def cmd_session_link_parent(args) -> int:
+    try:
+        _out(verbs.session_link_parent(args.key, args.parent, source=args.source))
+    except (KeyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def cmd_transcript_index(args) -> int:
+    results = []
+    with store.transaction() as cur:
+        for p in args.paths:
+            results.append(verbs.transcript_index(
+                p, projects_root=args.projects_root,
+                register_missing_session=not args.no_register, cur=cur))
+    _out(results)
+    return 0
+
+
+def cmd_transcript_verify(args) -> int:
+    res = verbs.transcript_verify(transcript_id=args.id, path=args.path, limit=args.limit)
+    by_class = res.get("missing_by_classification", {})
+    if not args.details:
+        res = {k: v for k, v in res.items() if k != "details"}
+    _out(res)
+    # Task 0324: `missing` alone no longer decides this. A transcript the harness deleted after
+    # its retention horizon is the file's designed end of life, and exiting 1 for it would make
+    # a scheduled verify red every single day until whoever reads it stops reading it. What
+    # exits 1 is what somebody has to act on: a hash that moved, a file that is present and
+    # will not open, and a pointer that went away while still INSIDE the horizon.
+    #
+    # Task 0330: `appended` is absent from this sum on purpose, for the same reason. A file
+    # whose stored hash still holds over every byte it covered, and which merely got longer, is
+    # an append-only log doing the only thing it does. It is reported (its own key in the
+    # summary, its own coverage line) and it does not make the verb red. What is red is
+    # `mismatch`, which now means only one thing: recorded bytes moved.
+    actionable = (res.get("mismatch", 0) + res.get("unreadable", 0)
+                  + by_class.get(verbs.ABSENCE_UNEXPLAINED, 0)
+                  + by_class.get(verbs.ABSENCE_UNKNOWN_AGE, 0))
+    return 0 if actionable == 0 else 1
+
+
+def cmd_backfill(args) -> int:
+    """Bulk index. `--only-missing` is the form that is safe to run on a schedule (task 0329).
+
+    The unconditional form re-upserts every pointer it walks, and both profiles' transcript
+    upserts null `verified_at`/`verified_ok` ON CONFLICT, so running it to pick up a handful of
+    new files costs the verification state of every row already in the store (task 0318).
+    `--only-missing` writes to nothing that already has a row, so it can be run as often as
+    anyone likes -- including as the catch-up for whatever the SessionEnd subagent sweep left
+    `deferred` when it hit its budget.
+    """
+    res = backfill_mod.run(args.projects_root, limit=args.limit,
+                           only_missing=args.only_missing)
+    _out(res)
+    return 0 if res["error_count"] == 0 else 1
+
+
+def cmd_events_drain(args) -> int:
+    # `drain_after_commit=False`: this command IS the drain, and the automatic one would
+    # otherwise run a second, differently-bounded pass the moment this transaction commits.
+    with store.transaction(drain_after_commit=False) as cur:
+        counts = events.drain(cur, limit=args.limit)
+    _out(counts)
+    # Exit 0 on a clean drain, 1 when envelopes were RETIRED on this pass. `still_pending` is
+    # not a failure -- those are being retried -- but `failed` is a state nobody chose and
+    # nothing else will change, so a cron line or a `&&` chain has to be able to see it.
+    return 1 if counts.get("failed") else 0
+
+
+def cmd_events_list(args) -> int:
+    with store.read() as cur:
+        cur.execute(
+            "SELECT seq, event_type, occurred_at, subject_id, emit_status, attempts, requeues,"
+            " first_attempted_at, last_attempted_at, failed_at, emitted_at, emit_detail"
+            "  FROM event_outbox"
+            " WHERE (%s IS NULL OR emit_status = %s)"
+            " ORDER BY seq LIMIT %s",
+            (args.status, args.status, args.limit))
+        rows = [dict(r) for r in cur.fetchall()]
+    # emit_detail is the whole reason to run this rather than `coverage`, so it is NOT
+    # truncated here. A refusal cut off at 80 characters is how the FK constraint name -- the
+    # one thing that says which session is missing -- gets lost.
+    _out({"status": args.status or "any", "count": len(rows), "rows": rows})
+    return 0
+
+
+def cmd_events_requeue(args) -> int:
+    try:
+        with store.transaction(drain_after_commit=False) as cur:
+            res = events.requeue(cur, seqs=args.seq, all_failed=args.all_failed,
+                                 reason=args.reason)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    _out(res)
+    # A named seq that did not move is the caller's request not happening. Saying so with an
+    # exit code as well as a field keeps it from being read past in a log.
+    return 1 if res["not_failed_or_absent"] else 0
+
+
+def cmd_coverage(args) -> int:
+    """Every count with its denominator, including the one that is not in the database.
+
+    The `filesystem` section walks `--projects-root` (task 0323). Exit stays 0 even when
+    `on_disk_not_indexed` is non-zero: this is a report, not a check, and the one caller that
+    should fail on a gap is a checker nobody has written yet. Read the number.
+    """
+    from ingest.queries import coverage_report
+    with store.read() as cur:
+        _out(coverage_report(cur, projects_root=args.projects_root))
+    return 0
+
+
+def build_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(prog="ingest", description=__doc__,
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    sub.add_parser("init-schema").set_defaults(func=cmd_init_schema)
+
+    s = sub.add_parser("session").add_subparsers(dest="sub", required=True)
+
+    r = s.add_parser("register")
+    r.add_argument("--key", required=True, help="session_key; a subagent's is parent:agent_id")
+    r.add_argument("--session-id")
+    r.add_argument("--agent-id")
+    r.add_argument("--kind", default="main", choices=["main", "subagent"])
+    r.add_argument("--harness", default="claude-code")
+    r.add_argument("--harness-version")
+    r.add_argument("--entrypoint")
+    r.add_argument("--model")
+    r.add_argument("--permission-mode")
+    r.add_argument("--git-branch")
+    r.add_argument("--workdir")
+    r.add_argument("--started-at")
+    r.add_argument("--parent")
+    r.add_argument("--goal", help="only pass a goal the caller was TOLD; never a guess")
+    r.add_argument("--produced-by")
+    r.add_argument("--actor-type", choices=["human", "ai", "hybrid"])
+    r.add_argument("--source", default="hook", choices=["hook", "backfill", "manual"])
+    r.set_defaults(func=cmd_session_register)
+
+    e = s.add_parser("end")
+    e.add_argument("--key", required=True)
+    e.add_argument("--ended-at")
+    e.add_argument("--reason")
+    e.set_defaults(func=cmd_session_end)
+
+    lp = s.add_parser("link-parent")
+    lp.add_argument("--key", required=True)
+    lp.add_argument("--parent", required=True)
+    lp.add_argument("--source", default="hook-arg",
+                    choices=["path+field", "path", "field", "hook-arg"],
+                    help="how parentage was KNOWN. Never a timing correlation.")
+    lp.set_defaults(func=cmd_session_link_parent)
+
+    t = sub.add_parser("transcript").add_subparsers(dest="sub", required=True)
+    ti = t.add_parser("index")
+    ti.add_argument("paths", nargs="+")
+    ti.add_argument("--projects-root", default=DEFAULT_PROJECTS_ROOT)
+    ti.add_argument("--no-register", action="store_true",
+                    help="index the pointer without registering a missing session")
+    ti.set_defaults(func=cmd_transcript_index)
+
+    tv = t.add_parser("verify")
+    tv.add_argument("--id", type=int)
+    tv.add_argument("--path")
+    tv.add_argument("--limit", type=int, default=10)
+    tv.add_argument("--details", action="store_true")
+    tv.set_defaults(func=cmd_transcript_verify)
+
+    b = sub.add_parser("backfill")
+    b.add_argument("--projects-root", default=DEFAULT_PROJECTS_ROOT)
+    b.add_argument("--limit", type=int)
+    b.add_argument("--only-missing", action="store_true",
+                   help="index only files with no pointer row; never touch an existing one")
+    b.set_defaults(func=cmd_backfill)
+
+    ev = sub.add_parser("events").add_subparsers(dest="sub", required=True)
+    d = ev.add_parser("drain")
+    d.add_argument("--limit", type=int, default=1000)
+    d.set_defaults(func=cmd_events_drain)
+
+    el = ev.add_parser("list", help="read the outbox, emit_detail included and untruncated")
+    el.add_argument("--status", choices=["pending", "emitted", "failed"],
+                    help="omit for every status")
+    el.add_argument("--limit", type=int, default=50)
+    el.set_defaults(func=cmd_events_list)
+
+    eq = ev.add_parser("requeue", help="move failed envelopes back to pending")
+    eq.add_argument("--seq", type=int, action="append",
+                    help="repeatable; the seq of a failed row")
+    eq.add_argument("--all-failed", action="store_true",
+                    help="every failed row. Requires no --seq and is not the default: "
+                         "requeueing blind re-attempts causes nobody has looked at")
+    eq.add_argument("--reason", default="requeued by hand",
+                    help="why it is worth retrying now. Kept in emit_detail alongside "
+                         "the refusal it replaces")
+    eq.set_defaults(func=cmd_events_requeue)
+
+    cv = sub.add_parser("coverage", help="every count with its denominator, disk included")
+    cv.add_argument("--projects-root", default=DEFAULT_PROJECTS_ROOT,
+                    help="the root the `filesystem` section compares the store against. "
+                         "Pointers were indexed as absolute paths, so a root that is not the "
+                         "one they were indexed under makes both differences meaningless; the "
+                         "root measured is printed back in the report.")
+    cv.set_defaults(func=cmd_coverage)
+    return p
+
+
+if __name__ == "__main__":
+    args = build_parser().parse_args()
+    sys.exit(args.func(args))

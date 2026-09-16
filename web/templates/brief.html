@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Brief{% endblock %}
+{% block body %}
+{# A read-then-act ramp, in the specified order:
+   overnight header → Defaulted → Needs you first → Because of you → Shipped without you → CTA. #}
+<div data-region="brief"><!--region:brief-->
+{{ m.receipts(receipts, room) }}
+
+<div class="bhead">
+  <div class="bkick">Overnight · last {{ brief.window_hours }} hours ·
+    {{ brief.shipped|length }} shipped</div>
+  <div class="bratio">
+    <span class="n">{{ brief.shipped|length }}</span>
+    <span class="side">shipped while you were away<br>
+      {{ brief.agent_hours }}h fleet time, measured from run rows<br>
+      {% if brief.leverage.ratio %}
+      {# THE RATIO AND ITS COVERAGE ARE ONE ELEMENT, on purpose. Since migration 23 both halves are
+         measured, but fleet time is TOTAL and his minutes are the SUBSET a timer was running for,
+         so the number is inflated by however much went unmeasured. `ratio_note` below carries the
+         coverage sentence and the excluded entries; the percentage is repeated here so the figure
+         cannot be read, screenshotted or quoted without it. #}
+      your minutes: {{ brief.leverage.operator_minutes|round|int }} measured over
+        {{ brief.leverage.timed_items }} timed item{{ '' if brief.leverage.timed_items == 1 else 's' }}<br>
+      <span class="lev">{{ brief.leverage.ratio }}x<span class="cov">, and only
+        {% if brief.leverage.coverage.rate is not none
+          %}{{ (brief.leverage.coverage.rate * 100)|round|int }}% of what you cleared was timed{%
+          else %}nothing you cleared in this window was timed{% endif %}</span></span>
+      {% else %}
+      {# No number here, and not a zero: the ledger exists and this window holds no measurement of
+         his minutes, or the ledger is not in this store. `ratio_note` says which. #}
+      <span style="color:var(--wait)">your minutes: not measured in this window</span>
+      {% endif %}</span>
+  </div>
+  {# The leverage ratio is the most quotable figure on this screen. Until migration 23 half of it
+     did not exist and this line said so; that sentence is now stale by a migration, and what
+     replaces it is not the bare number -- it is the number with what it did NOT see. #}
+  <div class="bmeta">{{ brief.ratio_note }}</div>
+  <div class="bcount">
+    <span>{{ brief.shipped|length }} shipped</span>
+    <span>{{ brief.gated|length }} need your acceptance</span>
+    <span>{{ brief.auto|length }} would auto-accept</span>
+    <span style="color:var(--wait)">{{ brief.waiting }} waiting on you</span>
+    <span style="color:{{ 'var(--dmg)' if brief.red else 'var(--fin)' }}">{{ brief.red }} red</span>
+  </div>
+</div>
+
+{# DEFAULTED sits high and is non-negotiable: silence being a valid answer only works if the
+   operator reliably reads what it said. #}
+<div class="sec2"><h3>Defaulted <span class="sub">what your silence decided</span></h3>
+  {% for d in brief.defaulted %}
+  <div class="brow def">
+    <span class="bid"><a href="/question/{{ d.id }}">{{ d.id }}</a></span>
+    <span class="btx">silence shipped <b>{{ d.answer }}</b></span>
+    <span class="bwhen">{{ d.answered_at.strftime('%m-%d %H:%MZ') if d.answered_at }}</span>
+    {% if d.reopenable %}
+    <form class="act-form" method="post" action="/{{ room }}/act">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="brief_reopen">
+      <input type="hidden" name="id" value="{{ d.work_item_id }}">
+      <button type="submit">reopen</button>
+    </form>
+    {% else %}
+    {# An external default already consumed cannot be reopened. Offering an affordance that
+       cannot work is worse than offering none, so it is present, disabled, and says why. #}
+    <button disabled title="the external effect already ran; there is nothing to take back">
+      {{ 'external, ran' if d.external_ran else 'no task to reopen' }}</button>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="bmeta">Nothing has been decided by silence. Note what this means today: no
+    scheduler ships defaults yet, so a stated default is a promise about what silence WILL
+    decide rather than a record of what it did.</div>
+  {% endfor %}
+  {# The accountability metric: a producer writing bad defaults shows up here before trust
+     erodes quietly. #}
+  {% for o in brief.overrides %}
+  <div class="bmeta{{ ' hot' if o.hot }}">override-after-default, {{ o.producer }}:
+    {{ '%.0f'|format(o.rate) }}% ({{ o.overridden }} of {{ o.n }}).
+    {% if o.hot %}Above 20%: its defaults need review, not yours.{% endif %}</div>
+  {% endfor %}
+</div>
+
+<div class="sec2"><h3>Needs you first <span class="sub">gated, so only you can accept it</span></h3>
+  {% for g in brief.gated %}
+  <div class="brow gate">
+    <span class="bid">{{ g.id }}</span>
+    <span class="btx">{{ g.title }}</span>
+    {% if g.external %}<span class="gate">EXTERNAL</span>{% endif %}
+    {% if g.canon_touching %}<span class="gate">CANON</span>{% endif %}
+    <a href="/task/{{ g.id }}"><button type="button">review</button></a>
+  </div>
+  {% else %}
+  <div class="bmeta">Nothing gated is waiting.</div>
+  {% endfor %}
+</div>
+
+{# Brand orange, because this block is operator causality and nothing else on the screen is. #}
+<div class="sec2"><h3>Because of you <span class="sub">your answers and your rejections</span></h3>
+  {% for b in brief.because %}
+  <div class="bcause">
+    <div class="l1">Your <b>{{ b.kind }}</b> on
+      <a href="/task/{{ b.task }}">{{ b.task or 'an item' }}</a>
+      {% if b.unblocked %}unblocked {{ b.unblocked }} task{{ '' if b.unblocked == 1 else 's' }}{% endif %}</div>
+    <div class="l2">{{ b.artifacts }} artifact{{ '' if b.artifacts == 1 else 's' }} ·
+      {{ b.minutes|int }} agent minutes since ·
+      <a href="/task/{{ b.task }}">walk the lineage</a></div>
+  </div>
+  {% else %}
+  <div class="bmeta">Nothing traces back to you in the last 36 hours. A send-back that caught a
+    real defect would appear here: rejections produce visible value and nothing else shows it.</div>
+  {% endfor %}
+</div>
+
+<div class="sec2"><h3>Shipped without you
+  <span class="sub">auto-accepted, reversible, non-external</span></h3>
+  {% for a in brief.auto %}
+  <div class="brow auto">
+    <span class="bid">{{ a.id }}</span>
+    <span class="btx">would have been accepted automatically</span>
+    <span class="bwhen">{{ a.finished_at.strftime('%m-%d %H:%MZ') if a.finished_at }}</span>
+    <a href="/task/{{ a.id }}"><button type="button">open</button></a>
+  </div>
+  {% else %}
+  <div class="bmeta">Nothing is eligible.</div>
+  {% endfor %}
+  <div class="bmeta">Auto-accept is OFF. These rows show what it WOULD have decided, which is
+    the one week of measurement. The disagreement rate between this column and what you actually
+    decided is the only evidence that could turn it on.</div>
+</div>
+
+<a class="bcta" href="/queue?tier=decide">
+  {% if q %}Clear the queue → {{ q|selectattr('tier','equalto','decide')|list|length }}
+    decision{{ '' if q|selectattr('tier','equalto','decide')|list|length == 1 else 's' }} waiting
+  {% else %}Queue is clear{% endif %}</a>
+<!--/region:brief--></div>
+{% endblock %}

@@ -1,0 +1,41 @@
+[Unit]
+Description=Run the transcript verify sweep once a day
+Documentation=file://@REPO@/systemd/README.md
+
+[Timer]
+# DAILY, and daily is a floor set by measurement rather than a taste. The harness deletes
+# transcripts on a ~30-day horizon (task 0324 measured a hard date cut: 100% of the corpus gone
+# before 2026-07-19, 0% after), so a fresh cohort ages out EVERY DAY. Until a verify pass reaches
+# them, that day's losses sit in `filesystem.indexed_not_on_disk.not_yet_recorded` -- counted, but
+# unclassified, which means nobody can separate the routine sweep from a real deletion. Run less
+# often than daily and cohorts pile up in that bucket unattributed. Run more often and nothing is
+# gained for retention; the pass costs ~20-25s cold, so more often is affordable, it is just not
+# worth anything.
+# An explicit hour rather than the `daily` shorthand, which is 00:00:00. Two reasons and neither is
+# taste: this unit's whole output is a statement about "the day's retention losses", and a sweep
+# that fires exactly on the day boundary leaves the journal ambiguous about which day it just
+# closed; and 00:00 is a time this operator is demonstrably still working (the fleet that produced
+# this unit was running at 23:42 local), so midnight maximises rather than minimises the chance of
+# sweeping mid-session. 03:20 local is past the boundary and off the hour.
+OnCalendar=03:20
+AccuracySec=1m
+
+# Persistent is what makes `daily` correct on a LAPTOP rather than merely scheduled. WSL is not
+# always on: at 03:20 local this host is usually down, so without this the sweep would simply
+# never run. With it, a missed window fires shortly after the next start, which is the behaviour
+# actually wanted -- once a day, at 03:20 if we are up, otherwise first thing after boot. The
+# service's ExecStartPre store gate exists because of this line: Persistent is precisely what
+# aims the daily run at a booting machine.
+Persistent=true
+
+# No RandomizedDelaySec. Its job is to stagger a fleet, and this is one host; the real hazard here
+# is racing a cold boot, which `brain-store-ready.sh` in the service handles by waiting for the
+# condition instead of guessing at a delay.
+#
+# A double fire is harmless if the clock jumps, which on WSL after a Windows sleep it can. The
+# sweep re-hashes and upserts; `transcript_absence` is ON CONFLICT DO UPDATE and never touches
+# `first_observed_absent_at`, so running twice costs 25 seconds and changes no conclusion.
+Unit=brain-transcript-verify.service
+
+[Install]
+WantedBy=timers.target

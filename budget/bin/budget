@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# The budget verbs. A thin wrapper over store.apply, per the narrow waist: the console and the
+# MCP server will be equally thin over the same verbs, and none of them can invent a transition.
+#
+# D4: mount these under `swarm budget ...` by calling this, or by calling budget.cli.main
+# in-process. Subprocess versus in-process is a performance decision, not an architectural one.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$here"
+exec python3 -m budget.cli "$@"

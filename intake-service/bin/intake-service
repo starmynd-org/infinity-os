@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Boot the intake door. Loopback only, `local-attended`, no public exposure and no tunnel.
+set -euo pipefail
+LANE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"     # intake-service/
+cd "$LANE"
+export FLASK_APP=intake_service.app:app
+# THE BIND IS NOT SPELLED HERE, exactly as `web/bin/console` does not spell the console's. One
+# configuration point (`intake_service/host.py`) is asked rather than copied: two files each
+# carrying their own default is two answers, and the one that is wrong is the one nobody edited.
+#
+# 3106 is this service's REGISTERED port, allocated by the wave-1 admiral and recorded in
+# your-brain/tools/port-registry.md BEFORE anything bound it, precisely so that two
+# lanes deriving "the lowest free port in 3100-3199" on the same day could not derive the same
+# number. Change the registry first.
+#
+# IT ALSO FAILS THE BOOT ON A MISSING `INTAKE_TOKEN`, here, rather than serving an open door: the
+# python below imports `host`, and `host.describe()` reports whether a credential resolved while
+# `intake_service.app` refuses to construct without one. A door that starts unauthenticated looks
+# healthy and accepts everything.
+eval "$(python3 -c 'import shlex; from intake_service import host
+print("BIND=%s" % shlex.quote(host.BIND_HOST))
+print("PORT=%s" % shlex.quote(str(host.BIND_PORT)))
+print("DESC=%s" % shlex.quote(host.describe()))')"
+echo "$DESC" >&2
+exec python3 -m flask run --host "$BIND" --port "$PORT" "$@"

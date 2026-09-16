@@ -1,0 +1,112 @@
+<!doctype html>
+{# CHATS -- the plural section. `MUST-NOT-BUILD.md` item 11 as amended 2026-09-08: the nav label,
+   headings and empty states read CHATS, and THE RENAME APPLIES TO THE PLURAL SECTION ONLY.
+
+   THIS TEMPLATE EXTENDS NOTHING, AND THAT IS A RULE RATHER THAN A STYLE CHOICE. `base.html` is in
+   no seat's declared file set and `LAUNCH-HELD-SEATS` says to ask rather than take it. The cost is
+   real and is stated on the page instead of hidden: no shell nav, no theme toggle, no favicon.
+
+   NOT PRESENT, BY CONSTRUCTION AND NOT BY DISCIPLINE: no <form>, no <input>, no <textarea>, no
+   contenteditable, no <script> of any kind. There is nothing here to poll with and nothing to type
+   into. A grep of this file proves the strings are absent; only a browser proves the behaviour is,
+   and that measurement belongs to 2026-09-09-IOS-term-12. #}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chats</title>
+<style>
+  :root { --bg:#14110f; --fg:#e8e3dc; --tx2:#a8a099; --line:#2f2a26; --card:#1b1815; --warn:#d9a441; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#faf8f5; --fg:#1c1917; --tx2:#5f574f; --line:#e0dad2; --card:#fff; --warn:#8a5a00; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 ui-sans-serif,system-ui,sans-serif; }
+  .wrap { max-width: 62rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.15rem; letter-spacing: .14em; margin: 0 0 .25rem; }
+  h2 { font-size: 1rem; margin: 2rem 0 .5rem; }
+  /* THE NOTICE IS SIZED TO THE CONTENT IT GOVERNS, NEVER SMALLER. The prior lane measured its own
+     version at 11.2px under 13.28px message text and called it out: small grey text is how an
+     interface says footnote, skippable. This is 1rem, the body size, and it leads the page. */
+  .notice { font-size: 1rem; border:1px dashed var(--warn); border-radius:.4rem;
+            padding:.85rem 1rem; margin:1rem 0 1.5rem; color:var(--fg); }
+  .notice b { color: var(--warn); }
+  .sub { color: var(--tx2); font-size: .9rem; }
+  .card { border:1px solid var(--line); background:var(--card); border-radius:.5rem;
+          padding:.85rem 1rem; margin:.6rem 0; }
+  .row { display:flex; flex-wrap:wrap; gap:.5rem 1rem; align-items:baseline; }
+  .row a { color:inherit; font-weight:600; }
+  .k { color:var(--tx2); font-size:.85rem; }
+  .unverified { color: var(--warn); }
+  ul.plain { list-style:none; padding:0; margin:0; }
+  .scroll { overflow-x:auto; }
+  code { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85em; word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>{{ nav_label }}</h1>
+  <p class="sub">Conversations this machine has a record of.</p>
+
+  {# LEADING WITH THE REFUSAL. The prior lane's finding, and the reason the order is not negotiable:
+     "leading with the refusal is what makes a composer-shaped box safe, because nobody hover-tests
+     a cursor before forming an impression." #}
+  <div class="notice"><b>{{ cannot_send.split('.')[0] }}.</b>{{ cannot_send.split('.', 1)[1] }}</div>
+
+  <h2>Registered agents</h2>
+  {% if agents %}
+    <ul class="plain">
+    {% for a in agents %}
+      <li class="card">
+        <div class="row">
+          <a href="/chats/{{ a.agent_id }}">{{ a.declared_name }}</a>
+          <span class="k">{{ a.harness }}</span>
+          <span class="k">registered {{ a.registered_at }}</span>
+        </div>
+        <div class="row sub scroll">
+          {% if a.transcript_verified %}
+            <span class="k">transcript</span> <code>{{ a.transcript_path }}</code>
+          {% elif a.transcript_path %}
+            {# ITEM 10's SHAPE: the stripe always, and where no inverse exists it says so and says
+               why. Here there is no undo to lie about, but the same rule applies to a claim: an
+               unverified pointer is shown AS unverified rather than shown as a pointer. #}
+            <span class="unverified">This agent named a transcript that was not there when it
+            registered.</span> <code>{{ a.transcript_path }}</code>
+          {% else %}
+            <span class="k">This agent did not name a transcript, so there is no conversation to
+            show for it.</span>
+          {% endif %}
+        </div>
+        {% set c = counts.get(a.agent_id, {}) %}
+        {# ITEM 8: the score is overruled WITH A PLACEMENT CONDITION -- "only where he cannot act on
+           it, and NEVER BESIDE A ROW". So no count sits beside this agent as a badge. What is said
+           instead is a DIRECTION, which is what that item asks for: whether work is waiting, not
+           how much. #}
+        {% if c.get('inbox_pending') %}
+          <div class="row sub">Work is waiting for this agent to pick up.</div>
+        {% elif c.get('outbox_pending') %}
+          <div class="row sub">This agent has reported back and the report has not been read.</div>
+        {% endif %}
+      </li>
+    {% endfor %}
+    </ul>
+  {% else %}
+    {# THE EMPTY STATE READS CHATS AND SAYS WHAT WOULD FILL IT. A verdict over an empty set is not
+       a pass: this says the queue is empty, never that registration works. #}
+    <p class="card">No agent has registered. This is what an empty queue looks like, not a failure:
+      an agent registers by writing one file into <code>{{ root }}</code>, and nothing has.</p>
+  {% endif %}
+
+  <h2>What this cannot do</h2>
+  {# ACCEPTANCE CLAUSE 3, on the page rather than in a document nobody opens: every unbuilt thing
+     says so, in the words of what is missing. #}
+  <ul class="plain">
+  {% for what, why in unbuilt %}
+    <li class="card"><b>{{ what }}</b><br><span class="sub">{{ why }}</span></li>
+  {% endfor %}
+  </ul>
+
+</div>
+</body>
+</html>

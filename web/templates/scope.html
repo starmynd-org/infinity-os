@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Scope{% endblock %}
+{% block body %}
+{{ m.receipts(receipts, room) }}
+
+{% if not rows %}
+<div class="note">Scope. The machine drafts, you demolish. A hurried human is a poor author and
+  an excellent critic, so you never fill in a form here: you say the thing badly, the drafter
+  proposes a definition of done, and you keep, edit or kill each row.</div>
+
+<div class="blk">
+  <h4>Say it badly</h4>
+  <form method="get" action="/scope">
+    <textarea name="intent" data-gate="scope-go" data-min="12" rows="3"
+      placeholder="e.g. restate sales_traffic in gold.sales_ledger for 2026-01-01 onward and check it against Mick's export"></textarea>
+    <div class="hint">Name a path, a table, a command in backticks, a number or a date if you
+      have one. Each is a row the drafter can propose a real check for; an intent with none of
+      them gets a definition it cannot verify, and it will say so before you post.</div>
+    <label class="hint" style="display:block;margin-top:.4rem">lane
+      <select name="lane" style="font-family:var(--font-mono)">
+        {% for l in lanes %}<option>{{ l }}</option>{% endfor %}
+      </select></label>
+    <button class="act" type="submit" id="scope-go" style="margin-top:.5rem" disabled>
+      Draft the definition of done</button>
+  </form>
+</div>
+
+<div class="blk">
+  <h4>What a drafted definition of done must carry</h4>
+  <div class="ln">Rows of <b>claim · check · threshold · verifier</b>, each with the drafter's own
+    statement of how the check could pass while the work is wrong.</div>
+  <div class="ln">The one field the machine may not skip:
+    <b>"How will an agent prove this without you?"</b> Where the drafter cannot name one it says
+    so rather than inventing one, and that row counts against you at post time.</div>
+  <div class="ln">A lazy scope punishes itself one loop later: a vague definition yields low
+    confidence, and the surfacing policy routes low-confidence output back to your own Judge
+    tier.</div>
+  <div class="ln"><b>An agent-drafted definition of done disqualifies the work from
+    auto-accept.</b> An agent validating against a definition it wrote itself is self-grading
+    moved up one level, and that is what makes letting the draft ride safe rather than a
+    loophole.</div>
+</div>
+
+{% else %}
+<div class="note">Demolish it. Every row below is a guess made from your own sentence by a
+  <b>template drafter, not a model</b>: the console calls none and its surface declaration does
+  not permit one. The rows are over-specific on purpose, because an over-specific row is easy to
+  correct and an over-general one is easy to nod at.</div>
+
+<div class="blk">
+  <h4>Your intent, unedited</h4>
+  <div class="ln" style="font-family:var(--font-mono);font-size:.8rem">{{ intent }}</div>
+</div>
+
+<form class="act-form" method="post" action="/{{ room }}/act">
+  <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+  <input type="hidden" name="action" value="scope_post">
+  <input type="hidden" name="id" value="">
+  <input type="hidden" name="intent" value="{{ intent }}">
+  <input type="hidden" name="lane" value="{{ lane }}">
+  <input type="hidden" name="n" value="{{ rows|length }}">
+
+  {% for r in rows %}
+  <div class="blk dodrow">
+    <div class="dodhead">
+      <label class="chip{{ '' if r.kept else ' off' }}">
+        <input type="checkbox" name="keep-{{ loop.index0 }}" value="1"
+               {{ 'checked' if r.kept }}> keep</label>
+      <span class="rowno">row {{ loop.index }}</span>
+      {% if r.verifier == 'verify-human' %}<span class="gate warn">verify-human</span>{% endif %}
+    </div>
+    <label class="dodf"><span>claim</span>
+      <input name="claim-{{ loop.index0 }}" value="{{ r.claim }}"></label>
+    <label class="dodf"><span>check</span>
+      <input name="check-{{ loop.index0 }}" value="{{ r.check }}"
+             placeholder="what an agent runs"></label>
+    <label class="dodf"><span>threshold</span>
+      <input name="threshold-{{ loop.index0 }}" value="{{ r.threshold }}"
+             placeholder="the number or state that counts as a pass"></label>
+    <label class="dodf"><span>verifier</span>
+      <select name="verifier-{{ loop.index0 }}">
+        <option value="verify-ai" {{ 'selected' if r.verifier == 'verify-ai' }}>verify-ai</option>
+        <option value="verify-human" {{ 'selected' if r.verifier == 'verify-human' }}>verify-human</option>
+      </select></label>
+    <label class="dodf wide"><span>could pass while the work is wrong</span>
+      <textarea name="wrong-{{ loop.index0 }}" rows="2">{{ r.could_pass_wrong }}</textarea></label>
+    <label class="dodf wide req"><span>how will an agent prove this without you?</span>
+      <textarea name="prove-{{ loop.index0 }}" rows="2"
+        placeholder="empty means no agent can settle this alone, and it counts as unverifiable below">{{ r.prove_without_you }}</textarea></label>
+    {% if r.why_unverifiable %}
+    <div class="hint warnln">{{ r.why_unverifiable }}</div>
+    <input type="hidden" name="why-{{ loop.index0 }}" value="{{ r.why_unverifiable }}">
+    {% endif %}
+  </div>
+  {% endfor %}
+
+  <div class="blk">
+    <h4>The price, computed from the rows above</h4>
+    <div class="ln">{{ price }}</div>
+    <div class="ln hint">Recomputed on post from what you actually kept, not from what was
+      drafted. The count below the button is the one that is true.</div>
+    <div class="ln hint">The definition of done travels in the posted body, and <b>it survives
+      the task finishing.</b> The body is stored in `work_item.brief`, which is written once by
+      `post` and overwritten by no verb: `done`, `fail`, `block` and `cancel` all report into
+      `work_item.result` instead. What you keep below is what every later attempt is dispatched
+      against, unchanged.</div>
+    <button class="act" type="submit" style="margin-top:.6rem">Post it with this definition</button>
+    <a class="sec" href="/scope" style="line-height:2.6;margin-left:.5rem">start over</a>
+  </div>
+</form>
+{% endif %}
+{% endblock %}

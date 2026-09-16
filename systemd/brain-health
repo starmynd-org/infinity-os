@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# One sweep over the three runtime services, each checked by the thing that would actually catch
+# its failure. Run it by hand any time; `brain-health.timer` runs it with --repair every 60s.
+#
+#   store    pg_isready inside the container      -- the registry's declared check for 5432
+#   console  GET http://127.0.0.1:3103/api/health -- the registry's declared check for 3103, and
+#                                                    it opens a read transaction, so a 200 also
+#                                                    proves the store is reachable
+#   paging   subscribers/bin/paging-health        -- LAG, plus the cursor's own clock. Not
+#                                                    liveness, and not lag alone either: see that
+#                                                    file for the reading where a dead listener
+#                                                    printed state=ok.
+#
+# `Restart=on-failure` in the units covers the process that DIED. This covers the two failures a
+# Restart= directive is structurally blind to: alive-but-not-answering, and alive-but-not-draining.
+#
+# Exit: 0 all healthy. 1 something is warn. 2 something is critical.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPAIR=0
+[ "${1:-}" = "--repair" ] && REPAIR=1
+
+worst=0
+note() { printf '%-8s %-8s %s\n' "$1" "$2" "$3"; }
+bump() { (( $1 > worst )) && worst=$1; return 0; }
+
+# ---------------------------------------------------------------------------- store
+if "$REPO/store/bin/brain-postgres-service.sh" health >/tmp/.brain-health-store.$$ 2>&1; then
+  note store OK "$(head -1 /tmp/.brain-health-store.$$)"
+else
+  note store CRITICAL "pg_isready failed: $(tr '\n' ' ' </tmp/.brain-health-store.$$ | cut -c1-160)"
+  bump 2
+  # Deliberately NOT repaired here. The store unit is Type=oneshot over a container that already
+  # carries --restart unless-stopped; if it is down, docker chose not to restart it and a loop of
+  # `ensure-running` would paper over the reason. That is a page, not a repair.
+fi
+rm -f /tmp/.brain-health-store.$$
+
+# ---------------------------------------------------------------------------- console
+code="$(curl -s -o /dev/null -m 8 -w '%{http_code}' http://127.0.0.1:3103/api/health 2>/dev/null)"
+if [ "$code" = "200" ]; then
+  note console OK "GET /api/health 200"
+else
+  note console CRITICAL "GET /api/health returned '${code:-no answer}' (want 200)"
+  bump 2
+  if [ "$REPAIR" = 1 ]; then
+    note console REPAIR "systemctl --user restart brain-console.service"
+    systemctl --user restart brain-console.service || note console REPAIR "restart FAILED"
+  fi
+fi
+
+# ---------------------------------------------------------------------------- paging listener
+out="$("$REPO/subscribers/bin/paging-health" 2>&1)"; rc=$?
+verdict="$(printf '%s' "$out" | sed -n 's/.*"verdict": "\(.*\)",\?$/\1/p' | head -1)"
+case "$rc" in
+  0) note paging OK "${verdict:-keeping up}" ;;
+  1) note paging WARN "${verdict:-behind}" ; bump 1 ;;
+  2) note paging CRITICAL "${verdict:-stuck}" ; bump 2
+     if [ "$REPAIR" = 1 ]; then
+       note paging REPAIR "systemctl --user restart brain-paging.service"
+       systemctl --user restart brain-paging.service || note paging REPAIR "restart FAILED"
+     fi ;;
+  3) note paging HELD "${verdict:-quarantined or impossible}" ; bump 2
+     # No repair. Quarantine is released by a human through the runtime role, and an impossible
+     # cursor is a condition to look at, not a process to bounce.
+     note paging HELD "not restarted: this one is a human's act, not a supervisor's" ;;
+  4) note paging UNKNOWN "${verdict:-store unreachable}; no action taken" ; bump 1 ;;
+  *) note paging UNKNOWN "paging-health exited $rc"; bump 1 ;;
+esac
+
+exit "$worst"

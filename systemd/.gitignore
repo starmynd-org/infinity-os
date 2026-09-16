@@ -1,0 +1,19 @@
+# The reboot test's before-state is deliberately NOT committed. It is per-machine, per-boot
+# runtime state, and the verifier reads exactly one field from it: captured_at_boot_id
+# (reboot-test:133). Gate 0 passes when that id differs from the current boot. A committed
+# before-state therefore hands every fresh clone an automatic gate-0 pass against a boot that
+# never happened on that host, which is precisely the guarantee README.md opens with: the test
+# "cannot be used to manufacture a green". Losing the file is recoverable and says so out loud
+# ("no before-state ... Run capture before rebooting"); a forged pass is silent.
+.reboot-test-before
+
+# The durable cold-start record (task 0345), one line per brain-docker-wait.sh invocation. Also
+# per-machine, per-boot runtime state, and also not committed, but for a weaker reason than the
+# file above: it CANNOT forge a pass, because gate 6 accepts a record only when it carries both
+# the current boot_id and brain-store.service's live InvocationID, and neither survives a clone.
+# It is ignored because it is measurement output that changes on every boot, so committing it
+# would put runtime churn in the history of a directory whose whole job is configuration -- and
+# on a host with a daily auto-commit, would do it unattended. The file's durability comes from
+# the filesystem, not from git; nothing here rotates it.
+.cold-start-log
+.cold-start-log.tmp.*

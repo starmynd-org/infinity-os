@@ -1,0 +1,40 @@
+[Unit]
+Description=operator-paging listener (the one consumer; binds no port, health is lag)
+Documentation=file://@REPO@/subscribers/operator_paging/consumer.py
+
+# This is the service the port registry cannot reach. Listeners bind no port, so
+# _system/port-registry-rules.md gives them no row, no control script and no health check by rule,
+# and they are exactly the processes whose silent death loses events. Supervision is the only
+# thing standing between "it stopped" and "nobody found out for fifteen hours" -- which is the
+# measured state of this listener at 2026-08-17T13:24Z, when it had been down since 22:29Z the
+# night before with five events waiting.
+Requires=brain-store.service
+After=brain-store.service
+
+# A quarantined listener REFUSES to start (fabric/listener.py Listener.start raises
+# StartupRefused while the quarantine stands, because release is a human's act through the runtime
+# role). Restarting into that refusal forever is the sawtooth quarantine exists to prevent. So the
+# unit is allowed five attempts and then stays failed, loudly.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+Environment=PYTHONUNBUFFERED=1
+
+ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
+ExecStart=/usr/bin/python3 -m subscribers.operator_paging
+
+# on-failure, never always. A clean exit from this process is a human stopping it.
+Restart=on-failure
+RestartSec=10
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

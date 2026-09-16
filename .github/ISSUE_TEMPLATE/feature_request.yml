@@ -1,0 +1,26 @@
+name: Feature request
+description: Something you would like Infinity OS to do
+labels: ["type:feature", "needs-triage"]
+body:
+  - type: textarea
+    id: job
+    attributes:
+      label: What are you trying to do?
+      description: The job in your own words, not the solution.
+    validations:
+      required: true
+  - type: textarea
+    id: today
+    attributes:
+      label: What happens today?
+  - type: textarea
+    id: done
+    attributes:
+      label: How would you know it worked?
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before you submit
+      options:
+        - label: This does not contain a password, key, token or anyone's personal data.
+          required: true

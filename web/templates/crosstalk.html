@@ -1,0 +1,51 @@
+{# The agent conversation as a readable narrative, not a log dump.
+
+   Speech versus noise: dialogue renders in full, the machine's own bookkeeping collapses to a
+   fold. Without this the interesting three lines drown in ninety.
+
+   NO TYPEWRITER EFFECT. The text already exists in full and animating it in character by
+   character is a lie about latency; this surface's one asset is that nothing on it lies. The
+   replay label says `complete` when the feed is complete, and it is complete, because it is
+   read out of the store in one query. #}
+<div class="ctwrap">
+  <div class="ctbar">
+    <span class="lbl live">complete</span>
+    <span style="margin-left:auto;font-family:var(--font-mono);font-size:.68rem;color:var(--ink-2)">
+      {{ crosstalk.feed|length }} entries{% if crosstalk.item %} · {{ crosstalk.item }}{% endif %}</span>
+  </div>
+
+  {# Deterministic per-agent constellation glyphs, hashed from the name. No avatars. #}
+  <div class="ctrail">
+    {% for a in crosstalk.agents %}
+    <span class="who">{{ glyph(a, colour_for(a), 26)|safe }}<span class="nm">{{ a }}</span></span>
+    {% endfor %}
+  </div>
+
+  <div class="ctfeed">
+    {% for e in crosstalk.feed %}
+      {% if e.k == 'fold' %}
+      <button class="fold" data-toggle="fold-{{ loop.index }}">—— {{ e.n }} runtime records ·
+        {{ e.m }} —— show</button>
+      <div class="foldout" id="fold-{{ loop.index }}" hidden>{% for l in e.lines %}> {{ l }}
+{% endfor %}</div>
+      {% else %}
+      <div class="ev {{ e.k }}">
+        <div class="hd"><b>{{ e.from }}</b>
+          {% if e.to %} → <b>{{ e.to }}</b>{% endif %}
+          {# Verdicts as stamps. The only motion in the feed, a 150ms settle, because ACCEPT and
+             REOPEN carry the drama and a reviewer rejection with its reason is the best content
+             in the system. #}
+          {% if e.stamp %}<span class="stmp {{ e.k }}">{{ e.stamp }}</span>{% endif %}
+          <span style="margin-left:auto;opacity:.7">{{ e.t }}</span></div>
+        <div class="bd">{{ e.b }}</div>
+      </div>
+      {% endif %}
+    {% else %}
+    <div class="ev rep"><div class="bd">Nothing has been said yet. This feed is `brain.thread`,
+      which is written inside the same transaction as the state change that caused it, so an
+      empty feed means nothing has happened rather than that something was dropped.</div></div>
+    {% endfor %}
+  </div>
+</div>
+{# Questions break the column as amber interjections with their default visible: the `ask` rows
+   above carry the `.ev.ask` tint and the ASKS stamp. #}

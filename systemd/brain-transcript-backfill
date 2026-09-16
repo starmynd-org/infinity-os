@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+# Index every transcript on disk that has no pointer row. RUNS AT BOOT, AND THE TIMING IS THE
+# WHOLE DESIGN.
+#
+# WHY THIS EXISTS (bus rows `0422` and the session-hook half of the 2026-08-28 walkthrough).
+# `SessionEnd` is the only path that indexes a transcript, this lane's code lives on `/mnt/c`,
+# and **the mount dies before the shutdown hooks finish**. Measured 2026-08-28 in
+# `~/.claude/brain-session-hook.log`: the same failure eleven times, on both of that month's
+# shutdowns, thrown inside `from ingest import ...` while importlib scanned a directory that was
+# already gone:
+#
+#     OSError: [Errno 5] Input/output error:
+#         '/mnt/c/Users/you/repos/infinity-os/ingest/bin/..'
+#
+# The hook is not at fault and cannot be fixed in place. It already swallows the failure and
+# exits 0, which is the property it must never lose. The package it needs is simply unreachable
+# at that moment. What was broken is that **the loss was permanent**: nothing ever caught up.
+#
+# The cost, measured the same day: no transcript had been indexed since 2026-08-23 15:25 and no
+# session had recorded an `ended_at` since the same minute, while sessions kept registering
+# normally. 84 files sat on disk, written, complete, and invisible to the store. The operator had
+# said the day before that proof of terminal logging was the one thing that would make him run
+# his real day through this product.
+#
+# WHY AT BOOT AND NOT DAILY, AND THIS IS THE PART TO NOT "IMPROVE" LATER.
+# `--only-missing` indexes a file that has no pointer row. A session that is OPEN RIGHT NOW also
+# has no pointer row, correctly, because the hook indexes at `SessionEnd`. So a daily sweep would
+# index live sessions EARLY: it would write a pointer and a hash for a file still being appended
+# to, and because `--only-missing` "skips a file WHOLE" that row would keep its partial byte count
+# forever. The corpus would go to 100 percent coverage and the coverage number would be a lie.
+#
+# At boot, no session is open. That is not a heuristic, a threshold or a guess about idleness: it
+# is true by construction, and it makes `--only-missing` exactly right with no liveness test at
+# all. Every unindexed file at boot is a session that ended without its hook, which is precisely
+# the population this sweep exists for.
+#
+# `ingest/ingest/queries.py` states the same trap from the reading side: "IT HAS A FLOOR, AND THE
+# FLOOR IS NOT A GAP." This script is the writing side of that sentence. A backfill that drives
+# `on_disk_not_indexed` to zero at any other moment has not fixed coverage, it has damaged it.
+#
+# WHAT THIS DOES NOT DO. It does not re-index, re-hash or re-register anything that already has a
+# row: `--only-missing` skips those whole, deliberately, so an already-settled goal is not
+# re-adjudicated and `last_activity_at` does not move. It writes no absence rows and takes no
+# verification verdict; `brain-transcript-verify` owns that and runs at 03:20.
+#
+# Exit: 0 nothing was missing, or what was missing is now indexed. 1 something a human should
+# look at (files were missing AND some of them failed to index). 2 no reading taken, which is the
+# store being unreachable or a step failing in a way that is not a result. The 2 is kept separate
+# from the 1 for the reason the verify sweep states: "a file failed to index" and "we could not
+# check" are different facts, and a unit that reports them with one number teaches its reader to
+# stop looking.
+set -uo pipefail
+
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+INGEST="$REPO/ingest/bin/ingest"
+
+say() { printf '%s\n' "$*"; }
+die() { say "backfill-sweep UNAVAILABLE: $*"; exit 2; }
+
+pick() {  # pick <json> <python-expression over `d`>
+  printf '%s' "$1" | python3 -c '
+import json,sys
+d=json.load(sys.stdin)
+try: print(eval(sys.argv[1]))
+except Exception: print("?")
+' "$2" 2>/dev/null
+}
+
+read_coverage() { "$INGEST" coverage 2>&1; }
+
+# ENFORCED, AND IT WAS ADVISORY FOR ELEVEN MINUTES ON 2026-08-28 BEFORE THIS RAN ONCE AND PROVED
+# WHY IT MUST NOT BE.
+#
+# The first version of this file printed the paragraph below as a NOTE and carried on. On the day
+# it was installed, `systemctl --user start` on a host already up 22368s fired the timer
+# immediately (a monotonic OnBootSec whose moment has passed triggers at once), the note printed
+# exactly as designed, and the sweep indexed all 99 unindexed files anyway. One of them was a live
+# session. Measured minutes later: 1 of 99 rows had already grown past its recorded byte count.
+#
+# The damage was small and it was the DESIGN'S OWN NAMED FAILURE MODE, which is the part worth
+# keeping. A guard that prints its reason and then does the thing anyway is not a guard; it is a
+# comment with a side effect. So the check now refuses.
+#
+# Why 30 minutes rather than something tighter: the unit fires at OnBootSec=3min and its
+# ExecStartPre store gate can legitimately wait 120s for dockerd and crash recovery, and a cold
+# WSL start under load can stretch that. Thirty minutes is comfortably past any honest boot and
+# comfortably short of a working day.
+BOOT_WINDOW_S="${BRAIN_BACKFILL_BOOT_WINDOW_S:-1800}"
+up="$(awk '{printf "%d", $1}' /proc/uptime 2>/dev/null || echo 0)"
+if [ "$up" -gt "$BOOT_WINDOW_S" ] && [ "${1:-}" != "--anyway" ]; then
+  say "REFUSING: this host has been up ${up}s, past the ${BOOT_WINDOW_S}s boot window."
+  say ""
+  say "  At boot, every file with no pointer row is a session that ended without its hook, and"
+  say "  indexing it is exactly right. Later, it may be a session that is simply STILL OPEN, and"
+  say "  indexing that one writes a pointer and a hash for a file still being appended to. Because"
+  say "  \`backfill --only-missing\` skips a file whole, that row would keep its partial byte count"
+  say "  until the session ends and the hook re-indexes it, and if that hook is the one dying at"
+  say "  shutdown it never will. Coverage would then read 100 percent and be wrong, which is worse"
+  say "  than the gap this sweep exists to close."
+  say ""
+  say "  Run it anyway with \`--anyway\` if you know no session is open, or let the timer take it"
+  say "  at the next boot."
+  exit 2
+fi
+
+before="$(read_coverage)" || die "ingest coverage failed"
+printf '%s' "$before" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null \
+  || die "ingest coverage did not return JSON: $(printf '%s' "$before" | tr '\n' ' ' | cut -c1-200)"
+
+missing_before="$(pick "$before" 'd["filesystem"]["on_disk_not_indexed"]["n"]')"
+on_disk="$(pick "$before" 'd["filesystem"]["files_on_disk"]')"
+case "$missing_before" in ''|*[!0-9]*) die "could not read on_disk_not_indexed from coverage" ;; esac
+
+say "before   on-disk=$on_disk  unindexed=$missing_before"
+
+if [ "$missing_before" = "0" ]; then
+  say "backfill-sweep nothing missing rc=0"
+  exit 0
+fi
+
+out="$("$INGEST" backfill --only-missing 2>&1)"; rc=$?
+if [ "$rc" != 0 ]; then
+  say "$out"
+  die "ingest backfill exited $rc"
+fi
+
+after="$(read_coverage)"
+missing_after="$(pick "$after" 'd["filesystem"]["on_disk_not_indexed"]["n"]')"
+indexed="$(pick "$after" 'd["filesystem"]["indexed"]["n"]')"
+say "after    unindexed=$missing_after  indexed=$indexed of $on_disk"
+
+# EVERY FILE THIS SWEEP INDEXES IS A `SessionEnd` THAT DID NOT HAPPEN, and that is the number
+# worth reading rather than the coverage percentage. A healthy host backfills nothing at boot. A
+# host backfilling dozens is telling you the hook is dying at shutdown, which is the defect this
+# script mitigates and does not cure.
+closed=$(( missing_before - missing_after ))
+say "closed   $closed session(s) that ended without their hook"
+
+if [ "$missing_after" != "0" ]; then
+  say "ACTIONABLE, this is why the unit is red:"
+  say "  $missing_after file(s) still have no pointer row after a full backfill pass."
+  say "  At boot that cannot be a live session, so read the backfill output above for the"
+  say "  per-file error rather than assuming it is the expected floor."
+  say "backfill-sweep closed=$closed rc=1"
+  exit 1
+fi
+
+say "backfill-sweep closed=$closed rc=0"
+exit 0

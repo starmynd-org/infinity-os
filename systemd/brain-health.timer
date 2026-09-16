@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodic health sweep of the three brain runtime services (with repair)
+Documentation=file://@REPO@/systemd/README.md
+
+[Timer]
+# 180s after the user manager comes up, so the sweep does not fight the boot it is checking on.
+OnStartupSec=180
+OnUnitActiveSec=60
+AccuracySec=10
+Unit=brain-health.service
+
+[Install]
+WantedBy=timers.target

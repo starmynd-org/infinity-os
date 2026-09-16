@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# stdio MCP server. Binds no port, so it is outside the port registry rules entirely.
+set -euo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+cd "$REPO"
+exec python3 -m mcp.server

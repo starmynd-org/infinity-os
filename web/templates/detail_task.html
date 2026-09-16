@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}{{ rv.item.id }}{% endblock %}
+{% block head %}<style>
+  [data-task-feedback]:focus{outline:2px solid var(--focus,var(--run));outline-offset:2px}
+  .task-error{color:var(--wait)}
+  [data-task-page]{min-width:0;overflow-wrap:anywhere}
+  [data-task-page] .claim .bd,[data-task-page] .art>span{min-width:0;max-width:100%}
+  [data-task-page] input,[data-task-page] textarea{box-sizing:border-box;min-width:0;max-width:100%}
+</style>{% endblock %}
+{% block body %}
+<section data-task-page>
+{% if attention_return %}<p class="ro"><a href="{{ attention_return }}">Return to Attention review</a></p>{% endif %}
+<div data-task-receipts>{{ m.receipts(receipts, room) }}</div>
+<div class="note" data-task-feedback tabindex="-1" role="status" aria-live="polite" hidden></div>
+{# The strip renders here too, and it has to: this page is where a Judge item is actually read,
+   which is where the minutes get spent. Without it the operator would be reading a report with a
+   timer running on some other surface and no way to see it, and the over-cap warning -- the one
+   thing that has to arrive BEFORE the stop -- would be on a page he is not on.
+   This page renders no regions, so the poll swaps nothing here and the elapsed figure is the
+   figure at load. `live=False` makes the strip say so: a number that stopped moving and does not
+   admit it is the small version of the defect this whole ledger is about. #}
+{{ m.stopwatch_strip(room, stopwatch, live=False) }}
+{% set w = rv.item %}
+{% set open_qs = rv.questions | selectattr('status', 'equalto', 'open') | list %}
+<div class="card" data-task-state>
+  <div class="cid">{{ w.id }}
+    {% if w.lane %} · {{ w.lane }}{% endif %}
+    {% if w.claimed_by %} · {{ w.claimed_by }}{% endif %}
+    {% if w.parent %} · parent <a href="/task/{{ w.parent }}">{{ w.parent }}</a>{% endif %}
+    {% if w.canonical_task %} · <a href="/sprint/{{ w.canonical_task.split('#')[0] }}">{{ w.canonical_task }}</a>{% endif %}
+  </div>
+  <div class="ctitle">{{ w.title }}</div>
+  <div class="cmeta">
+    {% if rv.signals.external %}<span class="gate">EXTERNAL</span>{% endif %}
+    {% if rv.signals.canon_touching %}<span class="gate">CANON</span>{% endif %}
+    <span>state {{ w.state }}</span>
+    {# ROW 0412: THE STATE AND ITS CAUSE ON THE SAME LINE. The block further down carries the
+       full record, and a driver measured it landing at y=1054 on a 1057px viewport: below the
+       fold on the page an operator reaches BECAUSE something stopped, which is the same defect
+       wearing a scrollbar. `state blocked` is the sentence he reads, so what it is blocked on
+       belongs beside it. A word, a link, no count and no badge. #}
+    {% if open_qs %}<span class="stamp q">WAITING ON YOU</span>
+    <span>blocked on {% for q in open_qs %}<a href="/question/{{ q.id }}">{{ q.id }}</a>{{
+      ", " if not loop.last }}{% endfor %}</span>{% endif %}
+    <span>attempt {{ w.attempts }}/{{ w.max_attempts }}</span>
+    {% if w.actor_type %}<span>actor {{ w.actor_type }}</span>{% endif %}
+    {% if w.accepted_at %}<span style="color:var(--fin)">accepted by {{ w.accepted_by }}</span>{% endif %}
+  </div>
+  <div class="cmeta" style="margin-top:.3rem">
+    {% for k in ['stakes','reversibility','urgency','dependency_unblocking','effort','confidence','charter_alignment'] %}
+    <span>{{ k }} {{ rv.signals[k] or 'unset' }}</span>
+    {% endfor %}
+  </div>
+
+  {# The stopwatch, on the card the operator reads the work from. It is offered whatever state the
+     item is in, because the ledger permits timing an item that is not in a live tier and says why:
+     he may legitimately time something he has just accepted or answered, and that entry is stamped
+     with no tier, counted in the overall figure and in no tier's. Refusing it here would put the
+     one surface where a report is actually read outside the measurement. #}
+  <div class="btns">{{ m.timer_control(room, stopwatch, 'work_item', w.id) }}</div>
+
+  {# V5 (task 0167). The image renders where the item is read, not only where it is queued: this
+     page is where a Judge item is actually opened. Same macro as the card, so the two surfaces
+     cannot drift, and the verified state is measured on this render like every other. #}
+  {{ m.media_block(room, rv.img, 'work_item', w.id) }}
+
+  <div class="exp">{{ m.review_block(rv) }}</div>
+
+  {% if w.state == 'done' and not w.accepted_at %}
+  <p data-task-acceptance-state>Finished work awaiting your acceptance.</p>
+  {#- ROW 0416, THE SECOND HALF. This page has the identical shape of the queue-card defect:
+      `Accept work` renders HERE and `The report, in full` renders two panels BELOW it, so the
+      report's own caveat is under the button on this screen too. Same macro, same words, same
+      function behind it (`web/model.py::review` calls `claims.caveats`), so the queue and the
+      item page cannot drift in what they say the report admits. -#}
+  {{ m.before_you_act({'kind': 'review', 'caveat': rv.caveat}) }}
+  <div class="btns">
+    <form class="act-form" method="post" action="/{{ room }}/act" style="flex:1;display:flex">
+      <input type="hidden" name="csrf" value="{{ csrf_for(room) }}">
+      <input type="hidden" name="action" value="accept_work">
+      <input type="hidden" name="id" value="{{ w.id }}">
+      <button class="act" type="submit">Accept work</button>
+    </form>
+    <button class="sec" data-toggle="sb-{{ w.id }}">Send back</button>
+  </div>
+  {#- ROW 0414. The same sentence the queue card carries, from the same macro. This page renders
+      no card, so the two facts it needs are read off the row itself: `agent_claimable` is on
+      `rv.item` (`R.work_item` is `SELECT *`) and the fleet flag comes from `model.review`'s
+      caller. Where the fleet may claim it, `Send back` sends it to the FLEET and out of the
+      operator's queue, and saying so on the queue card but not here would leave the one surface
+      where a report is actually read telling him nothing. -#}
+  {{ m.reason_box('queue', 'send_back', {'id': w.id}, 'sb-' ~ w.id, 'Send back',
+                  'Why is this going back? A reason a fresh session can act on.',
+                  m.send_back_hint({'id': w.id,
+                                    'send_back_to': 'fleet' if w.agent_claimable else 'you',
+                                    'fleet_paused': rv.fleet_paused})) }}
+  {% elif w.accepted_at %}
+  {# =========================================================== ROW 0413: ACCEPTED, AND THE WAY BACK
+
+     His words on 2026-08-28, having just pressed the button on this row: *"nothing happened when
+     I accepted work. That would maybe be a moment for confetti and for it to change from accept
+     work to like accepted. Maybe you have an option to like unaccept or like send back or undo
+     the acceptance would be good."*
+
+     Measured on this page before this block existed: `/task/0039`, accepted, rendered the words
+     `Accept work` 0 times, `Unaccept` 0 times, and NO CONTROL AT ALL. The button did not become
+     `accepted`, it VANISHED, and the only trace of the act was `accepted by operator` in the
+     meta line four inches above. A control that disappears on success is a control that reports
+     nothing: the operator cannot tell it from a control that was never there.
+
+     So the state is a STATE, stated in the verb's own past tense with who and when, and the
+     inverse sits under it. `MUST-NOT-BUILD` item 10 is what makes the second half compulsory
+     rather than nice: where a real inverse verb exists the surface carries it, and since
+     migration 43 one does.
+
+     THE REASON IS TYPED HERE AND CANNED ON THE RECEIPT STRIPE, and that is the transition's own
+     distinction rather than this template's convenience: a withdrawal seven seconds after the
+     click is a misclick, and a withdrawal on the page where the report is read is a human who
+     read it again and changed his mind. Those are a console defect and a disagreement signal
+     respectively, and a verb that cannot tell them apart turns `accept.disagreement_report()`
+     into noise. #}
+  <div class="rev">
+    <h5>Accepted</h5>
+    <div class="cdef"><b>{{ w.id }} is accepted</b> by {{ w.accepted_by or 'an unnamed human' }}
+      on {{ w.accepted_at.strftime('%Y-%m-%d %H:%M') if w.accepted_at else 'an unrecorded date' }}.
+      It has left the queue. The agent's report is untouched and stays on this page.</div>
+    <div class="btns" style="margin-top:.5rem">
+      <button class="sec" data-toggle="un-{{ w.id }}">Unaccept</button>
+    </div>
+    {{ m.reason_box('queue', 'unaccept', {'id': w.id}, 'un-' ~ w.id, 'Unaccept',
+                    'Why is the acceptance coming back? A misclick, or you read it again?',
+                    'Withdraws YOUR DECISION and nothing else: the state stays `done`, the
+                     report stays exactly as the agent filed it, and the item returns to the
+                     queue with `Accept work` on it. It is not `Send back`, which would cost an
+                     agent a second run of finished work. The withdrawal is recorded on the
+                     thread, signed by the database, and never erased.') }}
+  </div>
+  {% endif %}
+</div>
+
+{# ROW 0412, THE OTHER HALF. The queue card now opens the question, and this is the route for an
+   operator who is already HERE: he followed a link to the task, the card two inches above says
+   `state blocked`, and before this block the word "question" did not appear on this page at all
+   and nothing linked to `/question/<id>` from anywhere in the queue. The edge has existed since
+   migration 1 (`question_task_idx`); it was never read back.
+   Placed above the work order on purpose: what is being asked outranks what was ordered on a
+   screen the operator reached because something stopped. No count and no badge -- the rows are
+   the list, and each one carries its state as a word (prohibition 7). #}
+{% if rv.questions %}
+<div class="blk"><h4>Questions on {{ w.id }}</h4>
+  {% for q in rv.questions %}
+  <div class="ln">
+    {% if q.status == 'open' %}<span class="stamp q">WAITING ON YOU</span>
+    {% elif q.status == 'answered' %}<span class="stamp acc">ANSWERED</span>
+    {% else %}<span class="stamp">WITHDRAWN</span>{% endif %}
+    <a href="/question/{{ q.id }}">{{ q.id }}</a> · {{ q.text }}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{# ============================================ OPEN A TERMINAL ON THIS ROW, 2026-08-28
+
+   Andrew's own answer, driving the eleven-step demo, to what is missing that would make him run
+   his real day through this product: *"One of the key things about this app is that it's supposed
+   to actually have like a terminal and a beautiful UX wrapper on top of that terminal because a
+   lot of times people are using like Claude code and things like that in the terminal ... We
+   didn't get to test to make sure that all terminal conversations are being logged properly."*
+   Three things sit under that, and this is the third: the ability to launch a helper terminal
+   from a task, defaulting to Claude Code or Codex.
+
+   ONE PASTE-READY BLOCK PER TERMINAL, WITH ABSOLUTE PATHS, and no instruction to assemble a
+   command. That is his own standing preference and it is also what F1 of the demo was about: the
+   first thing he said all day was `"wait can't you do this? This seems weird for a human to have
+   to do"`, about a paste block that made him supply nine flags. So the line here carries no
+   arguments to fill in, the verb resolves the workdir off the row, and the whole string is
+   `user-select:all` so one click takes it.
+
+   IT IS NOT `claim`, AND THE BLOCK SAYS SO. `claim` takes the row, spends an attempt and puts an
+   agent on the hook for a report. Opening a terminal about a row is none of those things, and a
+   surface that blurred the two would recreate F3's defect one door over: an operator pressing
+   something and having no model of what it did to the work.
+
+   THE CODEX LINE CARRIES ITS OWN CAPTURE CAVEAT AND THE CLAUDE LINE CARRIES ITS PROOF, because
+   this whole feature exists so that he can trust the record, and a choice between two engines
+   offered as equals when their logging is not equal is the trust defect wearing a new hat. A
+   Claude Code helper is launched with a session id minted before the launch, registered by the
+   SessionStart hook under that exact id, and its transcript indexed with a sha256 when it ends;
+   measured end to end on 2026-08-28. Codex writes a rollout file that nothing in this runtime
+   reads, and the fleet's own `codex exec` path (`engine/bin/swarm-run:687`) appends bare stdout
+   with no structured stream at all. That sentence belongs where the choice is made.
+
+   THE PATH COMES FROM `config.root_path`, which is Flask's own record of the directory holding
+   the module that created the app, so it is `<repo>/web` and its parent is the repo. It is read
+   here rather than hardcoded because a hardcoded `/mnt/c/...` is wrong on the VPS the console is
+   also reached from, and it is read from Flask rather than injected because this template's lane
+   does not own `web/app.py`. A `repo_root` global, if one is ever wired, wins over it. If neither
+   resolves, the block prints how to get the line from the CLI instead of printing a broken one.
+#}
+{% set _webroot = (repo_root if repo_root is defined and repo_root else config.root_path) | string %}
+{% set repo = _webroot.rsplit('/', 1)[0] if '/' in _webroot else '' %}
+<div class="blk"><h4>Open a terminal on {{ w.id }}</h4>
+  {% if repo %}
+  <div class="hint" style="margin:0 0 .2rem">Claude Code. The default, and the one whose
+    conversation is on the record.</div>
+  <div class="art" style="display:block;white-space:pre-wrap;word-break:break-all;user-select:all"
+    >{{ repo }}/engine/bin/swarm helper {{ w.id }}</div>
+  <div class="hint">Registered by the session hooks under a session id this command mints before
+    it launches, and that id is written onto this task's thread, so the row and the conversation
+    name the same thing. The transcript is indexed with a sha256 when the session ends.</div>
+
+  <div class="hint" style="margin:.7rem 0 .2rem">Codex.</div>
+  <div class="art" style="display:block;white-space:pre-wrap;word-break:break-all;user-select:all"
+    >{{ repo }}/engine/bin/swarm helper {{ w.id }} --engine codex</div>
+  <div class="gh">Its capture is NOT equivalent. Codex writes a rollout file under
+    ~/.codex/sessions that nothing here indexes: no session row, no transcript pointer, no hash.
+    The file it leaves is named on this thread when the session exits, recovered by timestamp
+    rather than confirmed by the engine. On the fleet side the same gap is wider: the runner
+    captures a Claude session live into three files and appends only bare stdout for Codex.</div>
+
+  <div class="hint" style="margin-top:.7rem">Opens in
+    {% if w.workdir %}<b>{{ w.workdir }}</b>, the directory this row names. A workdir that is set
+    and missing is refused rather than relocated.{% else %}whatever directory you run it from,
+    because this row names no workdir.{% endif %}
+    It does <b>not</b> claim {{ w.id }} and files no report: <code>claim</code> is the fleet's
+    act and this is yours. The row's brief, thread and measurement are loaded into the session
+    for you, so there is no brief to paste.</div>
+  {% else %}
+  <div class="gh">This console cannot resolve its own repo root, so it will not print a path it
+    has not checked. From a terminal in the runtime repo:
+    <code>engine/bin/swarm helper {{ w.id }} --print</code></div>
+  {% endif %}
+</div>
+
+{# TWO PANELS, BECAUSE THERE ARE TWO FACTS. Task 0169. This page used to show one, headed "The
+   report, in full" and fed from `w.result`, which held the work order until a finisher ran and
+   the report afterwards -- so the same panel meant different things on the same item at
+   different times, and after `done` the work order was nowhere on this screen. Migration 14
+   split them. `rv.brief` comes from `model.review`, not from `w`, so this panel cannot drift
+   back onto `result`. #}
+<div class="blk"><h4>The work order, as posted</h4>
+  <div class="foldout" style="padding-left:0">{{ rv.brief or '(none: posted without a body, or
+    posted before migration 14 gave the brief a column of its own and already finished when it
+    landed, in which case the text is not in this database)' }}</div>
+</div>
+
+<div class="blk" id="completion-report" tabindex="-1"><h4>The report, in full</h4>
+  <div class="foldout" style="padding-left:0">{{ w.result or '(empty: nothing has been reported
+    on this item yet)' }}</div>
+  <h4>Artifacts for this report</h4>
+  <ul style="overflow-wrap:anywhere;min-width:0">{% for a in rv.artifacts %}<li><a href="/artifact/{{ a.seq }}">{{ a.path }}</a>{% if a.drifted %} — recorded as present, gone now{% elif not a.exists_now %} — not on disk{% endif %}</li>
+  {% else %}<li>No artifact was recorded for this task.</li>{% endfor %}</ul>
+</div>
+
+<h4 style="font-family:var(--font-mono);font-size:.68rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ink-2);margin:1rem 0 .45rem">Crosstalk · {{ w.id }}</h4>
+{% include "crosstalk.html" %}
+</section>
+<script src="{{ url_for('static', filename='task-acceptance.js') }}"></script>
+{% endblock %}

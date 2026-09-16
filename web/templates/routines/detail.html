@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}{{ routine.title }}{% endblock %}
+{% block head %}
+<style>
+  .rtn-state{display:inline-flex;align-items:center;gap:.3rem;border-radius:16px;padding:.05rem .5rem;
+    font-size:.7rem;font-weight:600;border:1px solid var(--rule-strong)}
+  .rtn-state .dot{width:.45rem;height:.45rem;border-radius:50%;background:currentColor}
+  .rtn-state.on{color:var(--fin)}
+  .rtn-state.off{color:var(--rest)}
+  .rtn-state.out{color:var(--wait)}
+  .rtn-kv{display:grid;grid-template-columns:auto 1fr;gap:.25rem .7rem;font-size:.82rem;margin:.5rem 0 0}
+  .rtn-kv dt{color:var(--ink-3)}
+  .rtn-kv dd{margin:0}
+  .rtn-why{font-size:.74rem;color:var(--ink-3)}
+  .rtn-grant ul{margin:.2rem 0 .5rem 1.1rem;padding:0;font-size:.82rem}
+  .rtn-hist{width:100%;border-collapse:collapse;font-size:.8rem;margin-top:.4rem}
+  .rtn-hist td,.rtn-hist th{border-bottom:1px solid var(--rule);padding:.35rem .4rem;text-align:left;vertical-align:top}
+  .rtn-hist th{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3)}
+  @media(max-width:600px){
+    .rtn-kv{grid-template-columns:1fr;gap:.1rem}.rtn-kv dt{margin-top:.4rem}
+    .rtn-hist thead{display:none}
+    .rtn-hist tr{display:block;border:1px solid var(--rule);border-radius:8px;margin-bottom:.4rem;padding:.3rem .4rem}
+    .rtn-hist td{display:block;border:0;padding:.15rem .1rem}
+  }
+</style>
+{% endblock %}
+{% block body %}
+<div class="ro">Fixture routine inspector &middot; read only. <a href="{{ url_for('routines.index', tab=return_tab) }}#routine-{{ routine.routine_id }}">Return to {{ return_tab }} routines</a></div>
+
+<div class="card">
+  <div>
+    <b>{{ routine.title }}</b>
+    {% if routine.state == 'active' %}
+      <span class="rtn-state on"><span class="dot"></span>active</span>
+    {% elif routine.state == 'draft' %}
+      <span class="rtn-state out"><span class="dot"></span>draft: grant not active</span>
+    {% else %}
+      <span class="rtn-state off"><span class="dot"></span>paused</span>
+    {% endif %}
+    <span class="rtn-state off"><span class="dot"></span>version {{ routine.version }}</span>
+  </div>
+
+  {# WHAT IT IS NOW, then what it was originally asked for. The other way round was measured as
+     confusing in the fixture preview on 2026-09-06: after an 08:30 to 07:30 edit the headline
+     still read the original sentence, so the screen contradicted the schedule it was running. #}
+  <p style="margin:.4rem 0 .1rem">
+    <b>{{ routine.schedule.wall }}</b>,
+    {{ routine.grant.sources | length }} source{{ '' if routine.grant.sources | length == 1 else 's' }},
+    {{ routine.grant.approval_summary }}.
+  </p>
+  <p class="rtn-why">First asked for: &ldquo;{{ routine.asked_for }}&rdquo;{% if routine.version > 1 %},
+    changed {{ routine.version - 1 }} time{{ '' if routine.version == 2 else 's' }} since{% endif %}.</p>
+
+  <dl class="rtn-kv">
+    <dt>Next run</dt>
+    <dd>
+      {% if next_run %}
+        <b>{{ next_run.local.strftime('%a %d %b %Y, %H:%M %Z') }}</b>
+        {% if next_run.surprising %}<div class="note gap">{{ next_run.explain() }}</div>{% endif %}
+      {% elif routine.state == 'draft' %}
+        this is a draft, so it has no next run until its standing grant is accepted and it is activated.
+      {% else %}
+        paused, so there is no next run. Nothing was lost, and your history is kept.
+      {% endif %}
+    </dd>
+    <dt>Runs on</dt>
+    <dd>{{ host.sentence }}</dd>
+  </dl>
+</div>
+
+<div class="card rtn-grant">
+  <b>What this routine is allowed to do</b>
+  <p class="rtn-why">A standing permission, in the words of what it touches, not a scope string.</p>
+
+  <p style="margin:.4rem 0 .1rem"><b>Reads</b></p>
+  <ul>
+    {% for source in routine.grant.sources %}
+      <li>{{ source.name }}{% if source.detail %} <span class="rtn-why">{{ source.detail }}</span>{% endif %}</li>
+    {% endfor %}
+  </ul>
+
+  <p style="margin:.4rem 0 .1rem"><b>Does</b></p>
+  <ul>
+    {% for effect in routine.grant.effects %}
+      <li>{{ effect.what }}
+        {% if effect.leaves %}
+          <span class="rtn-state out"><span class="dot"></span>leaves your workspace, {{ effect.policy }}</span>
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <p style="margin:.4rem 0 .1rem"><b>Result goes to</b></p>
+  <ul><li>{{ routine.grant.destination }}</li></ul>
+
+  <p class="rtn-why">Changing what this reads or where its result goes creates a new permission for
+    you to accept. An action prepared under version {{ routine.version }} stops being approvable the
+    moment you accept a newer one.</p>
+</div>
+
+<div class="card">
+  <b>History</b>
+  <table class="rtn-hist">
+    <thead><tr><th>When</th><th>Version</th><th>What happened</th></tr></thead>
+    <tbody>
+      {% for entry in history %}
+        <tr>
+          <td>{{ entry.at.astimezone(display_zone()).strftime('%a %d %b %Y, %H:%M %Z') }}</td>
+          <td>v{{ entry.version }}</td>
+          <td>{{ entry.kind }}: {{ entry.text }}{% if entry.by %} <span class="rtn-why">({{ entry.by }})</span>{% endif %}{% if entry.duration %} <span class="rtn-why">took {{ entry.duration }}</span>{% endif %}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="3">Nothing has happened yet. This routine has never run.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="rtn-why">History is kept when you pause, edit or delete a routine. Pausing never erases it.</p>
+</div>
+{% endblock %}

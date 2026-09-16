@@ -1,0 +1,18 @@
+[Unit]
+Description=Health sweep of the brain runtime: pg_isready, GET /api/health, listener lag
+Documentation=file://@REPO@/systemd/README.md
+
+[Service]
+Type=oneshot
+WorkingDirectory=@REPO@
+Environment=BRAIN_PG_DB=brain
+
+# --repair is what makes this a supervisor rather than a dashboard. It restarts ONLY the two
+# failures a Restart= directive cannot see: a console that is alive but not answering, and a
+# listener that is alive but not draining. It never restarts a quarantined listener.
+ExecStart=@REPO@/systemd/brain-health --repair
+
+# Non-zero here is a real condition, and letting the unit go `failed` is the point: `systemctl
+# --user --failed` then names it without anyone having to read a log.
+StandardOutput=journal
+StandardError=journal

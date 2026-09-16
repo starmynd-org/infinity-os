@@ -1,0 +1,106 @@
+{# The runfeed's pieces, as macros, so ONE template renders both the page and the poll response.
+
+   The console already learned this once: `_render_regions` renders the poll from the same
+   template that rendered the page, "because rendering the poll response from a second template
+   is how a console grows two versions of one screen". The runfeed does not use `_render_regions`
+   -- its feed is append-only keyed by stream position rather than a region swap -- so it needs
+   the same guarantee by a different route, and these macros are it.
+
+   `room` is a PARAMETER everywhere a form appears, for the reason macros.html states: a macro is
+   imported without context, and an undefined `room` renders `action="//act"`, which 404s instead
+   of refusing. #}
+
+{# ------------------------------------------------------------------ the vitals row.
+   Facts that only accumulate, plus recency. No bar, no ring, no ETA, no percent-complete: an
+   agent does not know how far through it is, so nothing here may imply completion. #}
+{% macro vitals(v, agent) %}
+<div class="vt">
+  <span class="sdot" style="background:var(--{{ v.state.colour }})"></span>
+  <b style="color:var(--{{ v.state.colour }})">{{ v.state.word }}</b>
+  {% if v.task %}<a href="/task/{{ v.task }}">{{ v.task }}</a> attempt {{ v.attempt }}{% endif %}
+  {% if v.elapsed %}<span>elapsed {{ v.elapsed }}</span>{% endif %}
+  <span>{{ v.beats }} beat{{ '' if v.beats == 1 else 's' }}</span>
+  <span>{{ v.tools }} tool call{{ '' if v.tools == 1 else 's' }}</span>
+  {% if v.cost is not none %}<span>~${{ '%.2f'|format(v.cost) }}</span>
+  {% else %}<span class="dim" title="{{ v.cost_why }}">cost unavailable</span>{% endif %}
+  <span class="rec" style="color:var(--{{ v.recency.colour }})">
+    {{ v.recency.text }}{% if v.recency.word %} · {{ v.recency.word }}{% endif %}</span>
+</div>
+{% if v.state.detail %}<div class="vtdetail dmg">{{ v.state.detail }}</div>{% endif %}
+{% if v.resting_note %}<div class="vtdetail">{{ v.resting_note }}</div>{% endif %}
+{# The now-line: the agent's own last sentence, one line. A glance reads state, then recency,
+   then what it says it is doing, and anything past that triple is fiction. #}
+{% if v.now_line %}<div class="nowline">{{ v.now_line }}</div>{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ one beat, or one fold #}
+{% macro entry(e, path, agent) %}
+{% if e.kind == 'beat' %}
+<div class="ev" data-pos="{{ e.pos }}">
+  <div class="evh">{{ agent }} · beat {{ e.n }}{% if e.at %} · {{ e.at[11:19] }}Z{% endif %}</div>
+  <div class="evb">{{ e.text }}</div>
+</div>
+{% else %}
+<div class="fold" data-pos="{{ e.pos }}">
+  <span class="rule"></span>
+  <button class="foldbtn" data-fold="{{ path }}" data-from="{{ e.from_pos }}"
+          data-to="{{ e.to_pos }}">
+    {% if e.tools %}{{ e.tools }} tool call{{ '' if e.tools == 1 else 's' }}{% endif %}
+    {%- if e.tools and e.n > e.tools %} · {% endif %}
+    {%- if e.n > e.tools %}{{ e.n }} event{{ '' if e.n == 1 else 's' }}{% endif %}
+    {%- if e.seconds %} · {{ (e.seconds // 60) }}m{{ ' %ss'|format(e.seconds % 60) if e.seconds < 600 else '' }}{% endif %} · show
+  </button>
+  <span class="rule"></span>
+</div>
+<div class="foldout" hidden></div>
+{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ the one in-place node.
+   The newest tool call, replaced as calls complete, plus the churn that has piled up since the
+   last beat. Both are still growing, so neither may be appended: an appended growing node is
+   the same row breeding once per poll. #}
+{% macro live(b) %}
+{% if b.open_fold %}
+<div class="fold live">
+  <span class="rule"></span>
+  <button class="foldbtn" data-fold="{{ b.path }}" data-from="{{ b.open_fold.from_pos }}"
+          data-to="{{ b.open_fold.to_pos }}">
+    {{ b.open_fold.tools }} tool call{{ '' if b.open_fold.tools == 1 else 's' }} since the last
+    beat{% if b.open_fold.seconds %} · {{ b.open_fold.seconds }}s{% endif %} · show
+  </button>
+  <span class="rule"></span>
+</div>
+{% endif %}
+{% if b.live_tool %}
+<div class="toolline">▸ {{ b.live_tool.name }} {{ b.live_tool.detail }}</div>
+{% endif %}
+{% endmacro %}
+
+{# ------------------------------------------------------------------ the seam between two runs.
+   The sentence is fixed copy and it is the point of the component: it teaches the statelessness
+   contract at exactly the moment the operator could believe context flowed. #}
+{% macro seam(s, steered) %}
+{% if s.closed %}
+<div class="seam" style="border-left-color:var(--{{ s.colour }})">
+  {{ s.closed }}{% if steered %} · <b class="steered">steered by you</b>{% endif %}
+</div>
+{% endif %}
+<div class="seam open" style="border-left-color:var(--run)">{{ s.opened }}</div>
+{% endmacro %}
+
+{# ------------------------------------------------------------------ the degraded states.
+   MISSING is red because recorded-as-present-and-gone is damage. Unreadable is amber and shows
+   NOTHING rather than guessing. #}
+{% macro degraded(d) %}
+<div class="finding {{ d.level }}">
+  <b>{{ d.word }}</b> · {{ d.text }}
+  <div class="fpath">{{ d.path }}{% if d.host %} · host {{ d.host }}{% endif %}</div>
+  {% if d.raw %}<div class="fpath">{{ d.raw }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro finding(f) %}
+<div class="finding {{ f.level }}">{{ f.text }}
+  {% if f.detail %}<div class="fpath">{{ f.detail }}</div>{% endif %}</div>
+{% endmacro %}

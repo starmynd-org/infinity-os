@@ -1,0 +1,89 @@
+/* Study and Sessions hold document-style tables. Their narrow behavior is local so the shared
+   spreadsheet floor remains unchanged for rooms that depend on it. */
+body[data-room="study"] .doc-fit,
+body[data-room="sessions"] .doc-fit{
+  min-width:0;
+  table-layout:fixed;
+}
+body[data-room="study"] .doc-fit th,
+body[data-room="study"] .doc-fit td,
+body[data-room="sessions"] .doc-fit th,
+body[data-room="sessions"] .doc-fit td{
+  min-width:0;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+body[data-room="study"] .doc-fit th:first-child,
+body[data-room="study"] .doc-fit td:first-child{
+  width:72%;
+}
+
+body[data-room="sessions"] .doc-scroll{
+  box-sizing:border-box;
+  max-width:100%;
+  overflow-x:auto;
+  overflow-y:hidden;
+  overscroll-behavior-inline:contain;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid var(--rule);
+  border-radius:var(--radius-card);
+  background:var(--bg-raised);
+}
+body[data-room="sessions"] .doc-scroll:focus-visible{
+  outline:2px solid var(--focus);
+  outline-offset:2px;
+}
+body[data-room="sessions"] .doc-wide{
+  margin:0;
+  table-layout:fixed;
+}
+body[data-room="sessions"] .doc-wide th,
+body[data-room="sessions"] .doc-wide td{
+  box-sizing:border-box;
+}
+body[data-room="sessions"] .doc-wide a{
+  display:inline-flex;
+  align-items:center;
+  min-height:24px;
+  min-width:24px;
+}
+body[data-room="sessions"] .doc-wide .doc-key{
+  position:sticky;
+  left:0;
+  z-index:1;
+  background:var(--bg-raised);
+  box-shadow:1px 0 0 var(--rule);
+}
+body[data-room="sessions"] .doc-wide th.doc-key{
+  z-index:2;
+}
+body[data-room="sessions"] .doc-recent .doc-key,
+body[data-room="sessions"] .doc-coverage .doc-key{
+  width:8rem;
+  max-width:8rem;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+body[data-room="sessions"] .doc-recent th:nth-child(2){width:9rem}
+body[data-room="sessions"] .doc-recent th:nth-child(3){width:13rem}
+body[data-room="sessions"] .doc-recent th:nth-child(4){width:10rem}
+body[data-room="sessions"] .doc-coverage{min-width:32rem}
+body[data-room="sessions"] .doc-coverage th:nth-child(2){width:7rem}
+body[data-room="sessions"] .doc-coverage th:nth-child(3){width:7rem}
+body[data-room="sessions"] .doc-coverage th:nth-child(4){width:10rem}
+body[data-room="sessions"] .doc-scroll-hint{
+  display:none;
+  font-family:var(--font-mono);
+  font-size:.7rem;
+  color:var(--ink-2);
+  margin:.15rem 0 .4rem;
+}
+
+@media(max-width:720px){
+  body[data-room="sessions"] .doc-recent{
+    min-width:40rem;
+  }
+  body[data-room="sessions"] .doc-scroll-hint{
+    display:block;
+  }
+}

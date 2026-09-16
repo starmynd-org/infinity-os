@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Terminal{% endblock %}
+{% block head %}<link rel="stylesheet" href="{{ url_for('static', filename='terminal.css') }}">{% endblock %}
+{% block body %}
+{# THE TYPABLE PANE. MUST-NOT-BUILD item 11, overruled by the operator on 2026-08-28 for this and
+   nothing else, and his own words for why: *"it's supposed to actually have like a terminal and a
+   beautiful UX wrapper on top of that terminal because a lot of times people are using like
+   Claude code and things like that in the terminal."*
+
+   THE REFUSAL IS THE FIRST THING IN THIS FILE, above the feature, because it is the condition the
+   feature was granted under. `web/terminal.py:request_reason` is the gate; this renders whatever
+   sentence it returned. Before this pane, exposing the console leaked a dashboard. After it,
+   exposing the console leaks a shell.
+
+   NO WEBSOCKET AND NO SSE. The overrule permits a socket; this does not take it. The screen is
+   drawn on the SERVER (`web/terminal_screen.py`) and polled over plain `fetch`, so the browser
+   probe that measures `EventSource` and `WebSocket` NEVER CONSTRUCTED is still true on every
+   route of this console, including this one.
+
+   THE THREE SIBLING RULE, borrowed from the runfeed: the screen is repainted line by line and
+   every control on this page is a SIBLING of it, never a child, so a repaint can never reach the
+   thing the operator is typing into. #}
+
+{% if refused %}
+<div class="rfhead">
+  <div class="ctitle">Terminal</div>
+  <div class="cmeta"><span>not served here</span></div>
+</div>
+<div class="finding wait" style="max-width:64ch">
+  <b>The pane is refused on this console.</b><br>{{ refused }}
+</div>
+<div class="hint" style="max-width:64ch;margin-top:.8rem">
+  This is not a bug and it is not a missing feature. <code>web/MUST-NOT-BUILD.md</code> item 11
+  was overruled for a typable pane on the condition that it is reachable from loopback and from
+  nowhere else, and <code>web/terminal.py</code> enforces that condition rather than describing
+  it. The read-only mirror of your terminals is unaffected: <a class="go" href="/live">Live ▸</a>
+</div>
+
+{% else %}
+<div class="rfhead">
+  <div class="ctitle">Terminal</div>
+  <div class="cmeta">
+    <span id="tstatus">no session open</span>
+    <span id="tsize">—</span>
+    <span>loopback only · {{ cap }} panes max</span>
+    <a class="go" href="/live">the read-only mirror ▸</a>
+  </div>
+</div>
+
+{# ---------------------------------------------------------------- the openers, ONE CLICK EACH.
+   F1 of the 2026-08-28 demo, in the operator's own words about a paste block that made him supply
+   nine flags: `"wait can't you do this? This seems weird for a human to have to do"`. So there is
+   no command box on this page. The client sends a KIND from a fixed set and the server builds the
+   argv (`web/terminal.py:_argv_for`); there is no `cmd=` parameter to fill in and none to abuse. #}
+{# THE THREE OPENERS SHIP DISABLED AND `terminal.js` ARMS THEM, and that is a defect repair
+   rather than a flourish. Measured 2026-08-29 with a real browser: a click that lands in the
+   window between the markup painting and `terminal.js` binding its `onclick` does NOTHING AT
+   ALL -- no request, no message, no visible change. The window is short (the script is 15 KB on
+   loopback) and the failure inside it is completely silent, which is the worse half. A disabled
+   button that becomes live is a control that tells the truth about itself in both states. #}
+<div class="topen" data-region="topen">
+  <button type="button" class="tbtn" id="tnew" disabled>New shell <span class="tk">in {{ repo }}</span></button>
+  <span class="tsplit"></span>
+  <label class="tlab" for="ttask">Helper on task</label>
+  <input class="tinput" id="ttask" size="6" maxlength="8" inputmode="numeric"
+         placeholder="0437" value="{{ task }}">
+  <button type="button" class="tbtn" id="thelp" data-engine="claude" disabled>Claude Code</button>
+  <button type="button" class="tbtn tbtn-quiet" id="thelpx" data-engine="codex" disabled>Codex</button>
+  <span class="tnote">Codex writes a rollout file nothing in this runtime reads. A Claude Code
+    helper is registered by the SessionStart hook and its transcript is indexed with a sha256
+    when it ends, so only the left button's conversation is on the record.</span>
+</div>
+
+<div class="ttabs" id="ttabs" data-region="ttabs"></div>
+<div class="terr" id="terr" hidden></div>
+
+{# THE SCREEN. `tabindex` rather than a textarea: a textarea holds a value the poll would have to
+   protect, and this surface has no value to hold -- every keystroke leaves for the pty the moment
+   it is pressed and the pty's echo is what paints. #}
+<div class="twrap" id="twrap">
+  <div class="tscroll" id="tscroll">
+    <div class="thist" id="thist"></div>
+    <div class="tscreen" id="tscreen" tabindex="0" role="application"
+         aria-label="terminal screen. Keystrokes go to the process; nothing here writes to the store.">
+      <div class="tplaceholder" id="tplaceholder">
+        Nothing is running. <b>New shell</b> opens one in the repo, or type a task id and open a
+        helper on it.
+      </div>
+    </div>
+    <div class="tcursor" id="tcursor" hidden></div>
+  </div>
+  <div class="truler" id="truler" aria-hidden="true">MMMMMMMMMM</div>
+</div>
+
+<div class="tfoot">
+  <span id="tfoot-meta">—</span>
+  <button type="button" class="tbtn tbtn-quiet" id="tclose" disabled>Close pane</button>
+  {# THE ONE SENTENCE THAT SAYS WHAT THIS PANE CANNOT DO, on the surface rather than in a doc.
+     Condition 2 of the overrule: the pane carries the terminal and nothing else, and `terminal`
+     is not a room in `rooms.ROOMS`, so `POST /terminal/act` is refused BY NAME at the one write
+     door. Every state change in this console still goes through `/<room>/act`. #}
+  <span class="tnote">This pane types into a process. It writes no store row: <code>terminal</code>
+    is not a room, so the one write door refuses it by name.</span>
+</div>
+
+{# THE PANES THIS BROWSER ALREADY HAS OPEN, SHIPPED WITH THE PAGE. Measured 2026-08-29 in a real
+   browser: without this line a reload rendered 0 tabs and the placeholder, while the pty was
+   still alive on the server with `claude` running in it. The pane was reachable only by a key
+   nothing on the page still held. A terminal the operator loses by pressing F5 is not a terminal
+   he will leave a long Claude Code run in, and no server-side test can see it, because the
+   process is perfectly healthy on the other side of the reload.
+
+   IT IS THE SERVER'S LIST AND NOT localStorage, deliberately. The session is bound to
+   `guard.session_id()`, so the server already knows which panes belong to this browser and a
+   remembered key that the server has reaped would paint a tab that leads nowhere. #}
+<script>window.__TERMINAL_CSRF = {{ csrf|tojson }};
+window.__TERMINAL_SESSIONS = {{ sessions|tojson }};</script>
+<script src="{{ url_for('static', filename='terminal.js') }}"></script>
+{% endif %}
+{% endblock %}

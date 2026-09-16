@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}Fleet{% endblock %}
+{% block body %}
+<div data-region="fleet"><!--region:fleet-->
+{{ m.receipts(receipts, room) }}
+{# Fleet is a dispatch control surface. Nothing here animates, nothing celebrates, and red means
+   damage. The queue appears as a COUNT and never as cards: two queues on one screen is two
+   queues. Its verb allowlist is `answer`, `reopen`, `pause`, `resume`, `msg`, and nothing else,
+   ever -- enforced in web/rooms.py, not by which buttons this template happens to draw. #}
+
+{# `held`, not a bare `.banner`. Row 0383, 2026-08-27. A bare banner is RED, and measured in
+   both themes this line rendered at `--dmg` -- the damage colour spent on a state the operator
+   chose on purpose and can undo with one verb. `.banner.held` is amber, which is this shell's
+   "waiting on a human" and is literally what a paused fleet is. The word PAUSED is unchanged. #}
+{% if fleet.paused %}
+<div class="banner held">The fleet is PAUSED. No agent will claim.</div>
+{% endif %}
+
+{% for a in fleet.agents %}
+<div class="fcard">
+  <div class="l1">
+    <span class="sdot" style="background:var(--{{ a.colour }})"></span>
+    {#- THE AGENT'S NAME IS THE DOOR TO THE AGENT. Lane D2, 2026-08-29.
+
+        `/agent/<name>` has existed since task 0166 and renders the live run feed for one agent,
+        followed across tasks. Measured on the seeded store before this line: this room named two
+        agents, `ART` and `SCOUT`, and **0 anchors to `/agent/<name>` existed on any screen
+        reachable from the front page**. It is defect `0412` in different clothes, which was seven
+        question cards naming a question and linking to none of it, and it is found the same way:
+        by clicking rather than by reading the route table.
+
+        THE MACRO IS NOT THE PLACE FOR THIS. `agent_line` is also called by `runfeed.html`, which
+        IS `/agent/<name>`, and a name that links to the page it is already on is an affordance
+        that cannot work, which is MUST-NOT-BUILD item 2's own sentence. So the anchor is at this
+        call site, where the name is a reference to somewhere else.
+
+        The 44px phone floor already reaches it: `.fcard a` is in `console.css`'s
+        `max-width:520px` block. Re-measured at 375 and 390 after this change, `/fleet` carries
+        0 controls under the floor. -#}
+    <a href="/agent/{{ a.name }}" title="the run feed for {{ a.name }}">{{ m.agent_line(a.name) }}</a>
+    <span style="color:var(--{{ a.colour }})">{{ a.state|upper }}</span>
+    {# ROW 0383: THE AGE IS READ, NOT COUNTED. This said `hb {{ a.age_seconds }}s`, and on the
+       live console that renders as `hb 928245s`, which is ten days and seventeen hours and
+       looks exactly like `hb 92824s`, which is one day. The exact seconds are kept on `title`
+       so nothing is lost; the rounding is always DOWN, so this never reports an agent as
+       quieter than it is. The word `silent` is unchanged and still carries the state, because
+       a duration is not a state. #}
+    <span style="margin-left:auto;color:var(--ink-2)"
+          title="{{ a.age_seconds if a.age_seconds is not none else 'no heartbeat row' }}{{
+                 's since the last heartbeat' if a.age_seconds is not none else '' }}">
+      last heartbeat {{ m.age_words(a.age_seconds) }}{{ ' ago' if a.age_seconds is not none
+      }}{% if a.age_seconds and a.age_seconds > 900 %} · silent{% endif %}</span>
+  </div>
+  <div class="l4">
+    {% if a.work_item_id %}<a href="/task/{{ a.work_item_id }}">{{ a.work_item_id }}</a>{% else %}—{% endif %}
+    {{ a.role or '' }} {{ a.host or '' }}
+  </div>
+</div>
+{% else %}
+<div class="empty"><div class="big">No agent has ever heartbeated.</div>
+  <div class="sub">`brain.agent` is empty. The runner writes this table through `heartbeat`.</div>
+</div>
+{% endfor %}
+
+<div class="fcard" style="border-style:dashed">
+  <div class="l1"><span class="sdot" style="background:var(--wait)"></span>
+    <b>{{ fleet.queue_count }} item{{ '' if fleet.queue_count == 1 else 's' }} need you</b>
+    <span style="margin-left:auto"><a href="/queue">open Queue →</a></span></div>
+</div>
+
+<div class="blk">
+  <h4>Listener health, which is lag and not liveness</h4>
+  {# An impossible reading is never rendered in the reassuring colour. A cursor past the head of
+     the bus has a NEGATIVE lag, and `lag > 100` is false for a negative number, so this line used
+     to paint the worst state this fabric has in the same green as a listener keeping up. #}
+  {% for l in fleet.lag %}
+  {% set impossible = l.ahead_of_head or l.moved_backwards or l.lag < 0 %}
+  {#- THE HEAD OF THE BUS IS AN EVENT AND IT IS NOW OPENABLE. Lane D2, 2026-08-29.
+
+      `/event/<eid>` renders one event with its payload summary and the observations opened on it,
+      and it took both an `event_id` uuid and a bare `event_seq`. Measured before this line: ten
+      events in the store and **no screen anywhere linked to one**. This is the only place in the
+      console that names a specific event sequence, so it is the only honest home for the door.
+
+      ONLY `head_seq`, AND THAT IS DELIBERATE. `brain.subscriber_lag` defines `head_seq` as
+      `max(event_seq)`, so whenever it is non-zero the row behind it exists and the link resolves.
+      A subscriber's own `last_seq` is a CURSOR: it can name a sequence that retention has since
+      removed, and a link that 404s is worse than a number that does not offer one. `last_seq`
+      stays as text for exactly that reason. -#}
+  <div class="ln">{{ l.subscriber }} · last_seq {{ l.last_seq }} ·
+    head {% if l.head_seq %}<a href="/event/{{ l.head_seq }}"
+      title="open event {{ l.head_seq }}, the head of the bus">{{ l.head_seq }}</a>{%
+      else %}{{ l.head_seq }}{% endif %} ·
+    <b style="color:var(--{{ 'dmg' if impossible or l.quarantined
+                             else ('wait' if l.lag > 100 else 'fin') }})">
+      lag {{ l.lag }}{% if l.quarantined %} · QUARANTINED{% endif %}</b>
+    {% if impossible %}
+    <span style="color:var(--dmg)">· IMPOSSIBLE:
+      {% if l.ahead_of_head %}the cursor is past the head of the bus{% endif %}
+      {% if l.moved_backwards %}the cursor moved backwards from {{ l.high_water_seq }}{% endif %}
+      · this listener is skipping every real event</span>
+    {% endif %}</div>
+  {% else %}
+  <div class="ln">No subscriber has registered a cursor. `pg_isready` would say the server is up
+    and would say nothing at all about this.</div>
+  {% endfor %}
+</div>
+<!--/region:fleet--></div>
+{% endblock %}

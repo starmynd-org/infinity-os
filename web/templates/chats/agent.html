@@ -1,0 +1,177 @@
+<!doctype html>
+{# ONE CONVERSATION. Read-only, windowed, and honest about what it is not showing.
+
+   THIS TEMPLATE EXTENDS NOTHING -- see index.html's header. `base.html` is in no seat's set.
+
+   NOT PRESENT: no <form>, no <input>, no <textarea>, no contenteditable, no <script>. There is
+   nothing to type into and nothing to poll with. A grep proves the strings are absent; only a
+   browser proves the behaviour is, and that belongs to 2026-09-09-IOS-term-12. #}
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ agent.declared_name }} · Chats</title>
+<style>
+  :root { --bg:#14110f; --fg:#e8e3dc; --tx2:#a8a099; --line:#2f2a26; --card:#1b1815;
+          --warn:#d9a441; --you:#2a2420; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#faf8f5; --fg:#1c1917; --tx2:#5f574f; --line:#e0dad2; --card:#fff;
+            --warn:#8a5a00; --you:#f0ece6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 ui-sans-serif,system-ui,sans-serif; }
+  .wrap { max-width: 56rem; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  h1 { font-size: 1.1rem; margin: 0 0 .2rem; }
+  a { color: inherit; }
+  .sub { color: var(--tx2); font-size: .9rem; }
+  .notice { font-size: 1rem; border:1px dashed var(--warn); border-radius:.4rem;
+            padding:.85rem 1rem; margin:1rem 0 1.5rem; }
+  .notice b { color: var(--warn); }
+  .msg { border:1px solid var(--line); border-radius:.5rem; padding:.7rem .9rem; margin:.6rem 0;
+         background:var(--card); }
+  .msg.user { background: var(--you); }
+  .who { font-size:.8rem; color:var(--tx2); text-transform:uppercase; letter-spacing:.08em; }
+  /* THE FOLD, AND A DELIBERATE DIVERGENCE FROM THE FROZEN SURFACE, RECORDED RATHER THAN SILENT.
+     `<details>` is the fold with no script: the browser owns the state, so there is no JS, no
+     storage and nothing to poll, and it is keyboard-operable natively (Enter/Space on the summary).
+     `line_count` is what it folds ON, supplied by web/chats/history.py so this template measures
+     nothing itself. A folded message says how many lines are hidden, because a fold that does not
+     say what it hides looks like the end of the message.
+
+     WHAT IT DOES NOT DO: the ~240px CLAMPED PEEK that term-2's frozen surface has. I had CSS here
+     for it and it could never have worked -- a closed `<details>` hides its non-summary children
+     outright, so a max-height on the body governs nothing. Reproducing a real peek without script
+     means duplicating the first lines into the summary, which then shows twice when open.
+     So: closed hides the body, open shows it whole. **Diverges from 4d5222d on purpose, and the
+     VISUAL half is unverified by me and belongs to 2026-09-09-IOS-term-12.** */
+  .body { white-space: pre-wrap; word-break: break-word; font-size:.95rem; margin:.35rem 0 0; }
+  details.fold > summary { cursor: pointer; color: var(--warn); font-size:.85rem; margin-top:.3rem; }
+  .scroll { overflow-x:auto; }
+  code { font-family: ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.85em; word-break:break-all; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  {# THE SKIP LINK, AND IT IS HERE BECAUSE OF A REAL KEYBOARD DRIVE RATHER THAN A GUIDELINE.
+     Andrew drove the frozen Chats surface at ~194500Z and it cost approximately 30 Tabs to reach a
+     chat. This page measured WORSE: 55 tab stops, 50 of them <details> folds, one per turn -- so
+     without this link, reaching the pager at the bottom means tabbing past fifty folds.
+
+     It is the FIRST focusable element on the page, because a skip link that is not first is not a
+     skip link. Plain anchor, no script: the browser moves focus and the back button still works. #}
+  <p class="sub"><a href="#end-of-page">Skip past this conversation to the paging controls</a></p>
+  <p class="sub"><a href="/chats/">&larr; Chats</a></p>
+  <h1>{{ agent.declared_name }}</h1>
+  <p class="sub">{{ agent.harness }} · registered {{ agent.registered_at }} ·
+     id <code>{{ agent.agent_id }}</code></p>
+
+  <div class="notice"><b>{{ cannot_send.split('.')[0] }}.</b>{{ cannot_send.split('.', 1)[1] }}</div>
+
+  {% if window %}
+    {# THE DENOMINATOR BEFORE THE NUMBER, and the honesty figure beside it. More than half of a
+       real transcript is not conversation -- measured at 6,439 of 12,629 records on the largest
+       one on this machine -- so a page that showed only the turns and said "full history" would be
+       showing about half the file. This says what it is not showing. #}
+    {% if query %}
+      {# THE DENOMINATOR OF A SEARCH IS THE FILE, NEVER THE RESULT. A result that reports only its
+         own size answers "how many did you show me" and never "out of how many", and the second is
+         what tells a reader whether to trust an empty result. #}
+      <p class="sub">Searching for <b>{{ query }}</b>:
+        {{ window.matched }} of {{ window.counts.turns }} turns match.
+        {% if window.matched %}Showing {{ offset + 1 }}&ndash;{{ offset + window.turns|length }}
+        of those.{% endif %}
+        <a href="?">clear</a></p>
+      {% if not window.matched %}
+        <p class="notice">No matching parsed conversation turns were found.
+          {% if window.counts.unparseable %}<b>This search is incomplete.</b>
+          {% else %}<b>That is a real zero, not an error</b> &mdash;
+          {{ window.counts.turns }} turns were read to answer it.{% endif %}
+          Search covers all parsed conversation turns: the {{ window.counts.not_rendered }}
+          records that are not conversation are not searched.</p>
+      {% endif %}
+    {% else %}
+      <p class="sub">Showing turns {{ offset + 1 }}&ndash;{{ offset + window.turns|length }}
+        of {{ window.total }}.
+        {{ window.counts.not_rendered }} of {{ window.counts.lines }} records in this file are not
+        conversation and are not shown: attachments, mode changes, titles and queue operations.</p>
+    {% endif %}
+    {% if window.counts.unparseable %}
+      <p class="notice">{{ window.counts.unparseable }} of {{ window.counts.lines }} records could not be read.
+        This history covers only the parsed conversation turns.</p>
+    {% endif %}
+
+    {# NO SEARCH BOX, AND THE PAGE SAYS WHY RATHER THAN LEAVING A READER TO WONDER. An <input> would
+       be the first typable element on a surface whose whole safety story is that it has none. #}
+    <p class="sub">To search, add <code>?q=your+words</code> to this address.
+      <span class="k">There is deliberately no search box: this surface has no typable element at
+      all, which is what makes the sentence above checkable rather than a promise.</span></p>
+
+    {# THE PAGER, TOP AND BOTTOM, AND IT IS PLAIN LINKS. Andrew asked for "scrollable"; a page that
+       showed 50 of 6,190 and stopped was not that. No script, so no infinite scroll: infinite
+       scroll needs a fetch on a scroll event and this surface has neither. Every control is an <a>,
+       which also means the browser's own back button works and a page is linkable. #}
+    {# EVERY PAGER LINK CARRIES `q`. Dropping it would page a search back into the unfiltered
+       conversation at the same offset -- a page that looks like the next page of results and is
+       not. `urlencode` because a query can contain a space, an ampersand or a hash. #}
+    {% set qs = ('&q=' ~ query|urlencode) if query else '' %}
+    {% macro pager() %}
+      <p class="sub">
+        {% if window.has_more_before %}
+          <a href="?from=0{{ qs }}">&laquo; first</a> &nbsp;
+          <a href="?from={{ [offset - page, 0]|max }}{{ qs }}">&lsaquo; newer</a>
+        {% else %}<span class="k">&laquo; first &nbsp; &lsaquo; newer</span>{% endif %}
+        &nbsp;&middot;&nbsp;
+        {% if window.has_more_after %}
+          <a href="?from={{ offset + page }}{{ qs }}">older &rsaquo;</a> &nbsp;
+          <a href="?from={{ [window.total - page, 0]|max }}{{ qs }}">last &raquo;</a>
+        {% else %}<span class="k">older &rsaquo; &nbsp; last &raquo;</span>{% endif %}
+      </p>
+    {% endmacro %}
+    {{ pager() }}
+
+    {% for t in window.turns %}
+      <div class="msg {{ 'user' if t.role == 'user' else '' }}">
+        <div class="who">{{ t.role }}{% if t.kind != 'text' %} · {{ t.kind }}{% endif %}
+          {%- if t.tool_name %} · {{ t.tool_name }}{% endif %}</div>
+        {% if t.line_count > 12 %}
+          {# SUMMARY FIRST, AND IT WAS SECOND UNTIL NOW -- A REAL DEFECT, NOT A TIDY-UP.
+             The HTML spec makes the FIRST `summary` child the disclosure control. Mine was the
+             second child, after the body div, which means the browser supplies its own default
+             summary and renders my "show all" text as ordinary content inside the disclosure.
+             So the label a reader needs was inside the thing it was supposed to open.
+
+             I found this while checking whether Escape closes a fold, prompted by Andrew's
+             keyboard drive. **Nothing in my 38 checks caught it**: the DOM parser counts a
+             `<summary>` tag wherever it sits, and the tab-stop count found 50 either way. #}
+          <details class="fold">
+            <summary>show all &middot; {{ t.line_count }} lines</summary>
+            <div class="body">{{ t.text }}</div>
+          </details>
+        {% else %}
+          <div class="body">{{ t.text }}</div>
+        {% endif %}
+      </div>
+    {% endfor %}
+
+    <p id="end-of-page" class="sub">End of this page's turns.</p>
+    {{ pager() }}
+    {% if not window.has_more_after %}
+      {# THE END OF THE FILE SAYS SO. Otherwise a last page is indistinguishable from a page that
+         failed to load the rest, and a reader has no way to tell which they are looking at. #}
+      <p class="sub">That is the end of this conversation as recorded.</p>
+    {% endif %}
+
+  {% elif agent.transcript_path %}
+    <p class="notice">This agent named a transcript at <code class="scroll">{{ agent.transcript_path }}</code>
+      and it was not there when the registration was checked. Nothing is being shown because there
+      is nothing to show, not because the conversation was empty.</p>
+  {% else %}
+    <p class="notice">This agent did not name a transcript when it registered, so this OS has no
+      record of what it said. It can still receive work and report back; those are separate from
+      having a conversation on file.</p>
+  {% endif %}
+
+</div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% import "macros.html" as m %}
+{% block title %}recommendation {{ r.id }}{% endblock %}
+{% block body %}
+{{ m.receipts(receipts, room) }}
+<div class="card">
+  <div class="cid">recommendation {{ r.id }} · {{ r.produced_by or 'unattributed' }}</div>
+  <div class="ctitle">{{ r.text }}</div>
+  <div class="cmeta"><span>state {{ r.state }}</span>
+    <span>{{ 'requires a human' if r.requires_human else 'does not require a human' }}</span>
+    {% if r.cites_session_id %}<span>cites
+      <a href="/session/{{ r.cites_session_id }}">session</a></span>{% endif %}</div>
+  <div class="exp"><h5>Counterargument</h5>
+    {% if r.rationale %}{{ r.rationale }}
+    {% else %}<span class="live">This recommendation states no counterargument. Showing a
+      recommendation alone is how a review queue becomes a rubber stamp, so this screen says so
+      rather than rendering an empty block.</span>{% endif %}</div>
+</div>
+{% endblock %}

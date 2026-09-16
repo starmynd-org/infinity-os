@@ -1,0 +1,297 @@
+{% extends "base.html" %}
+{% import "live_parts.html" as lv %}
+{% block title %}{{ 'Live · ' ~ (sess.vitals.goal[:40] if sess and sess.vitals else key) if key else 'Live' }}{% endblock %}
+{% block body %}
+{# THE READ-SIDE TERMINAL WRAPPER. One of Andrew's own Claude Code sessions, live, from the JSONL
+   on disk. `web/live_session.py` carries the design and the four traps it was measured against.
+
+   ONE TEMPLATE, TWO STATES, and the split is the route's: `/live` is the picker and `/live/<key>`
+   is one session. They are one file because the picker is not a separate room -- it is this
+   surface with nothing chosen yet -- and because the sidebar of the live view IS the picker,
+   narrowed. Two templates would be one screen in two versions.
+
+   NO WEBSOCKET AND NO SSE. MUST-NOT-BUILD item 11 was overruled on 2026-08-28 for a TYPABLE
+   terminal pane, which a later wave owns and this is not. This half is read-only, so it takes
+   none of that overrule: poll and patch every three seconds over plain `fetch`, exactly as the
+   runfeed does, and the poller at the foot of this file is the whole transport.
+
+   THE THREE SIBLING RULE, inherited from the runfeed and cheap to keep here because this page has
+   no input to lose: the feed is appended to, the vitals and the live line are replaced by id, and
+   the one text box on the page (the picker's filter) is in the SIDEBAR, a sibling of the feed and
+   never a child of it, so a repaint cannot reach it at all. #}
+
+{% if not key %}
+{# ============================================================== THE PICKER, at `/live` ======= #}
+<div class="rfhead">
+  <div class="ctitle">Your terminals</div>
+  <div class="cmeta">
+    {# THE NUMBER SAYS WHAT IT COUNTED. `31 sessions` beside `41 in window` is two numbers that
+       look like they disagree, and the reason is the filter this row is under. #}
+    <span>{{ ix.rows|length }} {{ 'main ' if ix.kind == 'main' }}session{{ '' if ix.rows|length == 1 else 's' }}
+      written in the last {{ ix.hours }}h, of {{ ix.in_window }} transcripts touched</span>
+    <span>{{ ix.walked }} files walked</span>
+    <span>{{ ix.store_known }} known to the index</span>
+    <a class="go" href="/sessions">Sessions room ▸</a>
+  </div>
+</div>
+
+{% if ix.refused %}
+<div class="finding wait">{{ ix.refused }}</div>
+{% else %}
+
+<div class="rfcols">
+<div class="runfeed">
+  {# THE NARROWINGS ARE STATED WITH THE CONTROL TO WIDEN THEM. A default that hides things
+     silently is the shape this system spends its refusals on, so each link says what it opens
+     and the current one says what it is currently excluding. #}
+  <div class="cmeta" style="margin-bottom:.6rem">
+    <span>showing</span>
+    <a class="go" style="margin:0" href="/live?hours={{ ix.hours }}&kind=main{{ '&q=' ~ ix.q if ix.q }}"
+       {% if ix.kind == 'main' %}aria-current="true"{% endif %}>main only</a>
+    <a class="go" style="margin:0" href="/live?hours={{ ix.hours }}&kind=all{{ '&q=' ~ ix.q if ix.q }}"
+       {% if ix.kind == 'all' %}aria-current="true"{% endif %}>with subagents</a>
+    <span>·</span>
+    {% for h in [6, 24, 72, 336] %}
+    <a class="go" style="margin:0" href="/live?hours={{ h }}&kind={{ ix.kind }}{{ '&q=' ~ ix.q if ix.q }}"
+       {% if ix.hours == h %}aria-current="true"{% endif %}>{{ h }}h</a>
+    {% endfor %}
+  </div>
+  {% if ix.kind == 'main' %}
+  <div class="vtdetail">A subagent is a thing a session did, not a thing you did, so the count
+    rides its parent's row and `with subagents` opens them.</div>
+  {% endif %}
+
+  {# NEWEST WRITE FIRST, NOT NEWEST START. What moved most recently is what he was doing when he
+     stopped. The workdir is a rule between rows rather than a grouping, because grouping would
+     reorder the list and lose exactly that. #}
+  {% set ns = namespace(dir='') %}
+  {% for r in ix.rows %}
+    {% if r.workdir != ns.dir %}
+      {% set ns.dir = r.workdir %}
+      <div class="seam open" style="border-left-color:var(--rule)">{{ r.workdir or 'workdir unknown' }}</div>
+    {% endif %}
+    {{ lv.pickrow(r) }}
+  {% else %}
+    <div class="vtdetail">No transcript file under {{ ix.root }} was written in the last
+      {{ ix.hours }} hours. That is a statement about this window, not about whether sessions
+      exist: {{ ix.walked }} files were walked.</div>
+  {% endfor %}
+
+  {% if ix.capped %}
+  {# NO SILENT CAPS. A truncation nobody mentions reads as "that was all of it". #}
+  <div class="finding wait">{{ ix.capped }} more session{{ '' if ix.capped == 1 else 's' }} in this
+    window are not listed (row cap). Narrow the window or search to see them.</div>
+  {% endif %}
+</div>
+
+<aside class="rfside">
+  <div class="blk">
+    <h4>Find one</h4>
+    <form method="get" action="/live">
+      <input type="hidden" name="hours" value="{{ ix.hours }}">
+      <input type="hidden" name="kind" value="{{ ix.kind }}">
+      <input type="text" name="q" value="{{ ix.q }}" placeholder="a word from what you asked"
+             style="width:100%">
+      <button class="sec" type="submit">Search</button>
+    </form>
+    <div class="why">Matches your own first prompt, the workdir and the session id. There is no
+      full-text search over the conversation: nothing indexes it, and offering a box that searched
+      less than it looked like it searched would be worse than not offering one.</div>
+  </div>
+
+  <div class="blk">
+    <h4>Where this comes from</h4>
+    <p>The disk decides what exists here, and the store fills in the goal and the role. The index
+      writes a session's row at <code>SessionEnd</code>, so <b>a terminal that is open right now
+      has no row at all</b> and a list built from the store would omit exactly the sessions worth
+      watching.</p>
+    <div class="ln">{{ ix.root }}</div>
+    <div class="ln">{{ ix.walked }} files walked · {{ ix.in_window }} in window ·
+      {{ ix.head_reads }} read for a prompt the index has not seen</div>
+  </div>
+</aside>
+</div>
+{% endif %}
+
+{% else %}
+{# ========================================================= ONE SESSION, at `/live/<key>` ===== #}
+<div class="rfhead">
+  <div class="ctitle">{{ (sess.vitals.goal if sess.vitals else '') or key }}</div>
+  <div class="cmeta">
+    <span>{{ key }}</span>
+    {% if sess.vitals and sess.vitals.parent %}<span>subagent of
+      <a href="/live/{{ sess.vitals.parent }}">{{ sess.vitals.parent[:8] }}</a></span>{% endif %}
+    {# THE SIZE AND THE LINE COUNT ARE NOT HERE. This header is not a patched region, so a number
+       put in it is frozen at page load for the life of a tab -- and this is the one surface meant
+       to stay open all day. They live on the vitals row, which the poll replaces. #}
+    <a class="go" href="/live">back to your terminals ▸</a>
+  </div>
+</div>
+
+<div class="rfcols">
+<div class="runfeed">
+  {% if sess.vitals %}<div id="lsvt" class="vtwrap">{{ lv.vitals(sess.vitals) }}</div>{% endif %}
+
+  {% if sess.degraded %}{{ lv.degraded(sess.degraded) }}{% endif %}
+  {% for f in sess.findings %}{{ lv.finding(f) }}{% endfor %}
+
+  {# THE CURSOR IS THE SERVER'S. `data-since` is the line count the server read, not a maximum
+     over what happens to be in the DOM, for the reason the runfeed measured the hard way: a
+     cursor derived from the page is a cursor derived from the wrong file the moment there is
+     more than one file in play. #}
+  {% if sess.vitals %}
+  <div id="lsfeed" class="feedbody" data-since="{{ sess.position }}" data-key="{{ key }}">
+    <div class="seam open" style="border-left-color:var(--run)">{{ opened }}</div>
+    {% for e in sess.entries %}{{ lv.entry(e) }}{% endfor %}
+  </div>
+
+  <div id="lslive" class="livewrap">{{ lv.live(sess) }}</div>
+  {% endif %}
+</div>
+
+<aside class="rfside">
+  <div class="blk">
+    <h4>What this is</h4>
+    <p>A read of the file Claude Code is appending to. <b>Not a terminal.</b> No PTY text exists
+      in it: the harness writes one JSON record per line and this renders the conversation those
+      records describe.</p>
+    <p>Nothing on this page writes anything. You cannot type into this session from here.</p>
+  </div>
+
+  {% if sess.vitals %}
+  <div class="blk">
+    <h4>This session</h4>
+    <div class="ln">{{ sess.vitals.role }}{% if sess.vitals.indexed %} · indexed
+      {% else %} · not indexed yet{% endif %}</div>
+    <div class="ln">{{ sess.vitals.workdir or 'workdir unknown' }}</div>
+    {% if sess.vitals.messages %}
+    <div class="ln">{{ sess.vitals.messages }} API messages from
+      {{ sess.vitals.usage_records }} records</div>
+    {% endif %}
+    <div class="ln">{{ sess.path }}</div>
+    {% if sess.vitals.indexed %}
+    <div class="ln"><a href="/session/{{ key }}">what the index holds ▸</a></div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <div class="blk">
+    <h4>Also open</h4>
+    {% for r in others %}
+    <div class="ln"><a href="/live/{{ r.key }}">
+      <span class="sdot" style="background:var(--{{ r.state.colour }})"></span>
+      {{ r.short[:56] }}</a></div>
+    {% else %}
+    <div class="ln">nothing else was written in the last hour</div>
+    {% endfor %}
+    <div class="ln"><a href="/live">all your terminals ▸</a></div>
+  </div>
+</aside>
+</div>
+
+{# ---------------------------------------------------------------- the poller. Plain fetch.
+   Inline rather than in `console.js` for one reason and it is not preference: `console.js`'s
+   runfeed poller binds on `#feed` and asks `/api/runfeed/<name>`, so a page that reused that id
+   would be polled against the wrong endpoint with a session key in the agent's place. The ids
+   here are `lsfeed`, `lsvt` and `lslive` so that cannot happen, and the poller that owns them
+   lives with them. `base.html` and `stack.html` both carry inline script; this is that pattern.
+
+   APPEND-ONLY, KEYED BY KIND AND POSITION. A fold is stamped with the position of the row that
+   CLOSES it, so a fold and a `said` at line 8 share a number and a bare position would silently
+   drop one of them. The keys are `fold-8`, `said-8`, `beat-166`. #}
+<script>
+(function () {
+  'use strict';
+  var feed = document.getElementById('lsfeed');
+  if (!feed) return;
+  var POLL_MS = 3000;                 /* the console's cadence, and the runfeed's */
+  var key = feed.getAttribute('data-key') || '';
+  var since = parseInt(feed.getAttribute('data-since'), 10) || 0;
+  var seen = Object.create(null);
+  Array.prototype.forEach.call(feed.querySelectorAll('[data-key]'), function (el) {
+    seen[el.getAttribute('data-key')] = 1;
+  });
+  window.__lsPolls = 0; window.__lsAppended = 0;   /* instrumentation, as the runfeed carries */
+
+  function holdsFocus(node) {
+    var a = document.activeElement;
+    return !!(node && a && (node === a || node.contains(a)));
+  }
+  function replace(id, html) {
+    var host = document.getElementById(id);
+    if (!host) return;
+    if (holdsFocus(host)) return;     /* a node holding the caret is left exactly as it is */
+    if (host.innerHTML !== html) host.innerHTML = html;
+  }
+
+  function poll() {
+    if (document.hidden) return;      /* a background tab reads nobody's file */
+    fetch('/api/live/' + encodeURIComponent(key) + '?since=' + since,
+          { headers: { 'x-console-poll': '1' } })
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        window.__lsPolls++;
+        /* THE FILE SHRANK. A transcript only grows, so a lower line count means this is not the
+           file the cursor was counted against -- a compaction, a rotation, a restored backup.
+           Re-asking the server is the honest move; re-keying it here would be a second reader. */
+        if (typeof j.position === 'number' && j.position < since) { location.reload(); return; }
+        replace('lsvt', j.vitals || '');
+        replace('lslive', j.live || '');
+        (j.entries || []).forEach(function (e) {
+          if (seen[e.key]) return;    /* append-only: nothing on screen is ever re-rendered */
+          seen[e.key] = 1;
+          var wrap = document.createElement('div');
+          wrap.innerHTML = e.html;
+          while (wrap.firstChild) feed.appendChild(wrap.firstChild);
+          window.__lsAppended++;
+        });
+        if (typeof j.position === 'number') since = Math.max(since, j.position);
+      })
+      .catch(function () { /* a poll that fails is a poll; the next one is in three seconds */ });
+  }
+  setInterval(poll, POLL_MS);
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) poll(); });
+
+  /* `show` on a fold: read on demand, never shipped with the poll. One fold on a real session of
+     his held 157 records, and sending those twenty times a minute to render `157 records` would
+     be this page's most expensive read on its most frequent path. */
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.lsfoldbtn') : null;
+    if (!btn) return;
+    var out = btn.parentNode.nextElementSibling;
+    if (!out || !out.classList.contains('foldout')) {
+      out = document.createElement('div');
+      out.className = 'foldout';
+      btn.parentNode.parentNode.insertBefore(out, btn.parentNode.nextSibling);
+    }
+    if (!out.hidden) { out.hidden = true; return; }
+    out.hidden = false;
+    out.textContent = 'reading…';
+    fetch('/api/live/' + encodeURIComponent(key) + '/fold?from=' +
+          btn.getAttribute('data-from') + '&to=' + btn.getAttribute('data-to'))
+      .then(function (r) { return r.json(); })
+      .then(function (j) {
+        out.innerHTML = '';
+        (j.lines || []).forEach(function (l) {
+          var d = document.createElement('div');
+          d.className = 'fl';
+          d.textContent = l.text;     /* textContent: these are harness-written strings */
+          out.appendChild(d);
+        });
+        if (j.dropped) {
+          var c = document.createElement('div');
+          c.className = 'capped';
+          c.textContent = j.dropped + ' more lines in this fold are not shown (read cap).';
+          out.appendChild(c);
+        }
+        if (!(j.lines || []).length && !j.dropped) {
+          out.textContent = 'nothing legible in this fold. Harness bookkeeping and anything ' +
+                            'carrying a permission mode are refused before a line is made.';
+        }
+      })
+      .catch(function () { out.textContent = 'the fold could not be read just now.'; });
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

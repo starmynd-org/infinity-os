@@ -1,0 +1,33 @@
+[Unit]
+Description=Recover transcripts orphaned by a shutdown, once per boot
+Documentation=file://@REPO@/systemd/README.md
+
+[Timer]
+# AT BOOT, AND ONLY AT BOOT. This is the load-bearing line of the whole unit and it is a
+# correctness constraint, not a schedule.
+#
+# `ingest backfill --only-missing` indexes any file with no pointer row. A session that is open
+# right now also has no pointer row, correctly, because the hook indexes at SessionEnd. So on a
+# running host this sweep cannot tell an abandoned session from a live one, and indexing a live
+# one writes a pointer whose byte count is a snapshot of a file still being appended to, and which
+# `--only-missing` will then never revisit. Coverage would read 100 percent and be wrong.
+#
+# At boot, no session is open. Every unindexed file is therefore an abandoned one, by construction
+# rather than by threshold. That is what makes the sweep sound with no liveness test in it.
+#
+# DO NOT ADD OnCalendar= TO THIS TIMER. A daily run would look like better coverage and would
+# quietly corrupt the corpus in the one direction nobody checks. `ingest/ingest/queries.py` states
+# the reading-side version of the same trap: "IT HAS A FLOOR, AND THE FLOOR IS NOT A GAP."
+OnBootSec=3min
+AccuracySec=30s
+
+# No Persistent=. Persistent exists to catch a missed wall-clock window, and this timer has no
+# wall-clock window to miss: it is anchored to boot, and a boot cannot be missed because the timer
+# only exists once the machine is up.
+#
+# No RandomizedDelaySec. One host, and the hazard here is racing a cold store, which the service's
+# ExecStartPre handles by waiting on the condition instead of guessing at a delay.
+Unit=brain-transcript-backfill.service
+
+[Install]
+WantedBy=timers.target

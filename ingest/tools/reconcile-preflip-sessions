@@ -1,0 +1,202 @@
+#!/usr/bin/env python3
+"""One-off: move five pre-flip hook observations from `d3_scratch` into `brain` (task 0311).
+
+Task 0228 flipped `BRAIN_PROFILE`'s default from `scratch` to `brain`. Five sessions started
+in the twenty minutes before that flip landed, between 2026-08-16T18:28:38Z and 18:48:06Z, and
+so registered into `d3_scratch.ingest.session`, the database nobody queries. Their seven
+lifecycle envelopes were parked in `d3_scratch.ingest.event_outbox`, refused five times each by
+`event_session_id_fkey` -- `brain.event.session_id` references `brain.session(id)` and the five
+rows were not there -- and retired to `emit_status='failed'` by task 0302.
+
+This script writes the five into `brain.session`. It does NOT emit: the seven original
+envelopes are requeued and drained afterwards through the published verb,
+
+    BRAIN_PROFILE=scratch ingest/bin/ingest events requeue --all-failed --reason '...'
+    BRAIN_PROFILE=scratch ingest/bin/ingest events drain
+
+which is sub-shape A2 in the task. Sub-shape A1 -- register with `emit_event=True` and let the
+five NEW `session.started` envelopes be the events -- was rejected for one measured reason: the
+register path produces no `session.ended`, and two of the five have a hook-OBSERVED end
+(seq 4 and seq 8). A1 would have silently dropped two real events while looking complete.
+
+## The three rules this obeys, and where each comes from
+
+1. **The facts are read off `d3_scratch.ingest.session`, never off a transcript.**
+   Those rows carry `registration_source='hook'` and `time_source='hook-observed'`: a hook
+   WATCHED each session start. `verbs.session_register`'s docstring fixes the precedence -- *a
+   first-hand observation is never replaced by a reconstruction* -- so re-deriving these from
+   `.jsonl` files would write a reconstruction over first-hand facts.
+
+2. **`ended_at` is written for the two sessions whose end was observed, and for no others.**
+   `profiles.py` is explicit that an unobserved end is left NULL rather than inferred from a
+   last timestamp: a crash and a clean exit look identical in a transcript. Three of the five
+   are `state='open'` with no observed end, and they stay open. `session_register` cannot write
+   `ended_at` at all on the brain profile (it hardcodes None), so the two ends go through
+   `session_end`, which is the verb that owns that column.
+
+3. **Nothing here INSERTs.** Both transitions go through `verbs.py`, per D00's rule that every
+   state change lives in exactly one function.
+
+Default is a dry run. `--apply` writes.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+import psycopg2  # noqa: E402
+import psycopg2.extras  # noqa: E402
+
+# `store`/`config` resolve their DSN through `profiles.profile()`, which reads BRAIN_PROFILE on
+# every call. This script therefore flips the variable between the read and the write instead of
+# holding two connection strings of its own.
+from ingest import config, profiles, store, verbs  # noqa: E402
+
+#: The five, pinned. Re-measured on live by T2 on 2026-08-17 before this file was written.
+#: Pinned rather than "whatever is in the window" so that a source row that moved since is a
+#: refusal and not a silently different write: this script runs once, against a state that was
+#: read by a human, and a set that no longer matches is a reason to stop and re-read it.
+EXPECTED = {
+    "99b4962f-164f-48a6-9d23-c723ca55f474": ("ended", "2026-08-16 18:28:38.124678+00:00"),
+    "0a83e408-5926-4f9a-b48c-8cdf5bbf2d57": ("ended", "2026-08-16 18:33:14.581515+00:00"),
+    "c110cdc7-9f39-4cae-8bf8-9eb201dbe4e2": ("open", "2026-08-16 18:42:27.940239+00:00"),
+    "8cf9fb17-a43c-4611-a8df-82196418cabd": ("open", "2026-08-16 18:45:29.203190+00:00"),
+    "8bfffc5b-e2c6-414d-9e69-26c4f1e496ba": ("open", "2026-08-16 18:48:06.165455+00:00"),
+}
+
+READ = """
+SELECT session_key, agent_id, kind, harness, harness_version, entrypoint, model, model_source,
+       permission_mode, git_branch, workdir, started_at, ended_at, end_reason, state,
+       parent_session_key, stated_goal, stated_goal_source, stated_goal_tier, actor_type,
+       registration_source
+  FROM ingest.session
+ WHERE session_key = ANY(%s)
+ ORDER BY started_at
+"""
+
+
+def read_scratch(keys: list[str]) -> list[dict]:
+    os.environ["BRAIN_PROFILE"] = profiles.SCRATCH
+    with store.connect() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(READ, (keys,))
+        return [dict(r) for r in cur.fetchall()]
+
+
+def check(rows: list[dict]) -> list[str]:
+    """Every disagreement between the pinned set and what is on disk now, named."""
+    problems = []
+    seen = {r["session_key"] for r in rows}
+    for k in EXPECTED:
+        if k not in seen:
+            problems.append(f"{k}: not in d3_scratch.ingest.session any more")
+    for r in rows:
+        want_state, want_started = EXPECTED[r["session_key"]]
+        if r["state"] != want_state:
+            problems.append(f"{r['session_key']}: state is {r['state']!r}, pinned {want_state!r}")
+        if str(r["started_at"]) != want_started:
+            problems.append(
+                f"{r['session_key']}: started_at is {r['started_at']}, pinned {want_started}")
+        if r["registration_source"] != "hook":
+            problems.append(
+                f"{r['session_key']}: registration_source is {r['registration_source']!r}, "
+                f"not 'hook' -- this script only moves first-hand hook observations")
+        if (r["ended_at"] is not None) != (r["state"] == "ended"):
+            problems.append(
+                f"{r['session_key']}: state {r['state']!r} disagrees with ended_at "
+                f"{r['ended_at']!r}; refusing rather than guessing which is right")
+    return problems
+
+
+def plan(rows: list[dict]) -> list[dict]:
+    out = []
+    for r in rows:
+        # `end` is populated ONLY from an ended row's OBSERVED ended_at. There is no branch that
+        # derives one from anything else; see rule 2 in the module docstring.
+        end = None
+        if r["state"] == "ended" and r["ended_at"] is not None:
+            end = {"ended_at": str(r["ended_at"]), "end_reason": r["end_reason"] or None}
+        out.append({
+            "session_key": r["session_key"],
+            "register": {
+                "agent_id": r["agent_id"] or None, "kind": r["kind"],
+                "harness": r["harness"], "harness_version": r["harness_version"] or None,
+                "entrypoint": r["entrypoint"] or None, "model": r["model"] or None,
+                "model_source": r["model_source"] or None,
+                "permission_mode": r["permission_mode"] or None,
+                "git_branch": r["git_branch"] or None,
+                "workdir": r["workdir"] or None, "workdir_source": "reconcile:d3_scratch",
+                "started_at": str(r["started_at"]), "time_source": "hook-observed",
+                "parent_session_key": r["parent_session_key"] or None,
+                "stated_goal": r["stated_goal"], "stated_goal_source": r["stated_goal_source"],
+                "stated_goal_tier": r["stated_goal_tier"],
+                "actor_type": r["actor_type"], "registration_source": r["registration_source"],
+            },
+            "end": end,
+        })
+    return out
+
+
+def apply(steps: list[dict]) -> list[dict]:
+    os.environ["BRAIN_PROFILE"] = profiles.BRAIN
+    results = []
+    for s in steps:
+        # emit_event=False on BOTH verbs. The events are the seven envelopes already parked in
+        # d3_scratch's outbox with their true occurred_at; manufacturing new ones here would put
+        # a second, later-built statement of the same fact on the bus and would still not
+        # produce the two session.ended the register path has no branch for.
+        reg = verbs.session_register(s["session_key"], emit_event=False, **s["register"])
+        row = {"session_key": s["session_key"], "registered": reg["created"], "ended": None}
+        if s["end"]:
+            fin = verbs.session_end(
+                s["session_key"], ended_at=s["end"]["ended_at"],
+                end_reason=s["end"]["end_reason"], emit_event=False)
+            row["ended"] = str(fin["ended_at"])
+        results.append(row)
+    return results
+
+
+def brain_session_count() -> int:
+    os.environ["BRAIN_PROFILE"] = profiles.BRAIN
+    with store.connect() as conn:
+        cur = conn.cursor()
+        cur.execute("SELECT count(*) FROM session")
+        return cur.fetchone()[0]
+
+
+def main(argv=None) -> int:
+    p = argparse.ArgumentParser(prog="reconcile-preflip-sessions", description=__doc__)
+    p.add_argument("--apply", action="store_true", help="write. Without it, nothing is written.")
+    args = p.parse_args(argv)
+
+    rows = read_scratch(list(EXPECTED))
+    problems = check(rows)
+    if problems:
+        print("refused; the source no longer matches what was measured:", file=sys.stderr)
+        for x in problems:
+            print(f"  - {x}", file=sys.stderr)
+        return 2
+
+    steps = plan(rows)
+    before = brain_session_count()
+    if not args.apply:
+        print(json.dumps({"dry_run": True, "brain_session_before": before,
+                          "would_register": len(steps),
+                          "would_end": sum(1 for s in steps if s["end"]),
+                          "steps": steps}, indent=2, default=str))
+        return 0
+
+    results = apply(steps)
+    print(json.dumps({"dry_run": False, "brain_session_before": before,
+                      "brain_session_after": brain_session_count(),
+                      "host_id": config.host_id(), "results": results}, indent=2, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

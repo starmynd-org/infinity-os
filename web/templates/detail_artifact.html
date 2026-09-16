@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}artifact {{ a.seq }}{% endblock %}
+{% block body %}
+<div class="card">
+  <div class="cid">artifact {{ a.seq }} · {{ a.kind }} · by {{ a.agent }}
+    {% if a.work_item_id %} · <a href="/task/{{ a.work_item_id }}">{{ a.work_item_id }}</a>{% endif %}</div>
+  <div class="ctitle" style="word-break:break-all">{{ a.path }}</div>
+  <div class="cmeta">
+    <span>host {{ a.path_host or 'unrecorded' }}</span>
+    <span>recorded {{ a.ts.strftime('%m-%d %H:%M') if a.ts }}</span>
+    <span>{{ 'existed when recorded' if a.exists_at_record else 'DID NOT EXIST when recorded' }}</span>
+    <span style="color:var(--{{ 'fin' if a.exists_now else 'dmg' }})">
+      {{ 'on disk now' if a.exists_now else 'NOT ON DISK NOW' }}</span></div>
+  {% if a.note %}<div class="cdef">{{ a.note }}</div>{% endif %}
+  {% if a.exists_at_record and not a.exists_now %}
+  <div class="banner">Recorded as present and gone now. That is a finding, not a formatting
+    problem: `exists_at_record` is what was true when the claim was made, and re-statting at read
+    time is the only thing that catches a path that was claimed and then removed.</div>
+  {% endif %}
+</div>
+{% endblock %}

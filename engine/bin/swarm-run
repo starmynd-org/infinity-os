@@ -1,0 +1,1509 @@
+#!/usr/bin/env bash
+# swarm-run <agent-name>
+#
+# One always-on terminal. It claims a task, runs a single fresh headless engine session against
+# it, and loops. The agent reports through the swarm CLI as a side effect, so this script never
+# parses model prose and there is no output format to get wrong.
+#
+# The engine session is one-shot on purpose: context dies with the task, and everything worth
+# keeping is already in the store. "Ran out of context" stops being a failure mode.
+#
+# Ported from internal/swarm-admiral/bin/swarm-run. The bus directory became the store and
+# nothing else about this file's behaviour was redesigned, because the behaviour IS the contract
+# and most of it is written nowhere else. Carried deliberately, each one earned by an incident:
+#
+#   * the heartbeat-for-the-whole-task loop, which fixes reap-versus-doctor disagreeing
+#   * the HUP/INT/TERM trap, without which four orphaned Opus sessions were found alive
+#   * the fifo-not-pipeline invariant, so $! is the ENGINE and $? is its return code
+#   * the stream formatter that writes three files live and never dies on a malformed event
+#   * a missing workdir FAILS rather than relocating
+#   * SWARM_ONCE=1 cron mode
+#   * the 3-strike 300s systemic backoff, with refusals explicitly not counting
+#   * the account ring, and a refusal returning the task UNSPENT
+#
+# AND ONE THING THE ORIGINAL GOT WRONG, fixed here on 2026-08-18 (task 0400): an INFRASTRUCTURE
+# failure was charged to the task's attempt budget. A six-hour internet outage spent 21 tasks'
+# entire budgets in under an hour without one of them being judged on its merits, and the
+# 3-strike backoff above then woke every 300s to spend five more as network probes. See the
+# `infrastructure failures` block below for the discriminator, what it misclassifies, and the
+# evidence; engine/tests/test-infra-failure.sh is the before/after. The DETECTION half is NOT
+# fixed here -- nothing paged during those six hours and nothing pages now. That is V7's.
+#
+# TWO CHANGES from the original, both fixing defects observed in the live system on 2026-08-16.
+# They are marked INCIDENT below.
+
+set -uo pipefail
+
+AGENT="${1:-}"
+if [ -z "$AGENT" ]; then
+  echo "usage: swarm-run <agent-name>" >&2
+  exit 1
+fi
+
+SELF="${BASH_SOURCE[0]}"
+while [ -L "$SELF" ]; do
+  LINK="$(readlink "$SELF")"
+  case "$LINK" in
+    /*) SELF="$LINK" ;;
+    *)  SELF="$(dirname "$SELF")/$LINK" ;;
+  esac
+done
+HERE="$(cd "$(dirname "$SELF")" && pwd)"
+ROOT="$(dirname "$HERE")"          # engine/
+REPO="$(dirname "$ROOT")"          # the runtime repo
+SWARM="$HERE/swarm"
+
+# ------------------------------------------------------------------- the spend brake
+# D6a built `budget/**` and nothing called it, so until now it measured only what its own demo put
+# in it. FOUR calls wire it: `check` before the claim, `guard` beside the live run, `charge`
+# after the run, `halt` in reconciliation.
+#
+# The fourth is the one that brakes DURING a run rather than between two. Until it existed, a run
+# that crossed its ceiling mid-flight ran to completion and was only caught on the next dispatch,
+# so with six terminals on long tasks one over-spend became six. `budget halt` returns "budget
+# stop" only on first-party evidence -- an incident row written before we signalled -- and in
+# production `budget guard` is the only thing that writes one.
+#
+# THE ONE RULE THAT MUST NOT BE GOT WRONG. A budget stop takes `block --unspent`. NOT `fail`,
+# which charges an attempt to a lane that did nothing wrong. And NOT `reopen`, which clears the
+# claim AND resets attempts to 0 -- so the next free terminal claims the task and spends again,
+# with no counter left to stop the loop. A subscription refusal keeps taking `reopen`, exactly as
+# it does today. The two compose rather than compete: the refusal decides what happens to THIS
+# TASK, the budget decides whether a NEW DISPATCH may start.
+#
+# `--unspent` is the half that took until task 0461 to arrive, and it is a third thing rather
+# than a softening of either. The attempt is charged by the CLAIM, so `block` alone leaves a
+# defunded run's attempt spent: nine rows blocked at attempt 1 of 2 on 2026-08-29, every one of
+# them for a ceiling, and a human requeued them by hand. The refund gives the ladder back while
+# the row stays BLOCKED, which is what keeps it from becoming `reopen` by another name.
+BUDGET="$REPO/budget/bin/budget"
+
+# budget/halt.py lifts LIMIT_PARSER out of a runner at runtime rather than keeping a second copy
+# of the regex. Point it at THIS file. Its default is swarm-admiral/bin/swarm-run, which is not
+# the runner that produced this log, and two definitions of "refused" is how one of them rots.
+export SWARM_RUN_PATH="${SWARM_RUN_PATH:-$HERE/swarm-run}"
+
+# The runtime plane. Run streams and logs are files; the store holds the state. A pointer's
+# target is a file, the authority is the row.
+STATE="${ENGINE_HOME:-$HOME/.brain-runtime}"
+if ! "$SWARM" status >/dev/null 2>&1; then
+  echo "swarm-run: cannot reach the store. Check it with: $SWARM status" >&2
+  exit 1
+fi
+mkdir -p "$STATE/logs/$AGENT" "$STATE/runs"
+
+# Resolved config arrives as shell assignments (CFG_ROLE, CFG_MODEL, ...) so this stays bash.
+CFG_SHELL="$("$SWARM" config --agent "$AGENT" --shell)" || exit 1
+eval "$CFG_SHELL"
+CFG_ROLE="${CFG_ROLE:-terminal}"
+CFG_ENGINE="${CFG_ENGINE:-claude}"
+CFG_MODEL="${CFG_MODEL:-opus}"
+CFG_INTERVAL="${CFG_INTERVAL:-30}"
+CFG_TASK_TIMEOUT="${CFG_TASK_TIMEOUT:-3600}"
+CFG_ENGINE_ARGS="${CFG_ENGINE_ARGS:-}"
+CFG_ALLOWED_TOOLS="${CFG_ALLOWED_TOOLS:-}"
+CFG_ADD_DIRS="${CFG_ADD_DIRS:-}"
+CFG_EFFORT="${CFG_EFFORT:-}"
+CFG_HOST="${CFG_HOST:-}"
+CFG_LANES="${CFG_LANES:-}"
+CFG_WORKDIR="${CFG_WORKDIR:-$HOME}"
+# LOAD-BEARING, and it appeared in no planning document. `auto` runs the permission classifier,
+# so a terminal can execute the commands that verify its own work while destructive calls are
+# still refused. Under `acceptEdits` it can write a file and cannot run the test that proves the
+# file is right, which produces confident unverified work -- and an agent's self-report is only
+# worth reading under the first. Carried from config. NOT hard-coded, and not left to the
+# engine's own default, which is neither of these.
+CFG_PERMISSION_MODE="${CFG_PERMISSION_MODE:-auto}"
+
+ROLE_FILE="$REPO/roles/${CFG_ROLE}.md"
+if [ ! -f "$ROLE_FILE" ]; then
+  echo "swarm-run: no role prompt at $ROLE_FILE" >&2
+  exit 1
+fi
+
+WORKDIR="${CFG_WORKDIR/#\~/$HOME}"
+
+# ------------------------------------------------------------------- account ring
+# A subscription carries a five-hour window, and one account shared between the operator's own
+# sessions and a six-terminal fleet empties it in an afternoon. `config_dirs` lets an agent carry
+# several logged-in Claude config directories and rotate when one refuses, so a spent account
+# parks that agent rather than the whole fleet.
+#
+# No CLI change was needed for this: `swarm config` resolves `{**defaults, **agent}` and passes
+# unknown keys through, so `config_dirs` shipped without anything in between having to know it
+# existed. That tolerance is preserved in the port for the same reason.
+CONFIG_DIRS=()
+if [ -n "${CFG_CONFIG_DIRS:-}" ]; then
+  IFS=, read -ra CONFIG_DIRS <<< "$CFG_CONFIG_DIRS"
+elif [ -n "${CFG_CONFIG_DIR:-}" ]; then
+  CONFIG_DIRS=("$CFG_CONFIG_DIR")
+else
+  CONFIG_DIRS=("")     # the engine's own default, whatever CLAUDE_CONFIG_DIR already is
+fi
+
+# Drop any account directory that is not actually there. This is what makes it safe to write a
+# two-account config BEFORE the second `claude auth login` has been done: the ring runs one
+# account short until the directory appears, instead of every agent dying on a CLAUDE_CONFIG_DIR
+# pointing at nothing. THIS FLEET IS CURRENTLY IN EXACTLY THAT STATE -- ~/.claude-acct2 is named
+# in config and does not exist -- so on a limit the runner parks until the window resets rather
+# than rotating, and the task goes back unspent. A wall costs wall-clock, never work.
+_present=()
+for _d in "${CONFIG_DIRS[@]}"; do
+  if [ -z "$_d" ] || [ -d "${_d/#\~/$HOME}" ]; then
+    _present+=("$_d")
+  else
+    echo "swarm-run: skipping account dir $_d, it does not exist yet" >&2
+  fi
+done
+[ "${#_present[@]}" -gt 0 ] && CONFIG_DIRS=("${_present[@]}") || CONFIG_DIRS=("")
+unset _present _d
+
+CONFIG_IDX=0
+DIR_UNTIL=()
+for _i in "${!CONFIG_DIRS[@]}"; do DIR_UNTIL[$_i]=0; done
+unset _i
+
+RUNNER_LOG="$STATE/logs/$AGENT/runner.log"
+say() {
+  local line
+  line="$(printf '[%s] %s %s' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$AGENT" "$*")"
+  printf '%s\n' "$line"
+  printf '%s\n' "$line" >> "$RUNNER_LOG" 2>/dev/null
+}
+
+# Always stamp the configured host label. The CLI relays, so leaving the label to it records the
+# BUS host and doctor's mismatch warning becomes a permanent false positive.
+hb() { "$SWARM" heartbeat --agent "$AGENT" --status "$1" ${2:+--task "$2"} \
+         ${CFG_HOST:+--host "$CFG_HOST"} >/dev/null 2>&1; }
+
+# RE-RESOLVE CONFIG BEFORE EACH CLAIM. Task 0166, and it exists so one sentence in the console
+# can be true: the picker says a model or an effort "applies at the next claim", and until this
+# function the config was resolved ONCE at runner start, so it applied at the next runner start
+# and the console would have been claiming something the runner did not do.
+#
+# WHAT IT DELIBERATELY DOES NOT REBUILD: the account ring. `CONFIG_DIRS`, `CONFIG_IDX` and
+# `DIR_UNTIL` carry cooldown state across iterations -- which account walled and until when --
+# and rebuilding them here would reset that state every thirty seconds, so a spent account would
+# be retried immediately, forever. The console says exactly this: the account applies at the next
+# runner start, not the next claim.
+#
+# FAILS BY LEAVING EVERYTHING ALONE. A config call that errors, prints nothing, or prints a line
+# that is not a `CFG_` assignment is not eval'd at all: this runs every interval on a live fleet,
+# and eval'ing whatever came back would turn one bad read into a dead runner.
+refresh_config() {
+  local out
+  out="$("$SWARM" config --agent "$AGENT" --shell 2>/dev/null)" || return 0
+  [ -n "$out" ] || return 0
+  printf '%s\n' "$out" | grep -qvE "^CFG_[A-Z0-9_]+=" && return 0
+  eval "$out"
+  CFG_MODEL="${CFG_MODEL:-opus}"
+  CFG_INTERVAL="${CFG_INTERVAL:-30}"
+  CFG_TASK_TIMEOUT="${CFG_TASK_TIMEOUT:-3600}"
+  # NOT re-defaulted from the engine: `auto` is what makes a self-report trustworthy and the
+  # console cannot set it (`fleet_config.py` refuses the key by name), so whatever config says is
+  # what the file says.
+  CFG_PERMISSION_MODE="${CFG_PERMISSION_MODE:-auto}"
+  return 0
+}
+
+# THE CLAIMER PREDICATE, AT THE CALLER. `state = active` was the only condition reconciliation
+# ever tested, and "the task is active" is not "I am still the one holding it". A task reaped out
+# from under a slow run and re-claimed by another terminal is still `active`, and every verb the
+# reconciliation block calls would then end the NEW holder's work. The store refuses that now
+# (`_hold` in engine/swarm_engine/transitions.py), which turns a silent theft into a non-zero
+# exit and a message -- and a message redirected to /dev/null is a refusal nobody sees. So the
+# reconciliation calls go through here, which captures it and says it.
+recon() {
+  local what="$1"; shift
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  if [ $rc -ne 0 ]; then
+    say "reconciliation did NOT $what $TASK_ID: $(printf '%.400s' "$out")"
+  fi
+  return $rc
+}
+
+ENGINE_PID=""
+CURRENT_TASK=""
+HB_PID=""
+GUARD_PID=""
+
+# Heartbeat FOR AS LONG AS the engine runs, not once at claim time. Without this a terminal on a
+# 40 minute task looks stale to `doctor` (900s) while the fleet supervisor calls it fine (3600s),
+# the two disagree in the same second, and `reap` -- the reflex for "something is stuck" --
+# requeues live work and burns an attempt on it.
+start_heartbeat() {
+  local status="$1" task="${2:-}"
+  hb "$status" "$task"
+  ( while :; do
+      sleep "${SWARM_HEARTBEAT_SECONDS:-60}"
+      [ -n "$ENGINE_PID" ] && kill -0 "$ENGINE_PID" 2>/dev/null || exit 0
+      hb "$status" "$task"
+    done ) &
+  HB_PID=$!
+}
+
+stop_heartbeat() {
+  [ -n "$HB_PID" ] && kill "$HB_PID" 2>/dev/null
+  HB_PID=""
+}
+ENGINE_FIFO_DIR=""
+
+# Killing this script does not kill the engine it started. tmux tears a pane down with SIGHUP,
+# the runner dies, and a headless `claude -p` carries on as an orphan for up to task_timeout.
+# Four of those were found alive against a deleted bus during the original build. So: trap HUP as
+# well as INT and TERM, kill the engine, and hand the task back.
+cleanup() {
+  trap - INT TERM HUP
+  stop_heartbeat
+  # The guard first, and before the engine is signalled. It watches a pid it does not own, so a
+  # guard left alive past the engine it was guarding is a process holding a stale pid and a
+  # licence to SIGKILL a process group -- and after the engine exits that number belongs to
+  # whoever the kernel hands it to next.
+  [ -n "$GUARD_PID" ] && { kill "$GUARD_PID" 2>/dev/null; GUARD_PID=""; }
+  if [ -n "$ENGINE_PID" ] && kill -0 "$ENGINE_PID" 2>/dev/null; then
+    say "stopping engine $ENGINE_PID"
+    kill -TERM "$ENGINE_PID" 2>/dev/null
+    for _ in 1 2 3 4 5; do
+      kill -0 "$ENGINE_PID" 2>/dev/null || break
+      sleep 1
+    done
+    kill -KILL "$ENGINE_PID" 2>/dev/null
+  fi
+  [ -n "$ENGINE_FIFO_DIR" ] && rm -rf "$ENGINE_FIFO_DIR"
+  if [ -n "$CURRENT_TASK" ]; then
+    # INCIDENT 2026-08-16, second finding. The original called `fail` unconditionally here, and
+    # killing one agent's window released a task the store had already handed to a DIFFERENT
+    # agent: the trap acted on what the runner thought it held rather than on what the store says
+    # it holds. `release` is conditional on `claimed_by = $AGENT`, so a dying agent can no longer
+    # unclaim a live one's work. It also does not spend an attempt, which `fail` did.
+    OUT="$("$SWARM" release "$CURRENT_TASK" --agent "$AGENT" \
+           --reason "runner was stopped mid-task" --json 2>/dev/null)"
+    case "$OUT" in
+      *'"released": false'*) say "did NOT release $CURRENT_TASK: the store says another agent holds it" ;;
+      *) say "released $CURRENT_TASK back to the queue" ;;
+    esac
+  fi
+  hb offline
+  say "stopped"
+  exit 0
+}
+trap cleanup INT TERM HUP
+
+# The live-output filter. It reads the engine's stream-json on stdin and writes three files as
+# events arrive: the raw stream, a human transcript, and, at the end, the terminal `result` event.
+# It is a filter and not a post-processor on purpose: the operator watching a terminal work is the
+# whole point, so nothing may be held back until the session ends.
+#
+# Two rules it must never break. It never decides an outcome, because the runner reconciles
+# against the store. And it never dies on a malformed event, because its stdin is the engine's
+# stdout: an exception here closes the pipe and kills a live Opus session with EPIPE.
+STREAM_FORMATTER=$(cat <<'PY'
+import json, os, sys, time
+
+stream_path, log_path, run_path = sys.argv[1], sys.argv[2], sys.argv[3]
+
+def flat(v, n):
+    s = " ".join(str(v).split())
+    return s if len(s) <= n else s[:n - 3] + "..."
+
+def arg_summary(inp):
+    if isinstance(inp, dict):
+        for k in ("command", "file_path", "path", "pattern", "url", "query",
+                  "prompt", "description", "content"):
+            if inp.get(k):
+                return flat(inp[k], 200)
+        return flat(json.dumps(inp, ensure_ascii=False), 200)
+    return flat(inp, 200)
+
+def result_text(c):
+    body = c.get("content")
+    if isinstance(body, list):
+        body = " ".join(b.get("text", "") for b in body if isinstance(b, dict))
+    return flat(body, 500)
+
+stream = open(stream_path, "a", buffering=1)
+log = open(log_path, "a", buffering=1)
+tools = {}
+result = None
+pulsed = 0.0
+
+def say(s):
+    log.write(s.rstrip("\n") + "\n")
+
+for raw in sys.stdin:
+    if not raw.strip():
+        continue
+    stream.write(raw if raw.endswith("\n") else raw + "\n")
+    try:
+        ev = json.loads(raw)
+    except Exception:
+        continue          # a torn or non-JSON line is the raw file's problem, not ours
+    try:
+        kind = ev.get("type")
+        if kind == "system" and ev.get("subtype") == "init":
+            say("[init] session=%s model=%s cwd=%s"
+                % (ev.get("session_id", ""), ev.get("model", ""), ev.get("cwd", "")))
+        elif kind == "system" and ev.get("subtype") == "thinking_tokens":
+            now = time.time()
+            if now - pulsed >= 3:
+                pulsed = now
+                say("[think] thinking, ~%s tokens" % ev.get("estimated_tokens", "?"))
+        elif kind == "assistant":
+            for c in (ev.get("message") or {}).get("content") or []:
+                if not isinstance(c, dict):
+                    continue
+                ct = c.get("type")
+                if ct == "text" and str(c.get("text", "")).strip():
+                    say("[text] " + flat(c["text"], 4000))
+                elif ct == "thinking" and str(c.get("thinking", "")).strip():
+                    say("[think] " + flat(c["thinking"], 500))
+                elif ct == "tool_use":
+                    tools[c.get("id")] = c.get("name", "tool")
+                    say("[tool] %s %s" % (c.get("name", "tool"), arg_summary(c.get("input"))))
+        elif kind == "user":
+            for c in (ev.get("message") or {}).get("content") or []:
+                if not isinstance(c, dict) or c.get("type") != "tool_result":
+                    continue
+                say("[%s]  %s: %s" % ("err" if c.get("is_error") else "out",
+                                      tools.get(c.get("tool_use_id"), "tool"), result_text(c)))
+        elif kind == "result":
+            result = ev
+    except Exception:
+        pass              # a rendering bug must never take the engine down with it
+
+if result is not None:
+    tmp = run_path + ".part"
+    with open(tmp, "w") as f:
+        json.dump(result, f)
+    os.replace(tmp, run_path)
+    denials = result.get("permission_denials") or []
+    log.write("\n=== engine result ===\n")
+    log.write(str(result.get("result", "")) + "\n")
+    if denials:
+        log.write("PERMISSION DENIALS: %s\n" % flat(json.dumps(denials), 2000))
+    log.write("session=%s turns=%s cost_usd=%s error=%s\n"
+              % (result.get("session_id", ""), result.get("num_turns", ""),
+                 result.get("total_cost_usd", ""), result.get("is_error", "")))
+else:
+    log.write("\n=== engine result ===\n")
+    log.write("no result event: the engine produced no terminal result. It was killed, "
+              "timed out, or failed to start. See the lines above and the runner output.\n")
+PY
+)
+
+# ------------------------------------------------------------------- rate limiting
+# A subscription limit is NOT a task failure, and charging it to the task is expensive. The engine
+# exits non-zero with the task still active, reconciliation below would spend an attempt, and two
+# spent attempts block the task and raise an operator question.
+#
+# The incident this exists to prevent, 2026-08-14: one five-hour ceiling became 18 blocked tasks
+# and 18 spurious operator questions in about five minutes, every queued task deadlocked behind
+# their dependencies, and the fleet then sat idle for ELEVEN HOURS with all six terminals healthy
+# and nothing wrong with any of the work. 41 attempt logs carried the same refusal string.
+# Nothing in the system could tell "the model declined to start" apart from "the agent tried and
+# could not do it".
+#
+# So the refusal is recognised before reconciliation, the task goes back UNSPENT, and the runner
+# either rotates to another account or waits out the window.
+LIMIT_PARSER=$(cat <<'PY'
+import re, sys, time
+from datetime import datetime, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:                       # pragma: no cover, only on a very old python
+    ZoneInfo = None
+
+try:
+    text = open(sys.argv[1], errors="replace").read()[-40000:]
+except OSError:
+    raise SystemExit(1)
+
+# Every wording the CLI has been seen to use. Matching too widely is the safer error here: a
+# false positive costs one requeue, a false negative costs the task. But it is bounded on
+# purpose -- `reopen` resets the attempt counter every time, so a pattern loose enough to match
+# an ordinary success would requeue real failures forever with no ladder left to stop it. The
+# negative cases are tested explicitly in tests/test-ratelimit.sh for exactly that reason.
+if not re.search(r"hit your (session|usage|weekly) limit"
+                 r"|usage limit reached"
+                 r"|Claude usage limit"
+                 r"|limit reached[^\n]{0,40}reset", text, re.I):
+    raise SystemExit(1)
+
+FALLBACK = 1800     # a refusal we cannot time is still a refusal. Wait, do not hammer.
+
+# "resets 7:10pm (Europe/Bucharest)", "resets 7pm", "will reset at 19:10"
+m = re.search(r"reset(?:s|\s+at)?\s+(\d{1,2})(?::(\d{2}))?\s*([ap]\.?m\.?)?\s*(?:\(([^)]+)\))?",
+              text, re.I)
+if not m:
+    print(int(time.time()) + FALLBACK)
+    raise SystemExit(0)
+
+hour, minute = int(m.group(1)), int(m.group(2) or 0)
+ampm = (m.group(3) or "").replace(".", "").lower()
+if ampm == "pm" and hour != 12:
+    hour += 12
+elif ampm == "am" and hour == 12:
+    hour = 0
+if not (0 <= hour <= 23 and 0 <= minute <= 59):
+    print(int(time.time()) + FALLBACK)
+    raise SystemExit(0)
+
+# The message names the ACCOUNT's own timezone, which is not necessarily this host's. This host
+# is also known to step its clock backwards, so read the offset rather than assuming.
+tz, name = None, m.group(4)
+if name and ZoneInfo:
+    try:
+        tz = ZoneInfo(name.strip())
+    except Exception:
+        tz = None
+
+base = datetime.now(tz)
+target = base.replace(hour=hour, minute=minute, second=0, microsecond=0)
+if target <= base:            # a printed reset is always ahead; reading as past means tomorrow
+    target += timedelta(days=1)
+print(int(target.timestamp()) + 60)   # resuming on the exact boundary gets refused once more
+PY
+)
+
+# limit_reset_epoch <log> -> epoch to wait until. Empty and rc=1 when the log has no refusal.
+limit_reset_epoch() { python3 -c "$LIMIT_PARSER" "$1" 2>/dev/null; }
+
+# ------------------------------------------------------------------- infrastructure failures
+# A DEAD NETWORK IS NOT A FAILED TASK, and until now this runner charged one to the other.
+#
+# The incident, 2026-08-18. The operator lost internet at about 01:00Z. Every in-flight engine
+# call came back `Request timed out`, the runner filed each as `unreported: engine exited rc=1
+# without reporting`, and `fail` spent an attempt. TWENTY-ONE TASKS burned their entire attempt
+# budget in under an hour and not one of them was judged on its merits. Measured from
+# `~/.swarm/logs/T4/`: `0379-attempt2.log` and `0379-attempt3.log` are 242 bytes each and read
+# `turns=1 cost_usd=0 error=True`; `0379-attempt1.log` is 16,012 bytes, 27 turns, $1.91 of real
+# work killed mid-run by the same outage. The 3-strike backoff below then made it worse rather
+# than better: it slept 300s and woke to claim a FRESH task, so five more (0366, 0371, 0374,
+# 0373, 0381) were spent as probes against a network that was still down.
+#
+# THE DISCRIMINATOR IS TYPED, NOT A HEURISTIC. The engine's terminal `result` event carries
+# `terminal_reason`, and the runner already writes that whole event to `$RUN_JSON`. Surveyed over
+# all 291 run jsons in the live fleet's `runs/` directory on 2026-08-18:
+#
+#     terminal_reason      n     what they are
+#     completed          187     ordinary runs, error or not
+#     api_error           84     41 `Request timed out`, 41 subscription refusals,
+#                                1 `API Error: 500`, 1 `Connection lost mid-response`
+#     aborted_tools       10     killed mid-tool (the budget guard, the shutdown trap)
+#     aborted_streaming   10     killed mid-stream
+#
+# Every one of the 84 is infrastructure. None is a task failure. THE OBVIOUS HEURISTIC --
+# `num_turns == 1 and total_cost_usd == 0`, which is what the incident writeup proposed -- misses
+# 8 of those 84 (9.5%), and the ones it misses are the expensive ones: `0379-attempt1` itself is
+# 27 turns and $1.91. A symptom of "died before it started" cannot see a run that died after
+# doing real work, and those are exactly the runs worth not charging. So: the typed field.
+#
+# WHAT IT MISCLASSIFIES, stated rather than discovered later:
+#
+#   * UNDER-DETECTS a run killed with NO result event at all (network dropped mid-stream, SIGKILL,
+#     the `timeout` wall). `terminal_reason` is only written by a terminal result event, so those
+#     still take the fail path and still spend an attempt. Deliberate: "no result event" is also
+#     what a genuinely wedged agent looks like, and over-detecting here is the dangerous direction
+#     -- `reopen` resets attempts to 0, so a pattern that matched a real failure would requeue it
+#     forever with no ladder left to stop it (see `transitions.reopen`'s own docstring).
+#   * WOULD OVER-DETECT a request the API rejects on the task's own merits -- an oversized prompt
+#     is `api_error` too, and would loop unspent forever. Bounded by `api_error_status`: 4xx is
+#     the caller's fault and is NOT treated as infrastructure. 429 is the one exception, and it
+#     never reaches here anyway because the subscription-refusal branch is asked first.
+#   * A subscription refusal is `api_error` as well (status 429, all 41 of them). It keeps its own
+#     branch, which also rotates the account ring, and that branch runs FIRST. Two definitions of
+#     "refused" is how one of them rots; the ordering is asserted in tests/test-infra-failure.sh.
+INFRA_PARSER=$(cat <<'PY'
+import json, sys
+
+# The run json first, the stream second. A run json can be absent or clobbered -- `$RUN_JSON` and
+# `$STREAM` are keyed on (task, attempt) and two terminals landing on one attempt share them --
+# and `0379-attempt1` on the live bus is exactly that: a log carrying a result, no run json at
+# all. Reading only the first would have let the most expensive run of the incident go uncounted.
+def result_event():
+    try:
+        d = json.load(open(sys.argv[1]))
+        if isinstance(d, dict) and d.get("type", "result") == "result":
+            return d
+    except Exception:
+        pass
+    last = None
+    try:
+        for line in open(sys.argv[2], errors="replace"):
+            try:
+                ev = json.loads(line)
+            except Exception:
+                continue
+            if ev.get("type") == "result":
+                last = ev          # last wins: `total_cost_usd` is cumulative within a session
+    except Exception:
+        pass
+    return last
+
+ev = result_event()
+if not isinstance(ev, dict):
+    raise SystemExit(1)            # no terminal result event: not classifiable, take the fail path
+if ev.get("terminal_reason") != "api_error":
+    raise SystemExit(1)
+
+# 4xx is the caller's fault, not the network's, and must keep spending attempts or a task the API
+# will refuse forever requeues forever. 429 is not ours to judge -- it is a subscription wall, and
+# that branch already ran and did not fire, which means this is a 429 whose wording we could not
+# read. Treat that as infrastructure: waiting is right for it either way.
+status = ev.get("api_error_status")
+try:
+    status = int(status)
+except (TypeError, ValueError):
+    status = None
+if status is not None and 400 <= status <= 499 and status != 429:
+    raise SystemExit(1)
+
+reason = " ".join(str(ev.get("result") or "api error with no message").split())[:200]
+print("%s (terminal_reason=api_error, status=%s, turns=%s, cost_usd=%s)"
+      % (reason, status if status is not None else "none",
+         ev.get("num_turns", "?"), ev.get("total_cost_usd", "?")))
+PY
+)
+
+# infra_failure_reason <run-json> <stream> -> a one-line reason. Empty and rc=1 when the run's
+# own result event does not say the failure was infrastructure.
+infra_failure_reason() { python3 -c "$INFRA_PARSER" "$1" "$2" 2>/dev/null; }
+
+# net_reachable -> 0 when something answered over the network, 1 when nothing did.
+#
+# ANY answer counts, including 404 and 401. This asks "is there a network", not "is the API
+# happy": measured against api.anthropic.com from this host, an unauthenticated GET returns 404,
+# and 404 is a perfectly good proof that packets are moving. Costs no tokens and claims no task,
+# which is the entire point -- the incident spent five real tasks finding out what this answers
+# for free.
+NET_PROBE_URL="${SWARM_NET_PROBE_URL:-https://api.anthropic.com/}"
+net_reachable() {
+  if command -v curl >/dev/null 2>&1; then
+    curl -sS -o /dev/null -m "${SWARM_NET_PROBE_TIMEOUT:-10}" "$NET_PROBE_URL" >/dev/null 2>&1
+    return $?
+  fi
+  # No curl. A TCP connect to the same host is the same question asked one layer down.
+  python3 - "$NET_PROBE_URL" "${SWARM_NET_PROBE_TIMEOUT:-10}" <<'PY' >/dev/null 2>&1
+import socket, sys
+from urllib.parse import urlparse
+u = urlparse(sys.argv[1])
+port = u.port or (443 if u.scheme == "https" else 80)
+socket.create_connection((u.hostname, port), timeout=float(sys.argv[2])).close()
+PY
+}
+
+# infra_park
+# THE HALF THE 3-STRIKE BACKOFF GOT WRONG. `sleep 300; claim another task` is the correct shape
+# for a transient engine fault and the WRONG one for a dead dependency: it converts wall-clock
+# into spent tasks at five per outage-hour. When consecutive failures all carry the infrastructure
+# signature, the runner stops claiming ENTIRELY and probes the network instead, because a probe
+# costs nothing and a task costs an attempt.
+#
+# It parks for as long as the outage lasts, deliberately unbounded. The six-hour dead fleet of
+# 2026-08-18 was not made worse by the fleet being idle -- it was made worse by the fleet being
+# busy. The heartbeat keeps `reap` and `doctor` from calling this terminal stale while it waits.
+#
+# WHAT THIS DOES NOT DO: page anybody. Nothing here closes the detection gap -- the fleet can now
+# sit parked for six hours as quietly as it previously sat shredding. That is V7's loopback relay
+# and it is deliberately not touched from this file.
+INFRA_STREAK_MAX="${SWARM_INFRA_STREAK_MAX:-3}"
+infra_park() {
+  [ "$INFRA_FAILURES" -ge "$INFRA_STREAK_MAX" ] || return 0
+  # Cron mode dispatches ONE task and exits, so there is no next claim for parking to prevent and
+  # a park here would hold the cron slot open for the length of the outage instead. The exit is
+  # the park: the next tick re-probes for free by simply not being dispatched into a dead network
+  # any faster than cron fires.
+  if [ "${SWARM_ONCE:-0}" = "1" ]; then
+    say "$INFRA_FAILURES consecutive INFRASTRUCTURE failures. Cron mode: exiting rather than parking."
+    return 0
+  fi
+  local wait_s=30 waited=0
+  say "$INFRA_FAILURES consecutive INFRASTRUCTURE failures. NOT claiming another task."
+  say "  Parking and probing $NET_PROBE_URL instead. A probe costs nothing; a task costs an attempt."
+  while true; do
+    hb backoff
+    if net_reachable; then
+      say "network answered after ${waited}s parked. Resuming, streak cleared."
+      INFRA_FAILURES=0
+      return 0
+    fi
+    sleep "$wait_s"
+    waited=$((waited + wait_s))
+    wait_s=$((wait_s * 2))
+    [ "$wait_s" -gt 300 ] && wait_s=300
+    # One line per probe, and the probes space out to five minutes, so a parked terminal reads as
+    # parked in its own log rather than as hung. Still no substitute for a pager, which is V7's.
+    say "still parked, ${waited}s, network has not answered"
+  done
+}
+
+# rotate_or_wait <until-epoch>
+# Parks the account that just refused, switches to the next one that is not itself parked, and
+# only sleeps when every configured account is spent. Returns 0 if the runner may carry straight
+# on with a different account, 1 if it slept.
+rotate_or_wait() {
+  local until_epoch="$1" n i cand now_epoch soonest secs
+  n="${#CONFIG_DIRS[@]}"
+  DIR_UNTIL[$CONFIG_IDX]="$until_epoch"
+  now_epoch="$(date +%s)"
+
+  for (( i = 1; i < n; i++ )); do
+    cand=$(( (CONFIG_IDX + i) % n ))
+    if [ "${DIR_UNTIL[$cand]:-0}" -le "$now_epoch" ]; then
+      CONFIG_IDX="$cand"
+      say "rate limited, rotating to account ${CONFIG_DIRS[$cand]:-<engine default>}"
+      return 0
+    fi
+  done
+
+  soonest="$until_epoch"
+  for (( i = 0; i < n; i++ )); do
+    [ "${DIR_UNTIL[$i]:-0}" -gt 0 ] && [ "${DIR_UNTIL[$i]}" -lt "$soonest" ] && soonest="${DIR_UNTIL[$i]}"
+  done
+  secs=$(( soonest - now_epoch ))
+  [ "$secs" -lt 60 ] && secs=60
+  # A mis-parsed clock must never park a runner for a day. Six hours is longer than any window
+  # the subscription actually uses, so this only ever truncates a bad read.
+  [ "$secs" -gt 21600 ] && secs=21600
+  if [ "$n" -le 1 ]; then
+    say "rate limited, and this agent has one account. Waiting ${secs}s. Give it a second"
+    say "  account with \"config_dirs\": [\"~/.claude\", \"~/.claude-acct2\"] to keep working."
+  else
+    say "rate limited on all $n configured accounts, waiting ${secs}s"
+  fi
+  hb backoff
+  sleep "$secs"
+  for (( i = 0; i < n; i++ )); do DIR_UNTIL[$i]=0; done   # the window passed, start fresh
+  return 1
+}
+
+# run_engine <prompt-file> <log> <run-json>  ->  sets ENGINE_RC
+run_engine() {
+  local prompt_file="$1" run_json="$3"
+  local log="$2"
+
+  # The ACTIVE account, not the configured one: a rotation has to reach the engine or it changes
+  # nothing. Empty means leave whatever CLAUDE_CONFIG_DIR is already set to.
+  local active_dir="${CONFIG_DIRS[$CONFIG_IDX]:-${CFG_CONFIG_DIR:-}}"
+  if [ -n "$active_dir" ]; then
+    export CLAUDE_CONFIG_DIR="${active_dir/#\~/$HOME}"
+  fi
+
+  if [ "$CFG_ENGINE" = "codex" ]; then
+    local codex_prompt
+    codex_prompt="$(mktemp)"
+    cat "$ROLE_FILE" > "$codex_prompt"
+    printf '\n\n' >> "$codex_prompt"
+    cat "$prompt_file" >> "$codex_prompt"
+    # TRUNCATE ONCE, THEN APPEND, exactly as the claude branch does. `> "$log"` would give the
+    # engine a private file offset starting at zero while the guard below appends to the same
+    # file, and the two writers would overwrite each other's bytes. The engine log is what
+    # `limit_reset_epoch` scrapes, so a torn log is a misread refusal.
+    : > "$log"
+    # shellcheck disable=SC2086
+    timeout "$CFG_TASK_TIMEOUT" codex exec \
+      ${CFG_MODEL:+-m "$CFG_MODEL"} \
+      --skip-git-repo-check \
+      --sandbox workspace-write \
+      -c "sandbox_workspace_write.writable_roots=[\"$STATE\",\"$REPO\"]" \
+      $CFG_ENGINE_ARGS \
+      - < "$codex_prompt" >> "$log" 2>&1 &
+    ENGINE_PID=$!
+
+    # ---------------------------------------------------------------- the live brake, codex
+    # GUARDED ON $RUN_ROW_ID, and that condition is the whole reason this branch was unguarded
+    # until now. `budget halt` matches first-party evidence on run_id or session_id and nothing
+    # else. Codex writes no stream-json, so there is no `init` event to read a session id out of;
+    # the run row id is the only key this engine will ever have. Without it a stop here would be
+    # filed against nothing, `halt` would find no evidence, and the kill would reconcile as an
+    # ordinary task failure -- charging an attempt to a lane that did nothing wrong. A stop that
+    # cannot be matched is worse than no stop, so with no run id this branch still runs unguarded
+    # rather than guarded badly. `run-start` prints the id; a store that could not open the row
+    # leaves it empty, and that is exactly when not to arm this.
+    #
+    # Everything else mirrors the claude branch and for the same reasons: the guard starts AFTER
+    # `$!` is captured so `$!` is still the ENGINE (the shutdown trap has to reach a real engine),
+    # it adopts the pid rather than owning it, and it is torn down before this function returns so
+    # a recycled pid is never signalled by a guard for a run that is over.
+    GUARD_PID=""
+    if [ "$BUDGET_OK" = "1" ] && [ -n "${RUN_ROW_ID:-}" ]; then
+      "$BUDGET" guard --pid "$ENGINE_PID" --run "$RUN_ROW_ID" \
+        --agent "$AGENT" ${HB_TASK:+--task "$HB_TASK"} ${TASK_LANE:+--lane "$TASK_LANE"} \
+        --by swarm-run >> "$log" 2>&1 &
+      GUARD_PID=$!
+    elif [ "$BUDGET_OK" = "1" ]; then
+      say "codex run NOT guarded: no run row id, so a stop would carry no key and would be"
+      say "  reconciled as a task failure. Is the store reachable? \`swarm run-start\` prints it."
+    fi
+
+    start_heartbeat "$HB_STATUS" "$HB_TASK"
+    wait "$ENGINE_PID"
+    ENGINE_RC=$?
+    stop_heartbeat
+    ENGINE_PID=""
+    if [ -n "$GUARD_PID" ]; then
+      kill "$GUARD_PID" 2>/dev/null
+      wait "$GUARD_PID" 2>/dev/null
+      GUARD_PID=""
+    fi
+    rm -f "$codex_prompt"
+    return
+  fi
+
+  local extra=()
+  [ -n "$CFG_EFFORT" ] && extra+=(--effort "$CFG_EFFORT")
+  # Without these two the agent cannot report. Claude Code sandboxes Bash to the session's working
+  # directory, so the CLI sits outside it and every `swarm done` call is denied. That failure is
+  # silent from the model's side: it does the work correctly, then cannot file it, and the task
+  # comes back as unreported.
+  extra+=(--add-dir "$STATE" --add-dir "$REPO")
+  extra+=(--allowedTools "Bash($SWARM *)")
+  [ -n "$CFG_ALLOWED_TOOLS" ] && extra+=(--allowedTools "$CFG_ALLOWED_TOOLS")
+  if [ -n "$CFG_ADD_DIRS" ]; then
+    local d
+    IFS=, read -ra _dirs <<< "$CFG_ADD_DIRS"
+    for d in "${_dirs[@]}"; do
+      [ -n "$d" ] && extra+=(--add-dir "${d/#\~/$HOME}")
+    done
+  fi
+
+  # Start clean: these are per-attempt files, and a stale one from an earlier run of the same
+  # attempt number would be read as this run's result.
+  local stream_json="${run_json%.json}.stream.jsonl"
+  : > "$log"
+  : > "$stream_json"
+  rm -f "$run_json"
+
+  # The engine's stdout goes through the formatter over a NAMED PIPE rather than a shell
+  # pipeline, for two reasons that are both load-bearing:
+  #   1. `cmd | filter &` sets $! to the FILTER, so the shutdown trap would kill the filter and
+  #      leave a headless Opus session running against a store nobody is watching. With a fifo,
+  #      $! is the engine and cleanup still reaches it.
+  #   2. a pipeline's exit status is its last command, so ENGINE_RC would become the formatter's
+  #      rc and the 124 timeout branch and the failure branch would both go quietly dead.
+  # Neither side can deadlock on the fifo: the redirection is performed by the forked child
+  # before it execs, so each end opens even when the command behind it is missing or broken.
+  local fifo
+  ENGINE_FIFO_DIR="$(mktemp -d)"
+  fifo="$ENGINE_FIFO_DIR/stream"
+  mkfifo "$fifo"
+
+  python3 -c "$STREAM_FORMATTER" "$stream_json" "$log" "$run_json" < "$fifo" &
+  local fmt_pid=$!
+
+  # shellcheck disable=SC2086
+  # Backgrounded and waited on, not run in the foreground: bash defers a trap until the current
+  # foreground command finishes, so a foreground engine would ignore the shutdown signal for as
+  # long as it runs. `wait` is interruptible.
+  timeout "$CFG_TASK_TIMEOUT" claude -p \
+    --model "$CFG_MODEL" \
+    --permission-mode "$CFG_PERMISSION_MODE" \
+    --append-system-prompt "$(cat "$ROLE_FILE")" \
+    --output-format stream-json --include-partial-messages --verbose \
+    "${extra[@]}" $CFG_ENGINE_ARGS \
+    < "$prompt_file" > "$fifo" 2>>"$log" &
+  ENGINE_PID=$!
+
+  # ------------------------------------------------------------------ the live brake
+  # STARTED AFTER `$!` IS CAPTURED, AND IT NEVER TOUCHES THE ENGINE'S STDOUT. Both are the whole
+  # point. `budget.enforcer.RunGuard.run()` would start the engine itself, which is the natural
+  # shape and the wrong one here: it would make $! the guard, and then the shutdown trap would
+  # kill a watcher while a headless Opus session carried on orphaned, and ENGINE_RC would be the
+  # guard's exit code so the 124 timeout branch would go quietly dead. Both are exactly what the
+  # fifo above exists to prevent. So the guard ADOPTS the pid and stands beside the run.
+  #
+  # What it brakes: the meter is shared, so what usually takes a live run over a ceiling is a
+  # SIBLING terminal finishing and charging, or the operator typing `budget stop`. Both move the
+  # meter under a run already in flight. Before this the ceiling braked only between runs, so six
+  # terminals on long tasks turned one over-spend into six.
+  #
+  # What it cannot brake is a run crossing on its OWN spend: Claude Code's stream-json carries
+  # `total_cost_usd` on the terminal `result` event and nowhere else, so this run's own cost is
+  # not observable until it has already been paid. That lands once, below, through `charge`.
+  #
+  # BOTH KEYS, and the run id first. `budget halt` matches first-party evidence on run_id or
+  # session_id. The session id does not exist until the engine announces it in its stream-json
+  # `init` event, which left a race this branch could not close: a run stopped in its first second
+  # had no session id yet, so its stop carried no key and reconciled as an ordinary task failure.
+  # `--run` is known at launch and closes it. `--stream` stays, because the session id is what
+  # still identifies this run after the row is reused (`brain.run` is keyed (task, attempt) and
+  # `reopen` puts the next dispatch back on attempt 1).
+  GUARD_PID=""
+  if [ "$BUDGET_OK" = "1" ]; then
+    "$BUDGET" guard --pid "$ENGINE_PID" --stream "$stream_json" ${RUN_ROW_ID:+--run "$RUN_ROW_ID"} \
+      --agent "$AGENT" ${HB_TASK:+--task "$HB_TASK"} ${TASK_LANE:+--lane "$TASK_LANE"} \
+      --by swarm-run >> "$log" 2>&1 &
+    GUARD_PID=$!
+  fi
+
+  start_heartbeat "$HB_STATUS" "$HB_TASK"
+  wait "$ENGINE_PID"
+  ENGINE_RC=$?
+  stop_heartbeat
+  ENGINE_PID=""
+
+  # The guard outlives nothing. It polls a pid it does not own, so leaving it running past the
+  # run it was watching is how a recycled pid gets signalled by a guard for a run that is over.
+  if [ -n "$GUARD_PID" ]; then
+    kill "$GUARD_PID" 2>/dev/null
+    wait "$GUARD_PID" 2>/dev/null
+    GUARD_PID=""
+  fi
+
+  wait "$fmt_pid" 2>/dev/null
+  rm -rf "$ENGINE_FIFO_DIR"
+  ENGINE_FIFO_DIR=""
+}
+
+# run_planner_pass <reason>
+# An admiral or commander waking up with an empty queue. It gets the board, not a task.
+run_planner_pass() {
+  local reason="$1" stamp
+  stamp="$(date -u +%Y%m%d-%H%M%S)"
+  say "planning pass: $reason"
+  HB_STATUS=planning; HB_TASK=""
+  hb planning
+
+  local prompt_file log run_json
+  prompt_file="$(mktemp)"
+  log="$STATE/logs/$AGENT/plan-$stamp.log"
+  run_json="$STATE/runs/plan-$AGENT-$stamp.json"
+
+  {
+    echo "You are ${AGENT}, role ${CFG_ROLE}, waking for a planning pass."
+    echo "Reason you were woken: ${reason}"
+    echo "The swarm CLI is: ${SWARM}"
+    echo
+    echo "=================== BOARD ==================="
+    "$SWARM" board
+    echo "=============== OBJECTIVES WAITING ==============="
+    "$SWARM" objectives
+    echo "=============== RECENTLY FINISHED, REVIEW THESE ==============="
+    "$SWARM" ls --state done | tail -20
+    echo "=============== ANSWERED SINCE YOUR LAST PASS ==============="
+    "$SWARM" questions --answered --since 6
+    echo "=============== MESSAGES TO YOU ==============="
+    "$SWARM" inbox --agent "$AGENT" --mark-read
+    echo "=============================================="
+    echo
+    echo "Do your pass now. You plan and review, you do not do the lanes' work yourself."
+    echo "AN ANSWER THAT AUTHORISES WORK MUST BECOME A TASK IN THIS PASS. A question with no"
+    echo "task attached requeues nothing when answered, so if you do not post it, nobody does"
+    echo "it and the operator waits for work he believes he authorised."
+    echo "Post work with: ${SWARM} post --lane L --title T --posted-by ${AGENT} --priority N \\"
+    echo "                  --for-agents -f -"
+    echo "--for-agents IS NOT OPTIONAL ON A ROOT TASK YOU WANT WORKED. This queue holds the"
+    echo "operator's own day as well as the fleet's, so a row nobody classified is HIS and no"
+    echo "agent will ever claim it (migration 26). A task posted under --parent inherits its"
+    echo "parent's answer and needs no flag. \`swarm ls\` marks a held row [OPERATOR]."
+  } > "$prompt_file"
+
+  ENGINE_RC=0
+  run_engine "$prompt_file" "$log" "$run_json"
+  rm -f "$prompt_file"
+
+  # A planner refused on a limit did not plan. Committing the tick here would record a pass that
+  # never happened, and the planner would then sleep through the board change that woke it.
+  local limit_until
+  limit_until="$(limit_reset_epoch "$log")" || limit_until=""
+  if [ -n "$limit_until" ]; then
+    say "planning pass refused on a subscription limit, tick NOT committed, log $log"
+    rotate_or_wait "$limit_until"
+    return
+  fi
+  "$SWARM" tick --agent "$AGENT" --commit >/dev/null 2>&1
+}
+
+# Two machines running this agent name against one store would clobber each other's heartbeat,
+# and reap would then requeue work that is still running. Refuse to be the second one. A stale
+# heartbeat is fine: that runner is gone.
+HB="$("$SWARM" status --json 2>/dev/null | python3 -c "
+import json,sys
+try: d=json.load(sys.stdin)
+except Exception: raise SystemExit
+for a in d.get('agents',[]):
+    if a.get('name')=='$AGENT' and 0 <= (a.get('silent') or -1) < 180 and a.get('status') not in ('offline',):
+        print(a.get('host',''))
+" 2>/dev/null)"
+MYHOST="${CFG_HOST:-$(hostname)}"
+if [ -n "${HB:-}" ] && [ "$HB" != "$MYHOST" ]; then
+  echo "swarm-run: agent '$AGENT' is already live on host '$HB', and this host is '$MYHOST'." >&2
+  echo "  Two runners under one name would corrupt heartbeats and reaping." >&2
+  echo "  Give this host its own agent names, for example ${AGENT}-${MYHOST}." >&2
+  exit 1
+fi
+
+say "up. role=$CFG_ROLE engine=$CFG_ENGINE model=$CFG_MODEL lanes=$CFG_LANES workdir=$WORKDIR"
+[ -n "$CFG_HOST" ] && say "host label=$CFG_HOST (claims tasks pinned to it, plus unpinned ones)"
+say "permission mode=$CFG_PERMISSION_MODE"
+if [ "$CFG_PERMISSION_MODE" = "bypassPermissions" ]; then
+  say "WARNING: this agent runs with all permission checks bypassed."
+fi
+if [ "$CFG_PERMISSION_MODE" = "acceptEdits" ]; then
+  say "WARNING: acceptEdits lets this agent write files it cannot then run the tests to verify."
+  say "  Its self-reports are worth less than under auto. This is a deliberate config choice."
+fi
+
+# Is the brake armed? Asked once, loudly, rather than discovered as three silently skipped calls.
+# It stays a warning and not an exit: migration 3 is additive and a store that predates it must
+# still run the fleet. But "no ceiling fired" and "no ceiling could fire" are different sentences
+# and the operator gets to read which one this is.
+BUDGET_OK=0
+BUDGET_BLOCKED=0
+# The gate asked and could not answer, as opposed to asked and was told no. Task 0301.
+BUDGET_UNDECIDED=0
+# Edge trigger for the OTHER brake, the one the gate below cannot see: a lane ceiling that makes
+# `claim` hand out nothing. Task 0177. See the idle branch.
+LANE_BLOCKED=0
+if [ -x "$BUDGET" ] && "$BUDGET" status >/dev/null 2>&1; then
+  BUDGET_OK=1
+  say "spend brake armed: $BUDGET"
+else
+  say "WARNING: THE SPEND BRAKE IS NOT ARMED. $BUDGET could not read its tables."
+  say "  Apply budget/schema/0003_budget.sql to this database. Until then this runner dispatches"
+  say "  without a preflight, records what nothing costs, and stops for no ceiling."
+fi
+
+FAILURES=0
+# COUNTED SEPARATELY FROM `FAILURES`, and that separation is the fix rather than an accounting
+# detail. The two streaks call for opposite reflexes: a run of engine faults wants a short sleep
+# and another try, a run of infrastructure faults wants the runner to stop claiming altogether.
+# Sharing one counter is how the 2026-08-18 outage spent five extra tasks as network probes.
+INFRA_FAILURES=0
+
+while true; do
+  # ------------------------------------------------------- config, every iteration
+  # Before the kill switch on purpose: it is one cheap read, it cannot fail this loop, and a
+  # paused fleet resuming should already be holding whatever the operator set while it was down.
+  refresh_config
+
+  # ---------------------------------------------------------------- kill switch
+  # Ask the store, never a local file. This also gives a liveness check on the store for free.
+  "$SWARM" paused --agent "$AGENT" >/dev/null 2>&1
+  case $? in
+    0) hb paused; sleep "$CFG_INTERVAL"; continue ;;
+    2) : ;;
+    *) say "cannot reach the store, backing off"; sleep 30; continue ;;
+  esac
+
+  # ------------------------------------------------------------- the spend gate
+  # BEFORE the claim, not after. A claim you then release is a claim another agent raced for, and
+  # `release` is conditional on still holding it -- so the loser of that race gets nothing while
+  # the queue looks like it moved. Nothing is spent here, nothing is claimed, no attempt is
+  # charged: it is the cheapest stop there is.
+  #
+  # Exit 3 means do not dispatch. `budget check` files its own typed `blocked_dispatch` incident,
+  # so nothing on this branch writes one.
+  #
+  # THE LANE IS NOT KNOWN YET. That is what the claim decides. So a lane ceiling is passed here
+  # only when the agent has exactly one configured lane; fleet and agent ceilings always apply.
+  #
+  # THE MULTI-LANE CASE IS HANDLED, AND NOT HERE (task 0122). `claim` carries the lane ceiling in
+  # the same statement as its `FOR UPDATE SKIP LOCKED`, because that statement is the only thing
+  # that knows which lane it is about to hand out: a budget-stopped lane is excluded from the
+  # candidate set, so it is never claimed rather than claimed and released. Do NOT "fix" this by
+  # widening `--lane` above -- passing a guessed lane to a gate that files a typed incident would
+  # record a refusal against a lane the agent was never going to be given.
+  #
+  # What that means for a reader of this branch: an idle multi-lane runner may be idle because
+  # every lane it claims from is budget-stopped, and this gate will not say so, because this gate
+  # was never asked about those lanes. THE IDLE BRANCH BELOW SAYS IT INSTEAD (task 0177): an empty
+  # claim is asked `--explain`, and when the reason is a stopped lane the runner heartbeats
+  # `budget_stopped` rather than `idle` and prints one edge-triggered line. Do not move that check
+  # up here: it would have to guess the lane, and this gate files a typed incident.
+  if [ "$BUDGET_OK" = "1" ]; then
+    case "$CFG_LANES" in
+      ""|"*"|*,*) PRECLAIM_LANE="" ;;
+      *)          PRECLAIM_LANE="$CFG_LANES" ;;
+    esac
+    # Recorded on the way DOWN, dry-run while already down. This gate is asked every
+    # CFG_INTERVAL seconds by every runner, so recording each poll would turn one stop into
+    # hundreds of blocked_dispatch rows and make the incident table unreadable -- which would
+    # destroy the one thing those rows are for, counting what was caught before it spent.
+    BUDGET_ARGS=(check --agent "$AGENT" ${PRECLAIM_LANE:+--lane "$PRECLAIM_LANE"})
+    [ "$BUDGET_BLOCKED" = "1" ] && BUDGET_ARGS+=(--dry-run)
+    BUDGET_LINE="$("$BUDGET" "${BUDGET_ARGS[@]}" 2>&1)"
+    BUDGET_RC=$?
+    if [ "$BUDGET_RC" -eq 3 ]; then
+      [ "$BUDGET_BLOCKED" = "1" ] || say "spend gate: NOT dispatching. $BUDGET_LINE"
+      BUDGET_BLOCKED=1
+      BUDGET_UNDECIDED=0            # a stop IS an answer
+      hb budget_stopped
+      [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+      sleep "$CFG_INTERVAL"
+      continue
+    fi
+    # A GATE THAT COULD NOT ANSWER IS NOT A GATE THAT SAID YES. Task 0301.
+    #
+    # `budget check` exits 0 for allow and 3 for stop; ANY other code is the CLI reporting that it
+    # could not decide (`budget/cli.py` returns EXIT_USAGE=2 for every exception, with the reason
+    # on stderr, which $BUDGET_LINE holds). This branch used to fall through to the claim, so a
+    # gate that errored and a gate that allowed were the same thing to this runner and
+    # indistinguishable in its log -- one blip at this one call and the runner claimed, dispatched
+    # and spent past a hard ceiling, which is exactly what test-budget-wiring.sh scene 5 caught
+    # once under load (charged $0.42 against a $0.01 ceiling, no blocked_dispatch row, no line
+    # here saying why).
+    #
+    # Not dispatching costs this runner one interval and costs the operator nothing: whatever
+    # makes the gate unable to read the store makes `claim` -- the very next call, against the
+    # same store -- fail too. So there is no work being given up here, only spending.
+    #
+    # NOT the same decision as the unarmed warning above: that one is a static, loud, once-per-run
+    # condition (a store predating migration 3, which must still be able to run the fleet). This
+    # one is a transient failure of a call that DID have a brake to consult.
+    #
+    # Edge-triggered like the stop above, and on its OWN flag: an error is not a budget stop, and
+    # borrowing $BUDGET_BLOCKED would make the next healthy poll announce a ceiling "clear again"
+    # that was never down.
+    if [ "$BUDGET_RC" -ne 0 ]; then
+      [ "$BUDGET_UNDECIDED" = "1" ] || \
+        say "spend gate: COULD NOT DECIDE (exit $BUDGET_RC), NOT dispatching. $BUDGET_LINE"
+      BUDGET_UNDECIDED=1
+      hb budget_stopped
+      [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+      sleep "$CFG_INTERVAL"
+      continue
+    fi
+    if [ "$BUDGET_UNDECIDED" = "1" ]; then
+      say "spend gate: answering again. $BUDGET_LINE"
+      BUDGET_UNDECIDED=0
+    fi
+    if [ "$BUDGET_BLOCKED" = "1" ]; then
+      say "spend gate: clear again. $BUDGET_LINE"
+      BUDGET_BLOCKED=0
+    fi
+  fi
+
+  # ------------------------------------------------------------------- claim
+  # A PLANNER DOES NOT PULL FROM THE QUEUE. Its `lanes` is empty by default so `claim` returns
+  # nothing anyway, but skipping the call outright keeps the intent obvious: the admiral
+  # decomposes work, it does not quietly execute the work it just decomposed. Two gates.
+  if [ "$CFG_ROLE" = "admiral" ] || [ "$CFG_ROLE" = "commander" ] || [ "$CFG_ROLE" = "planner" ]; then
+    rc=2
+    CLAIM_OUT=""
+  else
+    CLAIM_OUT="$("$SWARM" claim --agent "$AGENT" ${CFG_HOST:+--host "$CFG_HOST"} --shell --explain 2>/dev/null)"
+    rc=$?
+  fi
+  if [ "$rc" -eq 2 ]; then
+    if [ "$CFG_ROLE" = "admiral" ] || [ "$CFG_ROLE" = "commander" ] || [ "$CFG_ROLE" = "planner" ]; then
+      TICK_REASON="$("$SWARM" tick --agent "$AGENT" --min-seconds "$CFG_INTERVAL" 2>/dev/null)"
+      if [ $? -eq 0 ]; then
+        run_planner_pass "$TICK_REASON"
+        [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+        continue
+      fi
+    fi
+    # ------------------------------------------------- idle, or braked and looking idle (0177)
+    # THE STATUS HAS TO SAY WHICH ONE THIS IS. The spend gate above never fires for a lane
+    # ceiling on a multi-lane agent, because that gate is asked about the fleet and the agent and
+    # at gate time the lane is not decided; `claim` carries the lane ceiling instead (task 0122)
+    # and an excluded lane comes back as an empty claim, which is indistinguishable from an empty
+    # queue. That is how a fleet with every lane stopped heartbeats `idle` on healthy runners
+    # while work sits in the queue -- the 2026-08-14 shape, eleven hours of it.
+    #
+    # `claim --explain` answers it from the lane list the claim ITSELF used, and writes nothing:
+    # no incident row, no thread row. Two reads, and only on an empty claim. That is what makes
+    # this safe on a path every agent runs every `interval` seconds -- the reason 0122 refused to
+    # make the claim verb record anything here.
+    #
+    # Reset before the eval, never after: these variables live in the runner's own shell and a
+    # stale `lane_budget` from a previous poll would keep heartbeating a brake that has cleared.
+    CLAIM_EMPTY_REASON=""; CLAIM_EMPTY_LANES=""
+    eval "$CLAIM_OUT" 2>/dev/null || true
+    if [ "${CLAIM_EMPTY_REASON:-}" = "lane_budget" ]; then
+      # Edge-triggered, exactly like the spend gate: this branch is re-entered every interval and
+      # a line per poll would bury the one that matters.
+      [ "$LANE_BLOCKED" = "1" ] || say "NOT idle: every lane this agent claims from is budget-stopped (${CLAIM_EMPTY_LANES:-?}). The queue may have work; the claim excludes those lanes. 'budget check --lane ${CLAIM_EMPTY_LANES%%,*}' says why."
+      LANE_BLOCKED=1
+      hb budget_stopped
+      [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+      sleep "$CFG_INTERVAL"
+      continue
+    fi
+    if [ "$LANE_BLOCKED" = "1" ]; then
+      say "lane ceiling clear again: back to reading the queue."
+      LANE_BLOCKED=0
+    fi
+    hb idle
+    # SWARM_ONCE=1 makes this a one-shot worker, which is how you drive it from cron instead of
+    # keeping a terminal open.
+    [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+    sleep "$CFG_INTERVAL"
+    continue
+  fi
+  if [ "$rc" -ne 0 ]; then
+    say "claim failed (rc=$rc), backing off"
+    sleep 30
+    continue
+  fi
+  eval "$CLAIM_OUT"   # TASK_ID TASK_TITLE TASK_LANE TASK_WORKDIR TASK_ATTEMPTS ...
+
+  TASK_WORKDIR="${TASK_WORKDIR:-}"
+  if [ -n "$TASK_WORKDIR" ]; then
+    RUN_DIR="${TASK_WORKDIR/#\~/$HOME}"
+    # Do NOT fall back to the agent's default directory. On one machine that fallback is a
+    # convenience; across several it is a wrong-host task quietly doing work in the wrong place.
+    # A missing workdir means this task was meant for a different box. D00 rule 7.
+    if [ ! -d "$RUN_DIR" ]; then
+      say "workdir $RUN_DIR does not exist on this host, refusing $TASK_ID"
+      "$SWARM" fail "$TASK_ID" --agent "$AGENT" \
+        --reason "workdir $RUN_DIR does not exist on host $(hostname). Pin the task with --host, or fix its workdir." >/dev/null
+      CURRENT_TASK=""
+      continue
+    fi
+  else
+    # NO FALLBACK, AND THE LINE THAT USED TO BE HERE IS WHY. Task 0100.
+    #
+    # It read `RUN_DIR="${WORKDIR/#\~/$HOME}"` -- the AGENT PROFILE's own directory, which is
+    # `str(Path.home())` in the shipped DEFAULT_CONFIG and `/mnt/c/Users/you/repos` in this
+    # fleet's live config. Both of those are PARENTS of every repo on the box, so a brief's
+    # relative paths resolved somewhere real and WRONG instead of failing, and this file's own
+    # header promise -- "a missing workdir FAILS rather than relocating" -- was true only of a
+    # workdir that was SET and absent, never of one nobody set at all. The comment a few lines up
+    # states the rule this branch was quietly breaking.
+    #
+    # MEASURED, task 0051 (2026-08-16): the terminal was started in /home/you, found no
+    # `outputs/` tree there, inferred the right repo out of the brief's prose, and left an orphan
+    # /home/you/outputs behind while probing.
+    #
+    # `post` refuses to CREATE such a row now (swarm_engine/transitions.py, _check_fleet_workdir),
+    # so this branch covers exactly the rows that predate that guard -- four were live and
+    # agent-claimable on 2026-08-18: 0101, 0103, 0104, 0105. Failing one costs an attempt and
+    # names the one-line repair; running it in a tree nobody chose costs whatever it writes there.
+    say "task $TASK_ID has no workdir at all, refusing rather than relocating"
+    "$SWARM" fail "$TASK_ID" --agent "$AGENT" \
+      --reason "task $TASK_ID carries no workdir, so there is no boundary to run it inside. The runner does NOT fall back to the agent's own directory: that is the parent of every repo on this box, so every relative path in the brief would resolve in a tree nobody chose. Repair it with: swarm set $TASK_ID workdir /abs/path --agent <you>" >/dev/null
+    CURRENT_TASK=""
+    continue
+  fi
+
+  CURRENT_TASK="$TASK_ID"
+  say "claimed $TASK_ID ($TASK_ATTEMPTS/$TASK_MAX_ATTEMPTS) in $RUN_DIR :: $TASK_TITLE"
+  say "  transcript: $STATE/logs/$AGENT/${TASK_ID}-attempt${TASK_ATTEMPTS}.log"
+  HB_STATUS=working; HB_TASK="$TASK_ID"
+  hb working "$TASK_ID"
+
+  PROMPT_FILE="$(mktemp)"
+  {
+    echo "You are agent ${AGENT}. You have claimed task ${TASK_ID} from the swarm bus."
+    echo "Working directory: ${RUN_DIR}"
+    echo "The swarm CLI is: ${SWARM}"
+    echo
+    echo "=================== TASK ${TASK_ID} ==================="
+    "$SWARM" show "$TASK_ID"
+    echo "======================================================="
+    echo
+    echo "PROTOCOL, not optional:"
+    echo "- This is attempt ${TASK_ATTEMPTS} of ${TASK_MAX_ATTEMPTS}. If you exit without"
+    echo "  reporting, the task is requeued and another agent repeats your work from zero."
+    echo "- Finish by calling EXACTLY ONE of these:"
+    echo "    ${SWARM} done ${TASK_ID} --summary \"...\" --agent ${AGENT}"
+    echo "    ${SWARM} block ${TASK_ID} --reason \"...\" --agent ${AGENT}"
+    echo "    ${SWARM} fail ${TASK_ID} --reason \"...\" --agent ${AGENT}"
+    echo "- Record every file you create or change, as you do it:"
+    echo "    ${SWARM} artifact ${TASK_ID} /abs/path --kind created --from ${AGENT}"
+    echo "- Record findings as you learn them, not at the end:"
+    echo "    ${SWARM} note ${TASK_ID} \"what you found\" --from ${AGENT}"
+    echo "- Needs an operator decision? Do not guess:"
+    echo "    ${SWARM} ask --from ${AGENT} --task ${TASK_ID} --default \"what you will do if"
+    echo "      nobody answers\" \"your question\""
+    echo "- Found adjacent work? Post it, do not silently do it. ALWAYS pass --parent, which"
+    echo "  is what carries the external and canon-touching gates down to the new task -- and,"
+    echo "  since migration 26, whether the fleet may claim it at all. Without --parent the new"
+    echo "  task defaults to HELD FOR THE OPERATOR and nobody will ever pick it up:"
+    echo "    ${SWARM} post --lane ${TASK_LANE} --title \"...\" --posted-by ${AGENT} \\"
+    echo "      --parent ${TASK_ID} -f -"
+    echo
+    echo "Your context ends when this session ends. Anything not written to the bus is lost."
+  } > "$PROMPT_FILE"
+
+  LOG="$STATE/logs/$AGENT/${TASK_ID}-attempt${TASK_ATTEMPTS}.log"
+  RUN_JSON="$STATE/runs/${TASK_ID}-attempt${TASK_ATTEMPTS}.json"
+  STREAM="$STATE/runs/${TASK_ID}-attempt${TASK_ATTEMPTS}.stream.jsonl"
+
+  cd "$RUN_DIR" || { "$SWARM" fail "$TASK_ID" --reason "workdir $RUN_DIR is gone" --agent "$AGENT"; CURRENT_TASK=""; continue; }
+
+  # If the agent posts derived work and forgets --parent, the CLI falls back to this, so the hard
+  # flags still travel. Without it a two-hop chain launders external and canon_touching.
+  export SWARM_PARENT_TASK="$TASK_ID"
+
+  # And who this terminal IS, which is the same variable the MCP server already reads. `swarm set`
+  # took no --agent at all until 2026-08-16 and filed every edit against `operator`, so the one
+  # record of who cleared a hard flag named the person who did not do it. With this exported, a
+  # verb that forgets --agent still records the terminal instead of the operator -- and `set`
+  # refuses outright if BOTH are missing, which is why this line is not a nicety.
+  export SWARM_AGENT="$AGENT"
+
+  # AND THE ONE VARIABLE THAT SILENTLY THROWS AWAY THE CONVERSATION. A `claude` that believes it
+  # is a CHILD of another Claude Code session writes NO transcript file, so `SessionEnd` has
+  # nothing to index, the conversation never reaches `brain.transcript`, and it never appears in
+  # the Sessions room. Measured A/B by lane B3 on 2026-08-29, two otherwise identical pty
+  # sessions, both answering correctly and both exiting 0:
+  #
+  #     CLAUDE_CODE_CHILD_SESSION set     ->  answered fine, 0 transcript files written
+  #     ONLY that variable removed        ->  answered fine, 1 transcript file written
+  #
+  # The `brain.session` row is written EITHER WAY, which is exactly what makes the loss quiet:
+  # the record says a conversation happened and cannot say what was said. Five real helper
+  # sessions were lost to this on 2026-08-29 before it was found, and the operator named proof
+  # that terminal conversations are logged as a key part of the product that was not tracked.
+  #
+  # NAMED, NOT PREFIX-STRIPPED, on purpose: `CLAUDE_CODE_*` also carries real configuration the
+  # operator may have set, and a wildcard here would silently disable it.
+  unset CLAUDE_CODE_CHILD_SESSION
+
+  # The run row, so `show --full` has a pointer to the stream and the store knows an attempt is
+  # in flight. `run start` is a verb like everything else.
+  #
+  # AND ITS ID IS KEPT, which is what arms the live brake. `budget halt` matches first-party
+  # evidence on run_id OR session_id and nothing else, and the session id does not exist until
+  # the engine announces it in its own first stream-json event. So this is the only key available
+  # at LAUNCH, and on an engine that writes no stream-json (codex) it is the only key there will
+  # ever be. `run-start` prints the bare id for exactly this line; stderr still goes to /dev/null
+  # because a store error must not end up parsed as an id.
+  #
+  # Cleared first, so a store that could not open the row leaves this EMPTY rather than carrying
+  # the previous task's id into this one's guard -- which would file this run's stop against a
+  # finished run and misfile both. Every reader below is written to treat empty as "no key".
+  RUN_ROW_ID=""
+  RUN_ROW_ID="$("$SWARM" run-start "$TASK_ID" --attempt "$TASK_ATTEMPTS" --agent "$AGENT" \
+    --stream "$STREAM" ${CFG_HOST:+--host "$CFG_HOST"} 2>/dev/null | tr -dc '0-9')"
+
+  ENGINE_RC=0
+  run_engine "$PROMPT_FILE" "$LOG" "$RUN_JSON"
+
+  if [ "$CFG_ENGINE" != "codex" ]; then
+    # From the result event when there is one, and FROM THE STREAM'S `init` EVENT WHEN THERE IS
+    # NOT. A run that was killed never writes a result event, and a killed run is exactly the one
+    # whose session id the budget classifier needs: `budget halt` matches first-party evidence on
+    # (run_id OR session_id), and `run-start` records no run id anywhere the runner can read. Read
+    # only the result and a killed run hands `halt` an empty session, so it finds no evidence,
+    # falls through to the log -- which for a long run may carry a rate-limit line from a turn it
+    # retried past -- and the stop is misfiled as a wall and REOPENED. That is the money loop.
+    SID="$(python3 -c "
+import json, sys
+sid = ''
+try:
+    sid = json.load(open(sys.argv[1])).get('session_id', '') or ''
+except Exception:
+    pass
+if not sid:
+    try:
+        for line in open(sys.argv[2], errors='replace'):
+            try:
+                ev = json.loads(line)
+            except Exception:
+                continue
+            if ev.get('session_id'):
+                sid = ev['session_id']
+                break
+    except Exception:
+        pass
+print(sid)" "$RUN_JSON" "$STREAM" 2>/dev/null)"
+    [ -n "${SID:-}" ] && "$SWARM" set "$TASK_ID" session_id "$SID" >/dev/null 2>&1
+  fi
+
+  # ----------------------------------------------------------- meter the run
+  # `brain.run` has no cost column, so THIS CALL IS THE ONLY THING THAT EVER RECORDS WHAT A RUN
+  # COST. Without it every ceiling below compares against zero forever.
+  #
+  # It happens here, before reconciliation, and whatever the outcome turns out to be. Charge, then
+  # decide: the charge is a state change that must land even when the task failed, and a decision
+  # that rolled back its own evidence would under-count the very spend it is judging.
+  #
+  # A zero-cost run is charged, not skipped. A run that cost nothing is evidence, and it is how a
+  # run proves it spent nothing rather than being assumed to.
+  #
+  # Idempotent on (source, source_ref), so anything re-reading this same run json -- a
+  # reconciliation sweep, a rerun of this branch -- cannot double-charge. EXIT 3 IS NOT A FAILED
+  # CHARGE: it means the charge just took the meter over a ceiling. The money is recorded either
+  # way; the pre-claim gate above is what refuses the next dispatch.
+  #
+  # ONE CHARGE PER ENGINE SESSION, NOT ONE PER RUN. `$RUN_JSON` and `$STREAM` are keyed on
+  # (task, attempt) while `$LOG` is keyed on (agent, task, attempt), so two terminals on one
+  # attempt keep separate logs and SHARE these two files. The renderer is last-wins over the
+  # result event, so reading `total_cost_usd` off `$RUN_JSON` charges exactly one of them and
+  # loses the other: measured on the 2026-08-16 corpus, `0092-attempt1` held T3's 4aee2969
+  # ($11.4242) and T1's 7912efa2 ($0.9658) and only the second could ever be charged.
+  # `budget/run_cost.py` reads the pair session by session; its docstring carries the evidence
+  # and the trap (`total_cost_usd` is CUMULATIVE within a session, so a sum overstates a
+  # 19-result-event run by 10.8x). Verified over 159 stream files: this recovers $15.4671 and
+  # moves no file that does not hold two sessions.
+  if [ "$BUDGET_OK" = "1" ] && { [ -s "$RUN_JSON" ] || [ -s "$STREAM" ]; }; then
+    CS_SEEN=""     # BEFORE the loop, not after it: this is dispatch-loop scope, and a value
+                   # left over from an earlier task would read as a collision on the next one
+    while IFS=$'\t' read -r CS_SID CS_USD; do
+      [ -n "${CS_USD:-}" ] || continue
+      # The session id is globally unique per engine session, which the attempt number is not:
+      # `reopen` resets attempts to 0, so (task, attempt) repeats and would collide on the
+      # idempotency key, silently suppressing a real second charge. SID first for that reason,
+      # and per-session it is also what keeps two sessions in one file from sharing one ref.
+      CHARGE_REF="${CS_SID:-$TASK_ID}:$TASK_ATTEMPTS"
+      # TRUTH-UP, because the guard has already metered this session in $0.25 steps while it ran
+      # (`budget/enforcer.py` MID_STEP, refs `<sid>:mid:<n>`). `$CS_USD` is the session's
+      # authoritative total, and those steps are the same money, so the ledger must take the total
+      # minus what the steps already charged. Without the flag a guarded $0.50 run lands as $1.00
+      # and the pre-claim gate refuses the next dispatch on spend that never happened: measured
+      # natively by review 5 (finding C5-COMP-1, scenes M02/M03). A session the guard never
+      # stepped charges its full total either way, and a re-run of this line still dedups.
+      CHARGE_LINE="$("$BUDGET" charge "$CS_USD" --ref "$CHARGE_REF" --source run_json \
+        --agent "$AGENT" --lane "$TASK_LANE" --task "$TASK_ID" --session "$CS_SID" \
+        --by swarm-run --truth-up 2>&1)"
+      CHARGE_RC=$?
+      say "metered \$$CS_USD for $TASK_ID attempt $TASK_ATTEMPTS (ref $CHARGE_REF)"
+      if [ "$CHARGE_RC" -eq 3 ]; then
+        say "  that charge crossed a ceiling. The next dispatch will be refused: $CHARGE_LINE"
+      elif [ "$CHARGE_RC" -ne 0 ]; then
+        say "  WARNING: the charge did not land (rc=$CHARGE_RC): $CHARGE_LINE"
+      fi
+      # A second session in this file means ANOTHER TERMINAL RAN THIS SAME ATTEMPT. Metering it
+      # is the cheap half; say so, because the expensive half is two agents editing one repo.
+      if [ -n "${CS_SEEN:-}" ] && [ "$CS_SEEN" != "$CS_SID" ]; then
+        say "  COLLISION: $TASK_ID attempt $TASK_ATTEMPTS carries more than one engine session"
+        say "  ($CS_SEEN and $CS_SID). Two terminals ran this attempt. Charged both; the"
+        say "  duplicated WORK is not something this branch can undo."
+      fi
+      CS_SEEN="$CS_SID"
+    done < <(python3 "$REPO/budget/run_cost.py" --stream "$STREAM" --run-json "$RUN_JSON" \
+               2>/dev/null)
+  fi
+
+  rm -f "$PROMPT_FILE"
+  CURRENT_TASK=""
+
+  # ----------------------------------------------------------- reconciliation
+  # The agent was told to report. TRUST THE STORE, NOT THE EXIT CODE: if the task is still
+  # active, the agent did not report, whatever the engine printed.
+  TASK_STATE="$("$SWARM" state "$TASK_ID" 2>/dev/null)"
+  if [ "$TASK_STATE" = "active" ]; then
+    # ------------------------------------------------- did WE stop this run, for money?
+    # ASKED BEFORE THE LOG IS READ FOR A REFUSAL, and the order is the whole point. A long run
+    # killed for budget can easily carry a rate-limit line from an earlier turn it retried past.
+    # Read the text first and that run is filed as a subscription refusal and sent down the
+    # `reopen` path -- which clears the claim AND resets attempts to 0 -- so the next free
+    # terminal claims it and spends again, with no counter left to stop the loop.
+    #
+    # `budget halt` checks our own first-party record (an incident written BEFORE we signalled)
+    # before it reads anybody's text, so that misfiling is unreachable rather than merely
+    # avoided. Exit 3 = budget stop. Exit 4 = subscription refusal. 0 = neither.
+    #
+    # Exit 4 deliberately FALLS THROUGH to the branch below instead of acting here. That branch
+    # also rotates the account ring and requeues unspent, and tests/test-ratelimit.sh pins its
+    # wiring line by line; a second refusal path would be a second definition of "refused".
+    if [ "$BUDGET_OK" = "1" ]; then
+      # BOTH KEYS, and `--run` is not optional garnish on the codex path -- it is the only key
+      # there is. `SID` is read out of the stream-json `init` event, and the block that reads it
+      # is skipped outright when CFG_ENGINE is codex, so on that engine `--session` is ALWAYS
+      # empty. Ask with the session alone and a codex run the guard genuinely stopped for money
+      # finds no first-party evidence, falls through to the log, and is reconciled as an ordinary
+      # task failure -- charging an attempt to a lane that did nothing wrong, which is the exact
+      # misfiling the guard above exists to prevent. The run id closes it, and it also covers a
+      # claude run killed before its first event ever named a session.
+      HALT_LINE="$("$BUDGET" halt --session "${SID:-}" ${RUN_ROW_ID:+--run "$RUN_ROW_ID"} \
+        --log "$LOG" --state "$TASK_STATE" 2>&1)"
+      HALT_RC=$?
+      if [ "$HALT_RC" -eq 3 ]; then
+        say "budget stop: $TASK_ID is BLOCKED, not reopened, and its attempt goes back UNSPENT. $HALT_LINE"
+        # `block`. NOT `fail`, which charges an attempt to a lane that did nothing wrong. And NOT
+        # `reopen`, which resets attempts to 0 and hands the task straight back to be spent
+        # again. A budget stop does not clear itself: a human raises the ceiling or types
+        # `budget resume`. That is exactly the difference from a wall, which does.
+        #
+        # `--unspent` IS THE THIRD THING, and it is neither of the two above. The attempt was
+        # charged by the CLAIM, before this run did anything; `block` on its own leaves it
+        # charged, so on 2026-08-29 nine rows sat blocked at attempt 1 of 2 for a ceiling and
+        # the operator requeued them by hand (task 0461). This gives the attempt back while the
+        # row stays BLOCKED -- parked is what makes a refund not a retry loop, and it is exactly
+        # why `reopen` still cannot be used here. `budget/halt.py` has said
+        # `charges attempt=False` in this very $HALT_LINE since it was written; this flag is the
+        # first code that acts on it. The store refuses the refund unless a hard_stop incident
+        # names this task, so a wrong flag here cannot erase a real attempt.
+        recon "block" "$SWARM" block "$TASK_ID" --agent "$AGENT" --unspent \
+          --reason "budget stop, not a task failure and not a subscription wall: this run was stopped for spend. $HALT_LINE"
+        "$SWARM" run-end "$TASK_ID" --attempt "$TASK_ATTEMPTS" --outcome budget_stopped \
+          --exit-code "$ENGINE_RC" >/dev/null 2>&1
+        FAILURES=0   # a ceiling is not an engine fault, and must not trip the 3-strike backoff
+        INFRA_FAILURES=0   # and a ceiling we measured ourselves proves the network is up
+        [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+        continue
+      fi
+    fi
+    # THE CHECK SITS HERE AND NOWHERE ELSE. Inside the `active` branch, and only after the store
+    # has been asked. A limit message can appear in the log of a task the agent then went on to
+    # finish, and checking before the store was asked would reopen completed work and throw it
+    # away. The store is the authority on outcome; the log only explains it.
+    LIMIT_UNTIL="$(limit_reset_epoch "$LOG")" || LIMIT_UNTIL=""
+    if [ -n "$LIMIT_UNTIL" ]; then
+      say "engine refused on a subscription limit. $TASK_ID goes back UNSPENT, attempt $TASK_ATTEMPTS not charged."
+      # reopen, not fail: it clears the claim and resets attempts to 0. `fail` is for an agent
+      # that tried, and this one was never allowed to start.
+      recon "reopen" "$SWARM" reopen "$TASK_ID" --from "$AGENT" \
+        --reason "subscription rate limit, not a task failure: the engine refused before doing any work"
+      "$SWARM" run-end "$TASK_ID" --attempt "$TASK_ATTEMPTS" --outcome refused \
+        --exit-code "$ENGINE_RC" >/dev/null 2>&1
+      FAILURES=0    # a wall is not a fault, and must not trip the 3-strike systemic backoff
+      # A refusal is an ANSWER FROM THE API, so it is first-hand proof the network is up and the
+      # infrastructure streak is over. Leaving it set would let three walls park a healthy runner.
+      INFRA_FAILURES=0
+      rotate_or_wait "$LIMIT_UNTIL"
+      [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+      continue
+    fi
+    # ------------------------------------------------- was it the network, not the task?
+    # AFTER the refusal check and BEFORE the fail path, and both halves of that placement are
+    # load-bearing. A subscription refusal is `api_error` too (status 429, all 41 in the corpus),
+    # so asking this first would swallow every wall into this branch and the account ring would
+    # never rotate. And asking it after `fail` would be asking after the attempt was already
+    # spent, which is the defect.
+    INFRA_REASON="$(infra_failure_reason "$RUN_JSON" "$STREAM")" || INFRA_REASON=""
+    if [ -n "$INFRA_REASON" ]; then
+      say "engine failed on INFRASTRUCTURE, not on the task: $INFRA_REASON"
+      say "  $TASK_ID goes back UNSPENT, attempt $TASK_ATTEMPTS not charged."
+      # `reopen`, for the same reason a subscription wall takes it: the task was never judged.
+      # NOT `fail`, which is what spent 21 tasks' entire budgets against a dead router. NOT
+      # `block`, which is for a stop only a human clears, and a network comes back on its own.
+      recon "reopen" "$SWARM" reopen "$TASK_ID" --from "$AGENT" \
+        --reason "infrastructure failure, not a task failure: $INFRA_REASON"
+      "$SWARM" run-end "$TASK_ID" --attempt "$TASK_ATTEMPTS" --outcome infra_failure \
+        --exit-code "$ENGINE_RC" >/dev/null 2>&1
+      FAILURES=0    # not an engine fault either: the 300s-then-claim reflex is the wrong one here
+      INFRA_FAILURES=$((INFRA_FAILURES + 1))
+      infra_park
+      [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+      continue
+    fi
+    if [ "$ENGINE_RC" -eq 124 ]; then
+      REASON="engine hit the ${CFG_TASK_TIMEOUT}s timeout without reporting"
+    elif [ "$ENGINE_RC" -ne 0 ]; then
+      REASON="engine exited rc=$ENGINE_RC without reporting, see $LOG"
+    else
+      REASON="engine finished but never called done/block/fail, see $LOG"
+    fi
+    say "unreported: $REASON"
+    recon "fail" "$SWARM" fail "$TASK_ID" --reason "$REASON" --agent "$AGENT"
+    FAILURES=$((FAILURES + 1))
+    # A GENUINE FAILURE STILL SPENDS AN ATTEMPT, and it also clears the infrastructure streak:
+    # getting far enough to fail on the merits means the engine reached the API and came back.
+    # A fix that stopped counting real failures would be worse than the defect it replaced.
+    INFRA_FAILURES=0
+  else
+    say "$TASK_ID -> $TASK_STATE"
+    FAILURES=0
+    INFRA_FAILURES=0
+  fi
+  "$SWARM" run-end "$TASK_ID" --attempt "$TASK_ATTEMPTS" --outcome "$TASK_STATE" \
+    --exit-code "$ENGINE_RC" >/dev/null 2>&1
+
+  # Repeated engine-level failures mean something systemic (auth, quota, a wedged model). Back
+  # off rather than burning the queue down one task at a time.
+  if [ "$FAILURES" -ge 3 ]; then
+    say "3 consecutive engine failures, sleeping 300s"
+    hb backoff
+    sleep 300
+    FAILURES=0
+  fi
+
+  [ "${SWARM_ONCE:-0}" = "1" ] && cleanup
+done
