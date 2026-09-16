@@ -24,6 +24,12 @@ WorkingDirectory=@REPO@
 Environment=BRAIN_PG_DB=brain
 Environment=PYTHONUNBUFFERED=1
 
+# On an install with no brain there is no subscriber declaration, so this listener is not
+# declared here and must not run. An ExecCondition exiting 1 leaves the unit inactive with the
+# reason in the journal, where an ExecStart refusal left it FAILED on every fresh install and
+# failed brain-health with it (W5-S7, 2026-09-16). A declaration that exists but is wrong still
+# fails at ExecStart, by name.
+ExecCondition=/usr/bin/python3 -m subscribers.operator_paging --declared
 ExecStartPre=@REPO@/store/bin/brain-store-ready.sh 120
 ExecStart=/usr/bin/python3 -m subscribers.operator_paging
 

@@ -66,6 +66,9 @@ case "$rc" in
      # cursor is a condition to look at, not a process to bounce.
      note paging HELD "not restarted: this one is a human's act, not a supervisor's" ;;
   4) note paging UNKNOWN "${verdict:-store unreachable}; no action taken" ; bump 1 ;;
+  # No declaration file on this host: an install with no brain, where the listener does not run
+  # by design. Not a warning and not a repair; it used to read HELD and fail every sweep (W5-S7).
+  5) note paging N/A "${verdict:-not declared on this host}; the listener is not meant to run here" ;;
   *) note paging UNKNOWN "paging-health exited $rc"; bump 1 ;;
 esac
 

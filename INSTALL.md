@@ -597,15 +597,19 @@ containing `"server":"up"` and `"schema_version":<EXPECT_MAX>`, and a final `1`,
 running console itself saying its terminal is off — see step 10 for the check that either
 passes or fails by name.
 
-**Three units will show as failed or restarting in that list, and on a fresh install that is
-expected.** MEASURED 2026-09-16 on a clean Hetzner CPX22, Ubuntu 24.04, by the rehearsal of this
-file:
+**Some units in that list will not be running, and on a fresh install that is expected:**
 
-| Unit | What its journal says | Why | Affects the console? |
-|---|---|---|---|
-| `brain-paging.service` (`activating auto-restart`, then `failed`) | `StartupRefused: no subscriber declaration at /mnt/c/Users/.../departments/SUBSCRIBERS.md` | The paging listener looks for its declaration in the operator's own brain checkout, which this install does not have | No. Nothing pages you; the console works |
-| `brain-health.service` (`failed`) | `paging HELD no cursor row` | It reports the paging listener above as not running | No |
-| `brain-transcript-backfill.service` (`failed`) | `backfill-sweep UNAVAILABLE: ingest coverage failed` | Step 5 does not install the `ingest` schema (see "What is not covered") | No |
+| Unit | State you will see | What its journal says | Why | Affects the console? |
+|---|---|---|---|---|
+| `brain-paging.service` | `inactive (dead)`; not listed by `systemctl --user --failed` | `operator-paging: not started. no subscriber declaration on this host (looked for .../departments/SUBSCRIBERS.md; set BRAIN_ROOT or SUBSCRIBERS_DECLARATION to name one)`, then `Skipped due to 'exec-condition'` | The paging listener runs only where a subscriber declaration exists, and a fresh install has none. Skipping it is the correct state, not a failure | No. Nothing pages you; the console works |
+| `brain-transcript-backfill.service` | `failed` | `backfill-sweep UNAVAILABLE: ingest coverage failed` | Step 5 does not install the `ingest` schema (see "What is not covered") | No |
+| `brain-health.service` | **UNVERIFIED** at this release | | Its paging check now reports a skipped listener as not applicable; whether the whole sweep passes on a fresh install has not been measured yet | No |
+
+Labels: the `brain-paging` row is MEASURED 2026-09-16 on a v0.02 test install built from the commit
+that added the skip; the `brain-transcript-backfill` row is MEASURED 2026-09-16 on a clean Hetzner
+CPX22, Ubuntu 24.04, by the rehearsal of this file. **Before that paging change, `brain-paging` crash-looped
+(`StartupRefused: no subscriber declaration at ...`) and `brain-health` failed because of it.** If your
+install shows that, it is from an older release; `UPDATING.md` moves you past it.
 
 Any **other** unit failing is not expected: `journalctl --user -u <unit> --no-pager -n 30` shows why.
 

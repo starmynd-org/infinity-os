@@ -53,6 +53,10 @@ Exit codes, which are the interface (`systemd/brain-health` reads them):
     2  CRITICAL and restartable -- stuck, or lag past LAG_CRITICAL
     3  CRITICAL and NOT restartable -- quarantined, or an impossible cursor. A human's act.
     4  cannot tell -- the store is unreachable. Take no action; that is the store's alarm.
+    5  not declared on this host -- no subscriber declaration file exists here (an install with no
+       brain beside it), so the listener does not run by design and there is no lag to read.
+       Nothing to repair. Added by W5-S7 2026-09-16: that host used to read 3, "no cursor row",
+       and fail brain-health on every sweep of every fresh install.
 """
 
 from __future__ import annotations
@@ -66,12 +70,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-OK, WARN, STUCK, HELD, UNKNOWN = 0, 1, 2, 3, 4
+OK, WARN, STUCK, HELD, UNKNOWN, NOT_DECLARED = 0, 1, 2, 3, 4, 5
 
 DEFAULT_STALE_SECONDS = float(os.environ.get("PAGING_STALE_SECONDS", "120"))
 
 
 def check(subscriber: str, stale_seconds: float) -> tuple[int, dict]:
+    # First, before the store: a host with no declaration file has no listener by design.
+    from fabric import listener as _listener
+    ok, why = _listener.declared_here()
+    if not ok:
+        return NOT_DECLARED, {"subscriber": subscriber, "verdict": "not declared on this host",
+                              "detail": why}
     from fabric import lag as _lag
 
     try:

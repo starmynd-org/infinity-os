@@ -54,10 +54,49 @@ from . import emit as _emit
 
 #: Where the declaration of record lives. The registry entry is a git artifact; the cursor is a
 #: runtime one; the join key is the subscriber slug. One string, two planes, no translation table.
-BRAIN_ROOT = Path(os.environ.get(
-    "BRAIN_ROOT", "/mnt/c/Users/you/repos/your-brain"))
-DECLARATION_PATH = Path(os.environ.get(
-    "SUBSCRIBERS_DECLARATION", str(BRAIN_ROOT / "departments" / "SUBSCRIBERS.md")))
+#:
+#: THE DEFAULT USED TO BE ONE LAPTOP'S PATH, `/mnt/c/Users/you/repos/internal/
+#: your-brain`, and that made brain-paging refuse at start on every install that is
+#: not that laptop (W5-S6, clean install, 2026-09-16), which in turn failed brain-health on every
+#: sweep. It is now resolved, in order: `SUBSCRIBERS_DECLARATION`; `BRAIN_ROOT`; else the brain
+#: checked out BESIDE this install, `<install>/../your-brain`, the same sibling
+#: convention `systemd/brain-n8n.service` already ships. On the operator's laptop that is the
+#: identical path, so nothing moves there. On an install with no brain beside it the file does not
+#: exist, the subscriber is not declared on that host, and `declared_here()` says so by name.
+INSTALL_ROOT = Path(__file__).resolve().parents[1]
+SIBLING_BRAIN = "your-brain"
+
+
+def declaration_path(env=None, install_root: Path = None) -> Path:
+    """The SUBSCRIBERS.md this host would read, whether or not it exists. Pure, so a test can
+    hand it an environment and an install location."""
+    env = os.environ if env is None else env
+    if env.get("SUBSCRIBERS_DECLARATION"):
+        return Path(env["SUBSCRIBERS_DECLARATION"])
+    root = Path(env["BRAIN_ROOT"]) if env.get("BRAIN_ROOT") else \
+        (install_root or INSTALL_ROOT).parent / SIBLING_BRAIN
+    return root / "departments" / "SUBSCRIBERS.md"
+
+
+BRAIN_ROOT = declaration_path().parent.parent
+DECLARATION_PATH = declaration_path()
+
+
+def declared_here(path: Path = None) -> tuple:
+    """(True, "") when this host carries a subscriber declaration file at all, else (False, why).
+
+    ABSENCE OF THE FILE IS THE ONLY THING THIS FORGIVES. A file that exists but lacks the entry, or
+    carries a broken one, is still `StartupRefused` at start, loudly, because that is a declaration
+    somebody wrote wrong. No file means this host was never given a brain to declare subscribers
+    in -- a customer install -- and there "not declared here" is the true state, not a fault.
+    """
+    path = path or DECLARATION_PATH
+    if path.exists():
+        return True, ""
+    return False, (f"no subscriber declaration on this host (looked for {path}; set BRAIN_ROOT or "
+                   f"SUBSCRIBERS_DECLARATION to name one). Declare, never discover: an undeclared "
+                   f"listener does not run, and on an install without a brain that is the correct "
+                   f"state rather than a failure.")
 
 #: A poison event is one the handler fails on repeatedly. This many consecutive failures on the
 #: SAME event_seq quarantines the subscriber.

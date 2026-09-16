@@ -90,6 +90,7 @@ SUITES=(
   "test_admin_verbs.py (the admin verb group's five refusals, each watched failing then passing, task 0385 -- registered on lane F's request via crosstalk)"
   "test_multi_user_subject.py (several named humans on ONE instance: every refusal watched failing first, task 0384 -- registered by lane B because the registration check went red; lane E filed no crosstalk request, which is the mechanism working)"
   "test_scratch_preflight_remedy.py (the scratch preflight never names the live store in its remedy, task 0353)"
+  "test_paging_on_an_install_without_a_brain.py (brain-paging is skipped by name and brain-health stays green on an install with no brain beside it; the declaration is never one laptop's path, W5-S7 2026-09-16)"
   "test_dispatch_idempotency.py (one proposal dispatches ONE task however many callers arrive at once, task 0377 dispatch idempotency)"
   "test-budget-wiring.sh (the spend brake: block, never reopen)"
   "test-infra-failure.sh (a dead network is not a failed task, task 0400)"

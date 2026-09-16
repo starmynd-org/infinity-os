@@ -57,6 +57,11 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "engine"))
 
 os.environ.setdefault("BRAIN_PG_DB", os.environ.get("ENGINE_SCRATCH_DB", "brain_scratch"))
+# The declaration is the fixture beside this file unless SUBSCRIBERS_DECLARATION names one --
+# never BRAIN_ROOT, and never wherever the operator's private brain happens to sit (W5-S7,
+# 2026-09-16). This suite tests the consumer, not a brain.
+if not os.environ.get("SUBSCRIBERS_DECLARATION"):
+    os.environ["SUBSCRIBERS_DECLARATION"] = str(Path(__file__).resolve().parent / "fixtures" / "SUBSCRIBERS.md")
 
 from subscribers.operator_paging import consumer, memory, policy, transport   # noqa: E402
 

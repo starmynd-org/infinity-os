@@ -178,14 +178,21 @@ it is`; that is expected, and the loop above is what turns it off.
 
 ```bash
 systemctl --user daemon-reload
+systemctl --user reset-failed
 systemctl --user restart brain-console.service brain-paging.service
 sleep 10
 systemctl --user is-active brain-store.service brain-console.service
 ```
 
-**Expect:** `active` twice. The paging listener was restarted too, but on some releases it does not
+`reset-failed` clears the "failed" mark on units that gave up before the update. Without it, a unit
+that had already failed several times in a row can refuse the restart (`Start request repeated too
+quickly`), and the new code never runs. It changes nothing else. Step 8 still compares against the
+failed list you saved in step 1.
+
+**Expect:** `active` twice. `brain-paging.service` may print `Job for brain-paging.service failed`
+on a release where it does not run on your install; that is covered by step 8, not here. The paging listener was restarted too, but on some releases it does not
 run on a user's install (`INSTALL.md` step 9 says whether yours is one), so it is not part of this
-check; step 8's failed-unit comparison covers it.
+check.
 
 ## Step 7. Prove the browser terminal is still off
 

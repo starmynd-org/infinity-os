@@ -157,7 +157,20 @@ def main() -> int:
                    help="render pages without sending any")
     p.add_argument("--tunnel", metavar="VPS",
                    help="open the ssh tunnel to the one authoritative Telegram driver first")
+    p.add_argument("--declared", action="store_true",
+                   help="exit 0 if this host carries a subscriber declaration file, else say why "
+                        "and exit 1 (brain-paging.service's ExecCondition)")
     a = p.parse_args()
+
+    if a.declared:
+        # systemd reads 1 from an ExecCondition as "skip this unit", not as a failure, so an
+        # install with no brain shows brain-paging inactive with this reason in its journal
+        # instead of failed. A declaration file that exists but is wrong still starts and still
+        # refuses by name: that is `load_declaration`'s job and this does not pre-empt it.
+        ok, why = _listener.declared_here()
+        print(f"operator-paging: declared on this host ({_listener.DECLARATION_PATH})" if ok
+              else f"operator-paging: not started. {why}")
+        return 0 if ok else 1
 
     if a.tunnel:
         transport.open_tunnel(a.tunnel)
