@@ -148,7 +148,8 @@ Only if the release changed the service files, re-install them. This prints the 
 service files, from the release you saved in step 1 to the one you now have:
 
 ```bash
-cd "$HOME/infinity-os"
+export REPO="$HOME/infinity-os"
+cd "$REPO"
 git diff --name-only "$(cat "$HOME/infinity-os-update-from.txt")" HEAD -- systemd/
 ```
 
@@ -189,10 +190,9 @@ that had already failed several times in a row can refuse the restart (`Start re
 quickly`), and the new code never runs. It changes nothing else. Step 8 still compares against the
 failed list you saved in step 1.
 
-**Expect:** `active` twice. `brain-paging.service` may print `Job for brain-paging.service failed`
-on a release where it does not run on your install; that is covered by step 8, not here. The paging listener was restarted too, but on some releases it does not
-run on a user's install (`INSTALL.md` step 9 says whether yours is one), so it is not part of this
-check.
+**Expect:** `active` twice. The paging listener is restarted too but is not part of this check,
+because on a user's install it is normally skipped (`INSTALL.md` step 9); step 8 covers it. If the
+restart line prints `Job for brain-paging.service failed`, that is also covered by step 8, not here.
 
 ## Step 7. Prove the browser terminal is still off
 

@@ -38,6 +38,7 @@ from .config import fingerprint as config_fingerprint
 from .signals import (
     HARD_FLAGS,
     LEVELLED_SIGNALS,
+    URGENCY_WORDS,
     norm_task_id,
     signal_weights,
     truthy,
@@ -3043,7 +3044,7 @@ def build_parser():
                                      "by the hold")
     for flag, canon in (("stakes", "or critical"),
                         ("reversibility", "or reversible, costly, irreversible"),
-                        ("urgency", "or none, soon, deadline, decaying"),
+                        ("urgency", ""),  # its own help below: four words, not low/medium/high
                         ("dependency-unblocking", "or a count"),
                         ("effort", "or small, large"), ("confidence", "or 0.0 to 1.0"),
                         ("charter-alignment", ""),
@@ -3051,6 +3052,12 @@ def build_parser():
                         # number here is MONEY and never a one-to-five rating; anything from 1 to
                         # 99 is refused out loud because it reads as both.
                         ("impact", "or critical, or an amount of money like 25000")):
+        if flag == "urgency":
+            # Migration 74: the store refuses low, medium and high for urgency, so the help must not
+            # offer them (W5-B2 E36). signals.URGENCY_WORDS is the one list both read.
+            s.add_argument("--urgency", default="",
+                           help=f"{', '.join(URGENCY_WORDS[:-1])} or {URGENCY_WORDS[-1]}")
+            continue
         s.add_argument(f"--{flag}", default="", help=f"low, medium or high {canon}".strip())
     s.add_argument("--external", nargs="?", const="true", default="",
                    help="hard flag: sends, deploys, spends or publishes. Always surfaces")

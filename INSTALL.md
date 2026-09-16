@@ -602,12 +602,15 @@ passes or fails by name.
 | Unit | State you will see | What its journal says | Why | Affects the console? |
 |---|---|---|---|---|
 | `brain-paging.service` | `inactive (dead)`; not listed by `systemctl --user --failed` | `operator-paging: not started. no subscriber declaration on this host (looked for .../departments/SUBSCRIBERS.md; set BRAIN_ROOT or SUBSCRIBERS_DECLARATION to name one)`, then `Skipped due to 'exec-condition'` | The paging listener runs only where a subscriber declaration exists, and a fresh install has none. Skipping it is the correct state, not a failure | No. Nothing pages you; the console works |
-| `brain-transcript-backfill.service` | `failed` | `backfill-sweep UNAVAILABLE: ingest coverage failed` | Step 5 does not install the `ingest` schema (see "What is not covered") | No |
-| `brain-health.service` | **UNVERIFIED** at this release | | Its paging check now reports a skipped listener as not applicable; whether the whole sweep passes on a fresh install has not been measured yet | No |
+| `brain-transcript-backfill.service` | `failed` | either `backfill-sweep UNAVAILABLE: ingest coverage failed`, or `REFUSING: this host has been up <N>s, past the 1800s boot window` if you install more than 30 minutes after the server booted | Step 5 does not install the `ingest` schema (see "What is not covered"), and the sweep only runs in the first 30 minutes after boot | No |
+| `brain-health.service` | `inactive`, last result `success` | `store OK`, `console OK`, `paging N/A not declared on this host; the listener is not meant to run here` | It checks the store, the console and the paging listener, and treats a skipped listener as not applicable | No |
 
-Labels: the `brain-paging` row is MEASURED 2026-09-16 on a v0.02 test install built from the commit
-that added the skip; the `brain-transcript-backfill` row is MEASURED 2026-09-16 on a clean Hetzner
-CPX22, Ubuntu 24.04, by the rehearsal of this file. **Before that paging change, `brain-paging` crash-looped
+Labels: MEASURED 2026-09-16 on a clean Hetzner CPX22, Ubuntu 24.04, installed from this public
+repository and then updated with `UPDATING.md` to the release that added the paging skip. The
+`brain-paging` and `brain-health` rows were read after that update, not on a fresh install of it; the
+two `brain-transcript-backfill` messages were both seen on fresh installs. `brain-health`'s very first
+run can also report `console CRITICAL GET /api/health returned '000'` if it fires before the console
+has started; the next run, a minute later, is the one to read. **Before that paging change, `brain-paging` crash-looped
 (`StartupRefused: no subscriber declaration at ...`) and `brain-health` failed because of it.** If your
 install shows that, it is from an older release; `UPDATING.md` moves you past it.
 

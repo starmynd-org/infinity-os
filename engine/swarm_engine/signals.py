@@ -52,6 +52,10 @@ CONSERVATIVE = {
     "impact": "high",         # migration 48. The same conservative `stakes` has always taken.
 }
 
+#: What the store accepts for urgency on write (migration 74's `brain.signal_ok`). Read-side folding
+#: below still knows low/medium/high for rows written earlier.
+URGENCY_WORDS = ("none", "soon", "deadline", "decaying")
+
 SIGNAL_ALIASES = {
     "stakes": {"none": "low", "critical": "high"},
     "impact": {"none": "low", "critical": "high"},
@@ -228,6 +232,16 @@ def validate_signal(field: str, raw):
                 f"If you really do mean {v} of money, the row is worth `none`. Amounts of "
                 f"{int(IMPACT_MONEY_FLOOR)} and above are accepted as written, and 0 means "
                 f"none.{negative}")
+    # URGENCY IS FOUR WORDS ON THE WRITE PATH, AS THE STORE HAS SAID SINCE MIGRATION 74. That migration
+    # narrowed `brain.signal_ok('urgency', ...)` to none, soon, deadline and decaying, and this
+    # function kept accepting low, medium and high, so a post that passed here died on a bare CHECK
+    # violation from the driver -- the failure this function exists to prevent (W5-B2 E36, fixed by
+    # W5-S7 2026-09-16). The READ path (`signal_level`) still folds all seven words, because rows
+    # written before migration 74 may still hold them.
+    if field == "urgency" and v.lower() not in URGENCY_WORDS:
+        raise ValueError(
+            f"urgency: {v!r} is not one of {', '.join(URGENCY_WORDS)}. Since migration 74 the store "
+            f"refuses low, medium and high for urgency: say none, soon, deadline or decaying.")
     if signal_level(field, v) is None:
         vocab = ", ".join(SIGNAL_LEVELS + tuple(SIGNAL_ALIASES.get(field, {})))
         extra = ""
