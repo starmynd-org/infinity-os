@@ -28,9 +28,9 @@
   <div class="ctitle">{{ m.agent_line(name, 30) }}</div>
   <div class="cmeta">
     {% if agent %}<span>role {{ agent.role }}</span><span>host {{ agent.host or 'unset' }}</span>
-    <span>heartbeat {{ agent.updated.strftime('%H:%M:%SZ') if agent.updated }}</span>
+    <span>last seen {{ agent.updated.strftime('%H:%M:%SZ') if agent.updated }}</span>
     {% if agent.stopped_at %}<span style="color:var(--rest)">STOPPED</span>{% endif %}
-    {% else %}<span>no agent row: this name has never heartbeated</span>{% endif %}
+    {% else %}<span>no agent by this name has ever checked in</span>{% endif %}
     <a class="go" href="/fleet">back to Fleet ▸</a>
   </div>
 </div>

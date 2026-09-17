@@ -66,7 +66,7 @@ class TheRowChipKeepsEveryWord(unittest.TestCase):
             self.assertEqual(text.replace("&#39;", "'"), title.replace("&#39;", "'"), (label, inner[:120]))
 
     def test_the_full_sentences_are_still_on_the_page(self):
-        for words in ("not measured", "no value is recorded on this account", "12 min", "9 samples",
+        for words in ("unmeasured (no value is recorded on this account)", "no value is recorded on this account", "12 min", "9 samples",
                       "stale, as of", "every 15 min"):
             self.assertIn(words, self.body)
 

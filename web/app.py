@@ -1236,6 +1236,26 @@ def create_app() -> Flask:
                                columns=b["columns"], throttle=b["throttle"],
                                token=guard.token_for("board"))
 
+    # ------------------------------------------------------------------ the data section
+    # W4-V002-DATA (Commander B), v0.02. Read-only: no write door, so no `/data/act` and no
+    # `guard.token_for` call. `model.data_sources_view()`/`model.goals_and_kpis_view()` are
+    # store-tolerant (SCHEMA-TOLERANCE.md rule 5): a store without migration 0085 renders the
+    # "waiting" banner the templates carry rather than a 500. Nav wiring is deliberately NOT part
+    # of this change -- see W4-V002-DATA's handover for why -- so these routes are reachable by
+    # direct path today, the same shape several existing rooms are already in
+    # (`outputs/2026-08-31-phase-1/10-VISION-GAP.md`: 55 of 84 registered verbs unreachable from
+    # any room).
+
+    @app.get("/data")
+    def data_sources_room():
+        return render_template("data_sources.html", room="data",
+                                data=model.data_sources_view())
+
+    @app.get("/data/goals")
+    def data_goals_room():
+        return render_template("data_goals.html", room="goals",
+                                data=model.goals_and_kpis_view())
+
     # ------------------------------------------------------------------ the one write door
 
     @app.post("/<room>/act")
@@ -2123,7 +2143,7 @@ def _perform_objective(room: str, action: str, item_id: str) -> dict:
         # undo" and then the server's own reason, VERBATIM, rather than offering a control that
         # would 403 or, worse, one that looks like it worked.
         "undo": None,
-        "no_undo_reason": "an accepted objective has no inverse verb yet",
+        "no_undo_reason": "accepting an intake item cannot be undone yet",
         "result": res,
     }
 

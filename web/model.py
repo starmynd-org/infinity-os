@@ -448,7 +448,7 @@ def _stamp_done_refusals(cards: list[dict]) -> None:
             c["done_refused"] = (
                 f"an agent has worked this row ({ev['why']}), so marking it done here would file "
                 f"that agent's report in your words. It was sent back and is waiting to be worked "
-                f"again. The verb for finished agent work is Accept work.")
+                f"again. For finished agent work, press Accept work.")
 
 
 def _stamp_review_facts(cards: list[dict]) -> None:
@@ -603,9 +603,8 @@ def queue_filter_facts() -> dict:
             facts["projects_used"] = sum(p["n"] for p in facts["projects"])
     if not facts["project_column"]:
         facts["project_note"] = (
-            f"this store has no brain.work_item.project column, so nothing here has a project to "
-            f"filter by. It arrives with migration 44 and this store is at ledger "
-            f"{facts['ledger']}.")
+            f"this install is not yet updated to hold projects, so nothing here has a project to "
+            f"filter by. Finish the update to use this filter.")
     elif not facts["projects_used"]:
         facts["project_note"] = ("the column is here and no row carries a project yet. "
                                  "`swarm project add` then `swarm project attach` fills it.")
@@ -616,11 +615,11 @@ def queue_filter_facts() -> dict:
     # him to discover by looking for a dropdown that is not there.
     facts["absent"] = [
         {"field": "client",
-         "why": "there is no client column, table or vocabulary in brain. Lane is the nearest "
-                "real field and it is offered under its own name."},
+         "why": "nothing records a client on a task yet. Lane is the nearest real field and it "
+                "is offered under its own name."},
         {"field": "custom fields",
-         "why": "brain.work_item_signals is a fixed set of seven declared signals and nothing "
-                "lets the operator add an eighth."},
+         "why": "a task carries a fixed set of seven ranking signals and nothing lets you add "
+                "an eighth."},
     ]
     return facts
 
@@ -1082,9 +1081,8 @@ def _no_ledger(exc: Exception) -> dict:
     cannot afford -- it is the surface whose whole job is to say whether a timer is running.
     """
     return {"unavailable": (
-        "the operator's stopwatch is `brain.time_entry`, migration 23, which lives at "
-        "queue/schema/0012_operator_time_entry.sql and is not applied to this store. Nothing here "
-        "is measured, and it is null rather than zero. Underlying error: " + str(exc))}
+        "the stopwatch is not available until this install is updated. Nothing here is timed, "
+        "and it is blank rather than zero. Underlying error: " + str(exc))}
 
 
 def stopwatch() -> dict:
@@ -1180,12 +1178,11 @@ def review(item_id: str) -> dict | None:
         # than reconstructing one from the summary. An invented work order is worse than an
         # absent one.
         dod_note = (
-            "No definition of done is readable for this item. Either it was posted without one, "
-            "or it predates the column that keeps one: until migration 14 the posted brief shared "
-            "`work_item.result` with the agent's report and the report overwrote it, so for items "
-            "already finished when that landed the text is not in this database at all. It is not "
-            "reconstructed from the summary here, because a work order invented from a report is "
-            "worse than an absent one. Anything posted since carries its brief unchanged.")
+            "This item has no saved description of what done looks like. Either it was posted "
+            "without one, or it was finished by an older version that let the agent's report "
+            "overwrite it. It is not rebuilt from the report here, because a work order invented "
+            "from a report is worse than none. Anything posted since keeps its description "
+            "unchanged.")
 
     # THIS IS AN ALLOWLIST, SO A KIND THE STORE GAINS AND THIS LIST DOES NOT IS DROPPED, not
     # rendered as unknown. `budget` (migration 13) is here for that reason: the budget stop line
@@ -1366,10 +1363,8 @@ def _leverage(window_hours: int, agent_minutes: float) -> dict:
         return {
             "ratio": None, "operator_minutes": None, "coverage": None, "excluded": [],
             "timed_items": 0, "window_hours": window_hours, "who": OPERATOR,
-            "note": ("Operator minutes are not measured in THIS store: the ledger that holds them "
-                     "is `brain.time_entry`, migration 23 at "
-                     "queue/schema/0012_operator_time_entry.sql, and it is not applied here. So "
-                     "the leverage ratio still has one real half, and the half that is real is on "
+            "note": ("Your minutes cannot be timed on this install until it is updated. So the "
+                     "leverage ratio still has one real half, and the half that is real is on "
                      f"the left. Underlying error: {exc}")}
     mins = float(om["measured_minutes"] or 0.0)
     out = {"ratio": None, "operator_minutes": mins if om["timed_items"] else None,
@@ -1380,10 +1375,9 @@ def _leverage(window_hours: int, agent_minutes: float) -> dict:
         # measured; it does not mean he spent no minutes, and dividing by it would produce the most
         # flattering number on the screen out of the least evidence.
         out["note"] = (
-            f"No operator minutes were measured in the last {window_hours}h, so the leverage "
-            f"ratio still has one real half -- the ledger for the other half exists now "
-            f"(`brain.time_entry`, migration 23) and has nothing in this window. It is null "
-            f"rather than zero. Starting a timer on a card is what fills it in, and a timer is "
+            f"None of your minutes were timed in the last {window_hours}h, so the leverage "
+            f"ratio still has one real half -- the timer for the other half exists and recorded "
+            f"nothing in this window. It is blank rather than zero. Starting a timer on a card is what fills it in, and a timer is "
             f"never required: {om['coverage']['text']}.")
         return out
     # WHOLE NUMBERS FROM 10x UP, one decimal below it. Two reasons and neither is aesthetic: it is
@@ -2249,7 +2243,7 @@ class _StoreRoutinePort:
 
 class _StoreAttentionPort:
     """`AttentionReadPort` over this store, with the same absence rule."""
-    evidence_label = 'Runtime store evidence'
+    evidence_label = 'Recorded on this install'
     # Supplied observation, not a health probe. Source: Attention Design's
     # EVIDENCE-2026-09-12.md section 4; coordinator filed C5 at 17:58Z.
     # Keep the historical time until a separately authorized measurement replaces it.
@@ -2501,7 +2495,7 @@ class _StoreAttentionPort:
                 freshness=Freshness.never_read("no source read interval is recorded on this queue row"),
                 provenance=Provenance(source_label=row.get("source_lane") or key[0], zone="UTC",
                     reference=key[0] + ":" + key[1], steps=(ProvenanceStep(
-                        at=at, what="Item recorded in the runtime store",
+                        at=at, what="Item recorded on this install",
                         by=row.get("producer") or "producer not recorded"),)), signals=signal))
         filtered = [item for item in items if FILTERS[filter_key](item)]
         if sort:
@@ -2643,3 +2637,154 @@ def identity_view() -> dict:
     vis = workspaces_visible(who) if who else {"human": None, "workspaces": [], "count": 0,
                                                "declared": 0, "note": None}
     return {"whoami": me, "human": who, "workspaces": vis}
+
+
+# ---------------------------------------------------------------------------------- the data
+# section (W4-V002-DATA, Commander B). Read-only: brain.data_source_health, brain.goal, brain.kpi.
+#
+# STORE TOLERANT BY THE SAME INSTRUMENT `_projects()` USES ABOVE: `to_regclass` asked of the
+# catalogue, never an exception caught after the fact. Migration 0085 (numbered 0080 until W5-S7's
+# renumber) was NOT RUN anywhere as of the commit that wrote this (`W4-V002-DATA-REGISTRY-CONTRACT.md`), so this must render a stated "not built here"
+# on the store every suite tests against today, not a 500 -- the exact failure mode
+# `docs/SCHEMA-TOLERANCE.md` rule 5 and `store/schema.py::has_column` exist to prevent.
+
+def _fmt_last_seen(dt) -> str:
+    """A short, human reading of a timestamp, or 'never' -- never a raw ISO string on the page."""
+    if dt is None:
+        return "never"
+    now = _dt.datetime.now(dt.tzinfo) if dt.tzinfo else _dt.datetime.now()
+    if dt.date() == now.date():
+        return dt.strftime("%H:%M")
+    if (now - dt).days < 6:
+        return dt.strftime("%a")
+    return dt.strftime("%d %b")
+
+
+def _parse_number(text: str | None) -> float | None:
+    """A float out of a stored target/now string ("82.0%", "1,400", "260,000"), or None.
+
+    `brain.goal.target`/`now_value` are TEXT by design (migration 0085's own comment: the three
+    shapes on the approved mockup do not share one unit). This is the one place that number is
+    ever extracted, and only to draw a bar's width -- nothing here writes it back, and a value
+    that cannot be parsed renders NO bar rather than a guessed one.
+    """
+    if not text:
+        return None
+    cleaned = text.replace(",", "").replace("%", "").strip()
+    try:
+        return float(cleaned)
+    except ValueError:
+        return None
+
+
+def _progress_pct(target: str | None, now: str | None) -> int | None:
+    """0-100, clamped, from two parsed numbers, or None when either does not parse.
+
+    A goal whose progress cannot be computed renders without a bar (see data_goals.html) rather
+    than a bar drawn from a guess -- the same "a number is read or it is not on this surface" rule
+    this file states for itself at the top.
+    """
+    t, n = _parse_number(target), _parse_number(now)
+    if t is None or n is None or t == 0:
+        return None
+    return max(0, min(100, round(n / t * 100)))
+
+
+def data_sources_view() -> dict:
+    """Every registered data source, read from `brain.data_source_health` -- never the base table
+    directly, which is the one property that makes a dead source render differently from a live
+    one (the registry contract's item (e)).
+    """
+    out = {"present": False, "sources": [], "note": None}
+    try:
+        with store.read() as s:
+            if not s.scalar("SELECT to_regclass('brain.data_source_health') IS NOT NULL"):
+                out["note"] = ("this install is not yet updated to list data sources. "
+                                "Finish the update to see them here.")
+                return out
+            rows = s.query(
+                "SELECT id, name, kind, description, location, last_seen_at, last_row_count, "
+                "status FROM brain.data_source_health ORDER BY name"
+            )
+        out["present"] = True
+        out["sources"] = [
+            {
+                "id": r["id"], "name": r["name"], "kind": r["kind"],
+                "sub": r["description"] or "", "where": r["location"],
+                "last": _fmt_last_seen(r["last_seen_at"]),
+                "rows": r["last_row_count"] if r["last_row_count"] is not None else "—",
+                "status": r["status"],
+            }
+            for r in rows
+        ]
+    except Exception as exc:                                            # noqa: BLE001
+        out["note"] = f"could not read the data source registry: {exc.__class__.__name__}: {exc}"
+    return out
+
+
+def goals_and_kpis_view() -> dict:
+    """Goals and KPIs, children of the data section (D-10). Read-only; nothing here writes.
+
+    A KPI's source is read through `brain.data_source_health` too, so a KPI whose source has gone
+    stale or retired can say so (`source_status`) rather than reading identically to one whose
+    source is fresh.
+    """
+    out = {"present": False, "goals": [], "kpis": [], "note": None}
+    try:
+        with store.read() as s:
+            if not s.scalar("SELECT to_regclass('brain.goal') IS NOT NULL"):
+                out["note"] = ("this install is not yet updated to hold goals and KPIs. "
+                                "Finish the update to see them here.")
+                return out
+            goal_rows = s.query(
+                "SELECT id, name, sub, target, now_value, unit, why, done_when, owner_human, "
+                "period_label FROM brain.goal WHERE archived_at IS NULL ORDER BY written_at"
+            )
+            goal_sources: dict[int, list[str]] = {}
+            if s.scalar("SELECT to_regclass('brain.goal_source') IS NOT NULL"):
+                gs_rows = s.query(
+                    "SELECT gs.goal_id, ds.name FROM brain.goal_source gs "
+                    "JOIN brain.data_source ds ON ds.id = gs.data_source_id ORDER BY ds.name"
+                )
+                for r in gs_rows:
+                    goal_sources.setdefault(r["goal_id"], []).append(r["name"])
+            goal_reports: dict[int, list[str]] = {}
+            if s.scalar("SELECT to_regclass('brain.goal_reported_in') IS NOT NULL"):
+                gr_rows = s.query(
+                    "SELECT goal_id, label FROM brain.goal_reported_in ORDER BY label"
+                )
+                for r in gr_rows:
+                    goal_reports.setdefault(r["goal_id"], []).append(r["label"])
+            kpi_rows = []
+            if s.scalar("SELECT to_regclass('brain.kpi') IS NOT NULL"):
+                kpi_rows = s.query(
+                    "SELECT k.id, k.name, k.sub, k.target, k.now_value, k.unit, "
+                    "ds.name AS source_name, h.status AS source_status FROM brain.kpi k "
+                    "LEFT JOIN brain.data_source_health h ON h.id = k.data_source_id "
+                    "LEFT JOIN brain.data_source ds ON ds.id = k.data_source_id "
+                    "WHERE k.archived_at IS NULL ORDER BY k.updated_at DESC"
+                )
+        out["present"] = True
+        out["goals"] = [
+            {
+                "id": r["id"], "name": r["name"], "sub": r["sub"] or "",
+                "target": r["target"], "now": r["now_value"],
+                "pct": _progress_pct(r["target"], r["now_value"]),
+                "measured_from": goal_sources.get(r["id"], []),
+                "reported_in": goal_reports.get(r["id"], []),
+                "why": r["why"] or "", "done_when": r["done_when"] or "",
+                "owner": r["owner_human"] or "",
+            }
+            for r in goal_rows
+        ]
+        out["kpis"] = [
+            {
+                "id": r["id"], "name": r["name"], "sub": r["sub"] or "",
+                "target": r["target"], "now": r["now_value"],
+                "src": r["source_name"] or "—", "src_status": r["source_status"] or "never",
+            }
+            for r in kpi_rows
+        ]
+    except Exception as exc:                                            # noqa: BLE001
+        out["note"] = f"could not read goals/KPIs: {exc.__class__.__name__}: {exc}"
+    return out

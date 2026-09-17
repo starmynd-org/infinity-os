@@ -145,10 +145,10 @@ class Impact:
         if self.kind == "measured":
             return "%s (%s)" % (self.value, self.why)
         if self.kind == "estimated":
-            return "estimated %s, not measured (%s)" % (self.value, self.why)
+            return "estimated %s, unconfirmed (%s)" % (self.value, self.why)
         if self.kind == "none":
             return "no effect claimed"
-        return "not measured (%s)" % self.why
+        return "unmeasured (%s)" % self.why
 
     # A4 INFINITY-STREAMLINE (STREAMLINE item 3, 2026-09-14): the row chip shows the headline at
     # wide widths and keeps the reason beside it in the markup, the tooltip and the panel. The pair
@@ -158,10 +158,10 @@ class Impact:
         if self.kind == "measured":
             return self.value
         if self.kind == "estimated":
-            return "estimated %s, not measured" % self.value
+            return "estimated %s, unconfirmed" % self.value
         if self.kind == "none":
             return "no effect claimed"
-        return "not measured"
+        return "unmeasured"
 
     def reason(self) -> str:
         """The parenthetical `render()` carries, or "" where it carries none."""
@@ -213,7 +213,7 @@ class Freshness:
 
     def render(self) -> str:
         if self.state == ABSENT:
-            return "no data: never read (%s)" % self.why
+            return "not read yet (%s)" % self.why
         stamp = self.at.astimezone(_DISPLAY_ZONE).strftime("%a %d %b %Y, %H:%M %Z")
         if self.state == STALE:
             return "stale, as of %s (%s)" % (stamp, self.why)
@@ -222,7 +222,7 @@ class Freshness:
     def headline(self) -> str:
         """`render()` without its parenthetical reason (A4, STREAMLINE item 3)."""
         if self.state == ABSENT:
-            return "no data: never read"
+            return "not read yet"
         stamp = self.at.astimezone(_DISPLAY_ZONE).strftime("%a %d %b %Y, %H:%M %Z")
         return ("stale, as of %s" if self.state == STALE else "fresh, as of %s") % stamp
 

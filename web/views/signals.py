@@ -165,7 +165,7 @@ class Signals:
 
         if not clauses:
             return ""
-        return "Declared for ranking: " + _join(clauses) + "."
+        return "What ranks it here: " + _join(clauses) + "."
 
     def silence_note(self) -> str:
         """What nobody said. Rendered separately so a default is never read as an assessment."""

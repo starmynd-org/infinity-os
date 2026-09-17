@@ -9,6 +9,18 @@ PAINTED, NOT READ OFF THE CASCADE. Chromium loads /attention/ from the no-store 
 console process, no network. Any request that is not a GET on the harness origin is aborted. The
 Inbox tab carries a two-digit badge ("12 waiting"), the widest tab this nav renders, so the line is
 measured at its worst.
+
+AMENDED BY W5-S7, 2026-09-16, for D-NAV-SIX: SIX tabs now, Data after Projects. Unchanged, six
+tabs measured 374 to 381px against a 348px line at 375, so More took a second line and the header
+grew from 159 to 203px. Under 520px the Inbox tab's badge now shows its count alone, with the word
+in a `.gw` span hidden visually. Three readings are added because each closes a way this suite
+could pass over a broken nav:
+  - every tab's box lies inside the nav's box (a tab clipped behind `.rooms`' hidden scrollbar
+    keeps the same offsetTop as the tabs that show, so the one-row pin alone cannot see it);
+  - the Inbox tab's ACCESSIBLE NAME, as chromium computes it for role=tab, is still
+    "Inbox 12 waiting", so hiding the word hid it from sight only;
+  - the word is hidden at 375 and 390 and visible at 1440, so the rule is phone-only.
+The file keeps its old name so its history stays readable.
 """
 
 import os
@@ -32,6 +44,9 @@ except ImportError:  # pragma: no cover - reported as NOT RUN below
 
 ORIGIN = "http://console.test"
 WIDTHS = (375, 390)
+WIDE = 1440
+TABS = 6
+INBOX_NAME = "Inbox 12 waiting"
 TAP = 44
 TAB_REM = 0.72  # `.room{font-size:.72rem}` as it stood at 7f37bd6: the type may not shrink to fit.
 
@@ -39,7 +54,12 @@ MEASURE = """() => {
   const tabs = [...document.querySelectorAll('nav.rooms a.room')];
   const subs = [...document.querySelectorAll('nav.subrooms a')];
   const box = a => a.getBoundingClientRect();
+  const nb = document.querySelector('nav.rooms').getBoundingClientRect();
+  const gw = document.querySelector('nav.rooms a.room .gw');
   return {
+    inside: tabs.map(a => { const b = box(a);
+      return b.left >= nb.left - 0.5 && b.right <= nb.right + 0.5 && b.right <= window.innerWidth + 0.5; }),
+    gw_width: gw ? box(gw).width : null,
     labels: tabs.map(a => a.textContent.replace(/\\s+/g, ' ').trim()),
     tops: tabs.map(a => a.offsetTop),
     heights: tabs.map(a => box(a).height),
@@ -82,36 +102,55 @@ class FiveTabsOneRow(unittest.TestCase):
                 browser = pw.chromium.launch()
             except Exception as exc:  # pragma: no cover - reported as NOT RUN
                 raise unittest.SkipTest("NOT RUN: chromium did not launch: %s" % exc)
-            for width in WIDTHS:
+            for width in WIDTHS + (WIDE,):
                 ctx = browser.new_context(viewport={"width": width, "height": 812})
                 ctx.route("**/*", answer)
                 page = ctx.new_page()
                 page.goto(ORIGIN + "/attention/", wait_until="load")
                 cls.seen[width] = page.evaluate(MEASURE)
+                # The accessible name as chromium computes it, not the text a script can read.
+                cls.seen[width]["named_inbox"] = page.get_by_role("tab", name=INBOX_NAME, exact=True).count()
                 ctx.close()
             browser.close()
         cls.aborted = aborted
-        for width in WIDTHS:
+        for width in WIDTHS + (WIDE,):
             m = cls.seen[width]
-            print("\n  MEASURED %dpx  tabs %d  tops %s  heights %s  font %s/%s  scrollWidth %d  labels %s"
+            print("\n  MEASURED %dpx  tabs %d  tops %s  heights %s  font %s/%s  scrollWidth %d  inside %s  "
+                  "gw width %s  tabs named %r: %d  labels %s"
                   % (width, len(m["tops"]), m["tops"], [round(h) for h in m["heights"]],
-                     sorted(set(m["fonts"])), m["root_font"], m["scroll_width"], m["labels"]))
+                     sorted(set(m["fonts"])), m["root_font"], m["scroll_width"], m["inside"], m["gw_width"],
+                     INBOX_NAME, m["named_inbox"], m["labels"]))
 
     def test_the_widest_tab_is_what_was_measured(self):
         for width in WIDTHS:
             labels = self.seen[width]["labels"]
-            self.assertEqual(len(labels), 5, (width, labels))
+            self.assertEqual(len(labels), TABS, (width, labels))
             self.assertEqual(labels[0], "Inbox 12 waiting", width)
 
-    def test_at_375_all_five_tabs_share_one_offsettop(self):
+    def test_at_375_all_six_tabs_share_one_offsettop(self):
         tops = self.seen[375]["tops"]
-        self.assertEqual(len(tops), 5, tops)
+        self.assertEqual(len(tops), TABS, tops)
         self.assertEqual(len(set(tops)), 1, "at 375 the tabs sit on %d lines: %s" % (len(set(tops)), tops))
 
-    def test_at_390_all_five_tabs_share_one_offsettop(self):
+    def test_at_390_all_six_tabs_share_one_offsettop(self):
         tops = self.seen[390]["tops"]
-        self.assertEqual(len(tops), 5, tops)
+        self.assertEqual(len(tops), TABS, tops)
         self.assertEqual(len(set(tops)), 1, "at 390 the tabs sit on %d lines: %s" % (len(set(tops)), tops))
+
+    def test_every_tab_is_inside_the_nav_box(self):
+        for width in WIDTHS:
+            m = self.seen[width]
+            self.assertEqual([l for l, ok in zip(m["labels"], m["inside"]) if not ok], [], width)
+
+    def test_the_inbox_tab_keeps_waiting_in_its_accessible_name(self):
+        for width in WIDTHS + (WIDE,):
+            self.assertEqual(self.seen[width]["named_inbox"], 1, (width, self.seen[width]["labels"]))
+
+    def test_the_badge_word_is_hidden_on_a_phone_and_shown_on_a_desktop(self):
+        for width in WIDTHS:
+            self.assertIsNotNone(self.seen[width]["gw_width"], "no .gw span rendered at %d" % width)
+            self.assertLessEqual(self.seen[width]["gw_width"], 1, width)
+        self.assertGreater(self.seen[WIDE]["gw_width"], 20, "the word is hidden on a desktop too")
 
     def test_every_tab_keeps_the_44px_tap_floor(self):
         for width in WIDTHS:

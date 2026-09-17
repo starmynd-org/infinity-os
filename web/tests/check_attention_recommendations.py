@@ -115,7 +115,7 @@ def main():
                     inverse = rows.nth(i).locator('[data-att-inverse-note]')
                     button = rows.nth(i).locator('form[data-att-act] button').first
                     assert counter.is_visible() and inverse.is_visible()
-                    assert 'no inverse verb' in inverse.inner_text()
+                    assert 'cannot be undone' in inverse.inner_text()
                     assert counter.bounding_box()['y'] < inverse.bounding_box()['y'] < button.bounding_box()['y']
                     assert rows.nth(i).locator('[data-att-inverse-note]').count() == 1
                 first_action = page.locator('[data-queue-row] form[data-att-act] button').first

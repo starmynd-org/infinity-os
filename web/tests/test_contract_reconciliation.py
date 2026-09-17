@@ -133,7 +133,7 @@ class UnknownableMapsOntoImpact(unittest.TestCase):
         self.assertFalse(estimate.is_known)
         self.assertTrue(estimate.is_estimate)
         self.assertIn("estimated", estimate.render())
-        self.assertIn("not measured", estimate.render())
+        self.assertIn("unconfirmed", estimate.render())
 
     def test_a_measurement_says_what_measured_it(self):
         measured = Impact.from_contract({"status": "measured", "value": 12, "unit": "min",

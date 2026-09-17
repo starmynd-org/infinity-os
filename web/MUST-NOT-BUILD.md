@@ -348,6 +348,29 @@ no percentage. There is no ETA and no percent-complete for any agent run anywher
 *Checked:* `grep -rn 'width:.*%' web/templates/ web/static/console.css` finds only `.bars .b`,
 whose height is a count against the tallest observed count, and `width:100%` layout rules.
 
+**AMENDED 2026-09-16 BY THE OPERATOR, for GOAL PROGRESS IN THE DATA SECTION ONLY, per Andrew
+2026-09-16 (relayed by ALPHA-COMMANDER-2). Read this block before citing item 4 for anything.**
+
+His ruling: build the approved `Goals.dc.html` mockup as shown, bars included, on the condition
+that the commit which first renders one also states the exception here. This is that commit.
+
+**What is now permitted, narrowly.** `web/templates/data_goals.html`'s `.dsbar`/`.dsbarfill`
+(`web/static/data.css`) draws a goal's progress as a percentage of its stated target, computed by
+`web/model.py::_progress_pct` from `brain.goal.target`/`now_value`. **A goal whose target/now
+cannot both be parsed as numbers renders NO bar** (`g.pct is none`) rather than a guessed one --
+the same rule this file states for a run with no known denominator elsewhere. This is a stated
+fact about a written goal, not a forecast, an ETA, or a smoothed trend: the two numbers a bar draws
+between are both read from a row a human wrote, not projected.
+
+**What is unchanged.** The rest of this item stands exactly as written above: no progress bar
+anywhere else, Study included, and the run-the-stack pips remain the only OTHER exception. A
+percent-complete for an agent run, an ETA, or a forecast segment is still not built anywhere.
+
+*Checked:* `web/tests/test_data_section_render.py` renders a goal whose target/now parse and
+asserts `.dsbarfill` appears at the computed width, and a goal whose target/now do not parse and
+asserts no `.dsbarfill` appears for it -- so the exception is proved narrow rather than merely
+described as narrow.
+
 ---
 
 **5. A freeform notes field on a queue item.**
@@ -764,6 +787,18 @@ Nav order is **ATTENTION, CHATS, OODA, ARCHITECTURE**.
 > group with the group's rooms on a second row. **THE HOLDS STAY:** Chats and Terminal are still not
 > linked from the nav, and `web/tests/test_every_route_is_reachable.py` keeps them HELD BY RULING.
 > Nothing in the security half of this item changes. Pinned by `web/tests/test_five_tab_nav.py`.
+
+> **AMENDED 2026-09-16 BY THE OPERATOR (D-NAV-SIX, Andrew 2026-09-16, relayed by
+> ALPHA-COMMANDER-2 in `W4-DECISIONS.md` and carried by W5-S7): THE NAV IS SIX TABS.** **DATA** is
+> added after PROJECTS, opening **Sources** (`/data`) and **Goals and KPIs** (`/data/goals`) on its
+> second row; Reports joins it in a later version. The order is INBOX, WORK, PROJECTS, DATA, AGENTS,
+> MORE, and Data sits after Projects because the approved `Main.dc.html` and `Goals.dc.html` mockups
+> put it directly after Board. Everything else in the five-tab amendment above stands: each tab
+> opens its group, the intake badge rides Inbox, and **THE HOLDS STAY**. On a phone (520px and
+> under) the Inbox tab's badge shows its count alone so six tabs keep one line; the word "waiting"
+> stays in the markup and in the tab's accessible name, and the Intake room keeps the full badge.
+> Nothing in the security half of this item changes. Pinned by `web/tests/test_five_tab_nav.py`
+> (the file keeps its old name) and, painted, by `web/tests/test_five_tabs_one_row_at_375.py`.
 
 **THE SECURITY HALF OF ITEM 11 IS RE-ARMED AND STANDS IN FULL, and the rename makes it MORE
 important rather than less.** No shell emulation, no command entry, no pane that executes.

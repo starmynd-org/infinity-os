@@ -12,9 +12,9 @@
    in the whole console and it is the run-the-stack pips. A coverage percentage is precisely the
    shape that wants to be a filled bar, and a filled bar is the thing that makes 93.8 percent feel
    finished. Numbers with their denominators, and nothing that fills up. #}
-<div class="ro">Sessions · read only. This surface calls zero verbs, enforced server side. It
-  reports what has been logged and what has not, and it is the only screen in the console whose
-  denominators come from the disk rather than from the store.</div>
+<div class="ro">Sessions · read only. Nothing on this page changes anything, and the server
+  refuses it even if you try. It reports what has been logged and what has not, and it is the only
+  screen whose totals are counted from the files on disk rather than from the database.</div>
 
 <div data-region="sessions"><!--region:sessions-->
 
@@ -107,9 +107,8 @@
   {% if s.recent.total is not none and s.recent.total != s.sessions_total %}
   <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>the count above and
     this list are reading two different databases.</b> `sessions {{ s.sessions_total }}` comes
-    from <code>ingest coverage</code>, which connects to <b>{{ s.recent.ingest_db }}</b> through
-    `BRAIN_DB`; this console is attached to <b>{{ s.recent.db }}</b> through `BRAIN_PG_DB`, which
-    holds {{ s.recent.total }}. On a console attached to the live store the two names are the same
+    from <code>ingest coverage</code>, which reads the database <b>{{ s.recent.ingest_db }}</b>;
+    this console reads <b>{{ s.recent.db }}</b>, which holds {{ s.recent.total }}. On a console attached to the live store the two names are the same
     and this line does not appear. Neither number is wrong; they answer different questions.</div>
   {% endif %}
   {% else %}

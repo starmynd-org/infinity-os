@@ -243,12 +243,12 @@ def test_no_measurement_is_an_absence_and_never_a_zero_or_an_infinity():
     check("there is no ratio", b["leverage"]["ratio"] is None, str(b["leverage"]["ratio"]))
     check("the note names the absence and says the ledger now EXISTS -- which is the difference "
           "between this sentence and the one it replaced",
-          "No operator minutes were measured in the last 12h" in b["ratio_note"]
-          and "migration 23" in b["ratio_note"], b["ratio_note"][:220])
+          "None of your minutes were timed in the last 12h" in b["ratio_note"]
+          and "the timer for the other half exists" in b["ratio_note"], b["ratio_note"][:220])
     check("it does not claim the store cannot hold them", STALE not in b["ratio_note"])
 
     html = _page()
-    check("the page says not measured in this window", "not measured in this window" in html)
+    check("the page says none timed in this window", "none timed in this window" in html)
     # NO RATIO ELEMENT AT ALL, which is stronger than "no zero on the page": the figure and its
     # coverage are one element by design, so the absence of that element is the absence of both.
     check("NO RATIO ELEMENT AND NO ZERO RATIO reached the page",

@@ -1439,7 +1439,19 @@ html.doorlit body.deep .exp,html.doorlit body.deep .rev,html.doorlit body.deep .
 @media(min-width:900px){
   .hrow{flex-wrap:wrap}
 }
-
+/* SIX TABS, STILL ONE LINE ON A PHONE (D-NAV-SIX, W5-S7, 2026-09-16). Adding Data made the strip
+   374 to 381px against a 348px line at 375 (MEASURED, headless chromium, "12 waiting" on Inbox):
+   More took a second line and the header grew from 159 to 203px, the height the rule above was
+   written against. The type and the 44px floor are pinned, and Work, Data and More already sit
+   at the floor, so the air is not in the tabs. It is in the badge's word: under 520px the Inbox
+   TAB shows the count alone. " waiting" stays in the markup and in the link's accessible name,
+   hidden visually and never with display:none. The Intake room below keeps the full "12 waiting",
+   so the word is one line away on the page that owns it. This changes visible copy on a phone
+   and is on Andrew's walk list. Proved painted by web/tests/test_five_tabs_one_row_at_375.py. */
+@media(max-width:520px){
+  .room .gw{position:absolute;width:1px;height:1px;margin:-1px;padding:0;border:0;overflow:hidden;
+            clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap}
+}
 /* ==========================================================================================
  * V4: THE LIVE TERMINAL VIEW, THE PICKER, AND TAKE-CONTROL. Task 0166.
  *

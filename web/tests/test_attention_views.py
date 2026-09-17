@@ -48,7 +48,7 @@ class UnknownStaysUnknown(unittest.TestCase):
         impact = Impact.unknown("the store holds no euro figure for this account")
         self.assertIsNone(impact.value)
         self.assertFalse(impact.is_known)
-        self.assertIn("not measured", impact.render())
+        self.assertIn("unmeasured", impact.render())
 
     def test_an_unknown_impact_must_say_why(self):
         with self.assertRaises(ValueError):
@@ -90,7 +90,7 @@ class FreshnessHasThreeStates(unittest.TestCase):
         f = Freshness.never_read("not indexed for your account")
         self.assertEqual(f.state, ABSENT)
         self.assertFalse(f.has_value)
-        self.assertIn("never read", f.render())
+        self.assertIn("not read yet", f.render())
 
     def test_a_stale_read_states_the_interval_it_missed(self):
         f = Freshness.read_at(NOW - timedelta(hours=31), NOW, timedelta(minutes=15))

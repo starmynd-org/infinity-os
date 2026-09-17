@@ -655,10 +655,10 @@ def feed(name: str, since: int = 0, since_seq: int = 0, runs_back: int = 3) -> d
                     and age < FRESH_UNDER and not r.get("ended_at")):
                 out["findings"].append({
                     "level": "wait",
-                    "text": (f"heartbeat {_ago(hb)} old while events arrive "
+                    "text": (f"last check-in {_ago(hb)} old while events arrive "
                              f"({_ago(age)} ago) — two clocks disagree"),
-                    "detail": ("Both facts are rendered rather than one being picked: the "
-                               "heartbeat is written by the runner and the stream by the "
+                    "detail": ("Both facts are shown rather than one being picked: the "
+                               "check-in is written by the runner and the stream by the "
                                "engine, so a stale one means the runner is wedged, not that "
                                "the work stopped."),
                 })

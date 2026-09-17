@@ -46,7 +46,7 @@
     <h5>The stated default, which this replaced</h5>
     {{ q.default_if_unanswered or 'nothing was stated' }}
     {% if q.answer == q.default_if_unanswered %}
-    <div class="nakedcount">This answer is the stated default verbatim, which is how the Brief
+    <div class="nakedcount">This answer is the stated default word for word, which is how the Brief
       computes what silence decided. An operator who typed the default by hand also lands here.</div>
     {% endif %}
     {% if q.work_item_id %}
@@ -83,7 +83,7 @@
   </div>
   {{ m.reason_box('queue', 'answer', {'id': q.id}, 'ans-' ~ q.id, 'Answer',
                   'Your answer. This is the decision, and it wakes what is blocked on it.',
-                  'Recorded, and NOT requeued behind an agent still heartbeating on the task.', 2) }}
+                  'Recorded, and NOT queued again behind an agent still working on the task.', 2) }}
   {% endif %}
 </div>
 {% endblock %}

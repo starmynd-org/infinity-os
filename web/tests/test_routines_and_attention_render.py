@@ -380,7 +380,7 @@ class AttentionRender(unittest.TestCase):
         self.assertEqual(body.count("data-queue-row="), 240)
         self.assertGreaterEqual(body.count("data-evidence="), 240 * 4)
         for expected in ("Forecasted renewal impact", "Quiet source needs first read", "Source check failed",
-                         "restricted metadata only"):
+                         "you may see only limited details"):
             self.assertIn(expected, body)
         self.assertNotIn("msg/8f21c", body)
 
@@ -421,13 +421,13 @@ class AttentionRender(unittest.TestCase):
         before = {item.item_id: item.rank for item in items}
         client = an_app(attention_port=StubAttentionPort(items)).test_client()
         body = client.get("/attention/?filter=restricted&sort=title").get_data(as_text=True)
-        self.assertIn("restricted metadata only", body)
+        self.assertIn("you may see only limited details", body)
         self.assertNotIn("Renewal quote for Halden Bros", body)
         self.assertEqual(before, {item.item_id: item.rank for item in items})
 
     def test_unmeasured_impact_renders_as_unmeasured(self):
         body = self.client.get("/attention/").get_data(as_text=True)
-        self.assertIn("not measured", body)
+        self.assertIn("unmeasured (no value is recorded on this account)", body)
         self.assertIn("no value is recorded on this account", body)
 
     def test_a_measured_impact_carries_its_provenance(self):

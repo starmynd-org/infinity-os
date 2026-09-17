@@ -125,22 +125,22 @@
    guessing at one, because a confident wrong destination is the defect restated. #}
 {% macro send_back_hint(item) %}
 {%- if item.send_back_to == 'fleet' -%}
-Required, and this does not send it to you: `reopen` clears the agent's claim and leaves the
-fleet able to claim it, so {{ item.id }} goes back to the FLEET and leaves your queue.
+Required, and this does not send it to you: sending it back frees it from the agent that had it
+and leaves the fleet able to take it, so {{ item.id }} goes back to the FLEET and leaves your queue.
 {# `trim_blocks` is ON in this environment (web/app.py), so a newline directly after a block tag
    is eaten and the sentence either side of `{% raw %}{% endif %}{% endraw %}` would run together.
    The space that separates them is on the same line as the tag, deliberately. #}
 {% if item.fleet_paused %}THE FLEET IS PAUSED RIGHT NOW, so nothing will pick it up and the item
 will sit with nobody until you resume it.{% else %}An agent picks it up when one is
-free.{% endif %} To take it back onto your own board instead:
-`swarm set {{ item.id }} agent_claimable false --as-operator`.
+free.{% endif %} To take it back onto your own board instead, hold it from the fleet in the
+terminal: <code>swarm set {{ item.id }} agent_claimable false --as-operator</code>
 {%- elif item.send_back_to == 'you' -%}
 Required. The fleet may not claim {{ item.id }}, so this comes straight back onto your own board
 as `Mark my task done` rather than going to an agent.
 {%- else -%}
 Required. A reopen with no reason is how a lane repeats the same defect. Where this row goes next
-could not be read from this console, so it is not stated: `reopen` leaves `agent_claimable` as it
-found it, and that column decides whether the item returns to you or to the fleet.
+could not be read from this console, so it is not stated: sending it back keeps whether the fleet
+may take this item as it was, and that setting decides whether it returns to you or to the fleet.
 {%- endif %}
 {% endmacro %}
 
@@ -265,7 +265,7 @@ found it, and that column decides whether the item returns to you or to the flee
     nothing recorded as present is gone. The legacy single-option card renders above this, so the
     fallback path is still there. -#}
 <div class="optfail"><b>⚠ option drafting FAILED</b> · {{ item.options_failed }}
-  <div class="why">The item is intact. Decide it with the verbs below, or draft again.</div></div>
+  <div class="why">The item is intact. Decide it with the buttons below, or draft again.</div></div>
 {% elif item.options_n %}
 <div class="opts" id="opts-{{ item.id }}">
   {% if item.options_same_engine %}
@@ -340,8 +340,8 @@ found it, and that column decides whether the item returns to you or to the flee
         done the operator demolished rather than a one-line task. -#}
     <a class="act" href="/scope?intent={{ o.title|urlencode }}&lane={{ (o.lane or item.lane)|urlencode }}"
        >{{ o.verb_label }} ▸</a>
-    <div class="why">Scoping is its own surface with its own demolition step. What comes out is a
-      definition of done, not one line.</div>
+    <div class="why">Scoping is its own page with its own demolition step. What comes out is a
+      full description of what done looks like, not one line.</div>
     {% endif %}
   </div>
   {% endfor %}
@@ -850,9 +850,9 @@ found it, and that column decides whether the item returns to you or to the flee
     {% if item.kind == 'human' and not item.done_refused %}
     {{ reason_box(room, 'mark_done', item, 'mine-' ~ item.id, 'Mark my task done',
                   'What did you actually do? Numbers, paths, how you checked it.',
-                  'Your own work: `claim` will not hand it out, and no agent is holding it. On an
-                   agent item this verb would fabricate that agent report, which is what the
-                   prohibition was about. The guard reads the row, not this card (task 0427).') }}
+                  'Your own work: no agent will be given it, and no agent is holding it. On an
+                   agent item, marking it done would invent that agent report, which is why it is
+                   not allowed there. This is checked against the saved task, not this card.') }}
     {% endif %}
     {{ defer_block(room, item, defer(item), deep=deep) }}
   </div>
@@ -907,7 +907,7 @@ found it, and that column decides whether the item returns to you or to the flee
       <h5>Claim by claim</h5>
       <div class="chipnote">Not assembled for this row. The claim-by-claim read of the report is
         built per item and is on <a href="{{ item.href }}">{{ item.href }}</a>. What the report
-        says against ITSELF is above the verbs, where the decision is.</div>
+        says against ITSELF is above the buttons, where the decision is.</div>
       {% endif %}
       <div class="rev"><h5>Why this position</h5>
         <span style="font-family:var(--font-mono);font-size:.76rem">{{ item.why }}</span></div>
@@ -935,7 +935,7 @@ found it, and that column decides whether the item returns to you or to the flee
 </div>
 
 <div class="rev">
-  <h5>Definition of done</h5>
+  <h5>What done looks like</h5>
   {# There used to be a `read from ...` line here, because the definition could arrive from the
      task's thread rather than from its body: `post` and `done` shared one column and the Scope
      room duplicated the definition onto the append-only thread so it would outlive `done`.

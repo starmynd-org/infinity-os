@@ -49,7 +49,7 @@ TABLE = os.path.join(WEB_DIR, "templates", "table.html")
 # The three blocks the audit measured, each by a phrase that appears nowhere else on the page.
 LEDE = "This is the inventory and not the plan"
 COVERAGE = "carry no ranked card"
-CALLOUT = "Nothing in the runtime writes"
+CALLOUT = "Nothing marks a task as a decision today"
 
 HELP_RE = re.compile(r"<details class=\"tt-help\"([^>]*)>(.*?)</details>", re.S)
 TABLE_OPEN_RE = re.compile(r"<table class=\"tbl\"")

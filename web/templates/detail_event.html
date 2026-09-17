@@ -12,7 +12,9 @@
     <span>occurred {{ e.occurred_at.strftime('%m-%d %H:%M:%SZ') if e.occurred_at }}</span></div>
   <div class="exp"><h5>Payload summary</h5>
     <div class="foldout" style="padding-left:0">{{ e.payload_summary or '(none)' }}</div>
-    {% if e.payload_ref %}<h5>Payload ref</h5>{{ e.payload_ref }}{% endif %}</div>
+    {#- The stored reference names its table (`brain.question:q0052`); the screen names the thing
+        (`question:q0052`). The stored value is unchanged. E11, W5-B7. -#}
+    {% if e.payload_ref %}<h5>Refers to</h5>{{ e.payload_ref|replace('brain.', '') }}{% endif %}</div>
 </div>
 <div class="blk"><h4>Observations opened on it</h4>
   {% for o in obs %}<div class="ln">{{ o.kind }} · {{ o.status }} · {{ o.text }}</div>

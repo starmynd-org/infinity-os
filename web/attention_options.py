@@ -55,10 +55,10 @@ def for_row(row, facts, *, operator):
             NativeOption('approve-proposal', 'approve', 'Approve',
                          'Approve this proposal and create the work it describes.',
                          source, sid, 'recommend accept',
-                         inverse_note='Recommendation decisions have no inverse verb.'),
+                         inverse_note='A decision on a proposal cannot be undone.'),
             NativeOption('reject-proposal', 'reject', 'Reject',
                          'Reject this proposal with your reason; no work is created.',
                          source, sid, 'recommend reject', 'Why you are rejecting it', 12,
-                         inverse_note='Recommendation decisions have no inverse verb.'),
+                         inverse_note='A decision on a proposal cannot be undone.'),
         )
     return ()

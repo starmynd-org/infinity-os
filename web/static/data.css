@@ -1,0 +1,72 @@
+/* Data section (Sources, Goals and KPIs). W4-V002-DATA (Commander B), v0.02.
+ *
+ * OWN FILE, NEVER console.css OR board.css: both are off limits this wave (W4-INFINITY-FIX owns
+ * them). Every color below is one of the EXISTING custom properties console.css already defines
+ * on :root / :root[data-theme="dark"] (the locked Infinity guide, ground B Slate, LOCKED
+ * 2026-09-15) -- nothing here declares a new hue or a new :root block. base.html already links
+ * console.css on every page, so these variables are simply available; this file only adds the
+ * layout and the mapping from a data_source_health.status word to one of the guide's five
+ * chromatic states, the same states every other room in this console already uses:
+ *   fresh -> --fin (good), stale -> --wait (waiting on attention), never/retired -> --rest
+ *   (neutral), matching the approved Main.dc.html mockup's own dot/ring/triangle/square legend. */
+
+.dsh { font-family: var(--font-display); font-size: 20px; font-weight: 600; margin: 24px 24px 8px; }
+
+.dswarn { margin: 0 24px 16px; padding: 10px 14px; border-radius: 8px;
+          background: var(--tint-wait); color: var(--wait); font-size: 13px; }
+
+.dsempty { margin: 0 24px 16px; color: var(--ink-2); font-size: 13px; }
+
+.dssub { margin: 20px 24px 4px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em;
+         text-transform: uppercase; color: var(--ink-3); display: inline-block; }
+.dscount { display: inline-block; margin-left: 8px; font-size: 12px; color: var(--ink-3);
+           font-variant-numeric: tabular-nums; }
+
+/* THE SCROLL BOX (W5-S7, 2026-09-16). At 320 to 390 the tables were wider than the phone and the
+   whole PAGE scrolled sideways (MEASURED at 4aef1be: document scrollWidth 503 on /data and 538 on
+   /data/goals at 375, the Last read and Rows columns off the right edge). WCAG 1.4.10 lets a data
+   table scroll in two dimensions but not the page around it, and the console's own `.twrap` is
+   the same answer. The box, not the table, carries the margin and the overflow; it is a named,
+   focusable region so the sideways scroll is reachable from a keyboard. Proved painted by
+   web/tests/test_data_pages_do_not_scroll_sideways.py. */
+.dsscroll { margin: 4px 24px 24px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+            border-radius: 8px; }
+.dsscroll:focus-visible { outline: 2px solid var(--focus, var(--run)); outline-offset: 2px; }
+.dstable { width: 100%; margin: 0; border-collapse: collapse;
+           font-size: 13px; background: var(--bg-raised); border: 1px solid var(--rule);
+           border-radius: 8px; overflow: hidden; }
+.dstable thead th { text-align: left; font-size: 11px; font-weight: 600; letter-spacing: 0.04em;
+                     text-transform: uppercase; color: var(--ink-3); background: var(--bg-sunk);
+                     padding: 8px 12px; border-bottom: 1px solid var(--rule); }
+.dstable th.num, .dstable td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.dstable td { padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+.dstable tbody tr:last-child td { border-bottom: none; }
+
+.dsstatuscol { width: 20px; }
+.dsdot { display: inline-block; width: 8px; height: 8px; border-radius: 999px;
+         background: var(--rest); }
+.dsdot.ds-fresh { background: var(--fin); }
+.dsdot.ds-stale { background: var(--wait); }
+.dsdot.ds-never, .dsdot.ds-retired { background: var(--rest); }
+
+.dsname { font-weight: 600; color: var(--ink); }
+.dssubtext { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.dskind { color: var(--ink-2); text-transform: capitalize; }
+.dswhere code, .dstable code { font-family: var(--font-mono); font-size: 12px; color: var(--ink-2); }
+
+.dschips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.dschip { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--bg-sunk);
+          color: var(--ink-2); }
+
+.dsprogresscell { min-width: 140px; }
+.dsbar { height: 6px; border-radius: 999px; background: var(--bg-sunk); overflow: hidden; }
+.dsbarfill { height: 6px; border-radius: 999px; background: var(--fin); }
+.dsmuted { font-size: 12px; color: var(--ink-3); }
+
+.dsgoals .dsname { min-width: 180px; }
+
+/* Rows for a stale/never/retired source read visibly quieter than a fresh one, never identically:
+   this is the property the whole data_source_health view exists to make renderable at all. */
+.dsrow.ds-stale .dsname, .dsrow.ds-stale .dswhere code { color: var(--wait); }
+.dsrow.ds-never td, .dsrow.ds-retired td { color: var(--ink-3); }
+.dsrow.ds-never .dsname, .dsrow.ds-retired .dsname { color: var(--ink-2); }

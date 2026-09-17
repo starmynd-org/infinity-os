@@ -338,7 +338,7 @@ class QueueItem:
             "freshness": {"at": freshness_at, "label": "Freshness evidence", "detail": self.freshness.render()},
             "impact": {"at": latest.at, "label": "Impact evidence", "detail": self.impact.render()},
             "permission": {"at": latest.at, "label": "Permission evidence",
-                           "detail": "permitted metadata" if self.readable else "restricted metadata only"},
+                           "detail": "you may read this item" if self.readable else "you may see only limited details"},
         }
         if self.completeness is not None:
             evidence["completeness"] = {"at": latest.at, "label": "Completeness evidence",

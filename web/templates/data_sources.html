@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Data{% endblock %}
+
+{# THE SOURCES PANE. W4-V002-DATA (Commander B), v0.02. Approved mockup: Main.dc.html, ground B
+   Slate. Read-only over brain.data_source_health (never brain.data_source directly), so a dead
+   source renders differently from a live one -- see W4-V002-DATA-REGISTRY-CONTRACT.md item (e).
+
+   Own stylesheet (data.css), never console.css or board.css: both are off limits this wave
+   (W4-INFINITY-FIX owns them). No JS: the row-to-panel convention macros.html's card() macro
+   established for the Queue board (click a row, see it below) is imitated here in plain HTML
+   rather than reached for as a script, because this pane has no poll to preserve open state
+   across and no reason to invent one. #}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='data.css') }}">
+{% endblock %}
+
+{% block body %}
+<h1 class="dsh">Data sources</h1>
+
+{% if not data.present %}
+<p class="dswarn"><b>waiting</b> &middot; {{ data.note or "this store cannot list data sources yet" }}</p>
+{% else %}
+<div class="dssub">Sources</div>
+<div class="dscount">{{ data.sources|length }}</div>
+
+{% if not data.sources %}
+<p class="dsempty">No source is registered yet. A source appears here the moment it is
+  registered. Nothing is filled in for you.</p>
+{% else %}
+<div class="dsscroll" role="region" aria-label="Data sources table" tabindex="0">
+<table class="dstable">
+  <thead>
+    <tr>
+      <th class="dsstatuscol"></th>
+      <th>Source</th>
+      <th>Kind</th>
+      <th>Where it lives</th>
+      <th class="num">Last read</th>
+      <th class="num">Rows</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for s in data.sources %}
+    <tr class="dsrow ds-{{ s.status }}">
+      <td class="dsstatuscol"><span class="dsdot ds-{{ s.status }}" title="{{ s.status }}"></span></td>
+      <td>
+        <div class="dsname">{{ s.name }}</div>
+        {% if s.sub %}<div class="dssubtext">{{ s.sub }}</div>{% endif %}
+      </td>
+      <td class="dskind">{{ s.kind }}</td>
+      <td class="dswhere"><code>{{ s.where }}</code></td>
+      <td class="num">{{ s.last }}</td>
+      <td class="num">{{ s.rows }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

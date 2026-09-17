@@ -37,23 +37,19 @@
    door item 3's overrule was meant to close. Amber and not red: this is a store that is behind,
    not a store that is broken. #}
 {% if not board.present %}
-<p class="bdwarn"><b>waiting</b> &middot; this store has no <code>brain.project</code> (migration
-  44), so it holds no projects and these four columns can hold nothing. The operator applies
-  <code>migrations/0044_a_project_is_a_row.sql</code>. Nothing on this page is a promise until
-  then.</p>
+<p class="bdwarn"><b>waiting</b> &middot; this install is not yet updated to hold projects, so
+  these four columns can hold nothing. Finish the update to use the board. Nothing on this page is a
+  promise until then.</p>
 {% elif not throttle.wired %}
-<p class="bdwarn"><b>waiting</b> &middot; a move on this store RECORDS AN INTENTION AND THROTTLES
-  NOTHING.
-  {% if not throttle.claim_path %}<code>engine/swarm_engine/transitions.py</code> has no
-  <code>_PROJECT_BUDGET_CTE</code> (task 0430).{% endif %}
-  {% if not throttle.schema %}This database has no <code>brain.work_item_project()</code>
-  (<code>budget/schema/0045_project_is_a_hold_scope.sql</code>).{% endif %}
-  Moving a project to hold here will not stop an agent claiming its work.</p>
+<p class="bdwarn"><b>waiting</b> &middot; a move here RECORDS AN INTENTION AND STOPS NOTHING.
+  {% if not throttle.claim_path %}The agents on this install do not yet check a project's column
+  before they take its work.{% endif %}
+  {% if not throttle.schema %}This install is not yet updated to link work to a held project.{% endif %}
+  Moving a project to hold here will not stop an agent taking its work.</p>
 {% else %}
-<p class="bdok"><b>armed</b> &middot; a project outside <i>in progress</i> is withheld from the
-  claim path in SQL, in the same statement that locks the row
-  (<code>_PROJECT_BUDGET_CTE</code>), and an agent cannot move work out from under it
-  (migration&nbsp;46). Moving a card stops the spending.</p>
+<p class="bdok"><b>armed</b> &middot; work on a project outside <i>in progress</i> is kept away from
+  the agents at the moment they would take it, and an agent cannot move work out from under it.
+  Moving a card stops the spending.</p>
 {% endif %}
 
 {# THE COLUMNS ARE A PATCH REGION, and without this the board is the one room whose screen
@@ -143,14 +139,12 @@
 <p class="bdfoot">
   {{ board.total }} project{{ '' if board.total == 1 else 's' }} on the board{% if board.archived %},
   and {{ board.archived }} archived, which are off it and NOT gone: the row keeps who archived it
-  and why, <code>swarm project list</code> still prints them, and the claim path withholds their
-  work exactly as it withholds a held project's. Archiving is not cancelling{% endif %}.
-  A column is a state and a move is <code>project rest</code> or <code>project resume</code>,
-  the same two verbs <code>swarm project</code> calls. There is no ordering here and no handle to
-  make one: <code>MUST-NOT-BUILD</code> item 2 is kept. There is no rename either, and that is
-  measured rather than omitted &mdash; see <code>engine/swarm_engine/projects.py</code>.
+  and why, <code>swarm project list</code> still prints them, and their work is kept from the
+  agents exactly as a held project's is. Archiving is not cancelling{% endif %}.
+  A column is a state, and a move rests or resumes the project, the same two commands
+  <code>swarm project</code> offers. There is no ordering here and no handle to make one, and there
+  is no rename either.
   Work items on this board are read only; moving work between projects is
-  <code>swarm project attach</code> and migration&nbsp;46 refuses it to every non-human
-  connection off a resting project.
+  <code>swarm project attach</code>, and an agent cannot do it to a resting project.
 </p>
 {% endblock %}

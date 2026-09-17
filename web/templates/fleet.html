@@ -47,9 +47,9 @@
        quieter than it is. The word `silent` is unchanged and still carries the state, because
        a duration is not a state. #}
     <span style="margin-left:auto;color:var(--ink-2)"
-          title="{{ a.age_seconds if a.age_seconds is not none else 'no heartbeat row' }}{{
-                 's since the last heartbeat' if a.age_seconds is not none else '' }}">
-      last heartbeat {{ m.age_words(a.age_seconds) }}{{ ' ago' if a.age_seconds is not none
+          title="{{ a.age_seconds if a.age_seconds is not none else 'never seen' }}{{
+                 's since this agent last checked in' if a.age_seconds is not none else '' }}">
+      last seen {{ m.age_words(a.age_seconds) }}{{ ' ago' if a.age_seconds is not none
       }}{% if a.age_seconds and a.age_seconds > 900 %} · silent{% endif %}</span>
   </div>
   <div class="l4">
@@ -58,8 +58,8 @@
   </div>
 </div>
 {% else %}
-<div class="empty"><div class="big">No agent has ever heartbeated.</div>
-  <div class="sub">`brain.agent` is empty. The runner writes this table through `heartbeat`.</div>
+<div class="empty"><div class="big">No agent has checked in yet.</div>
+  <div class="sub">An agent appears here the first time it starts and reports in.</div>
 </div>
 {% endfor %}
 

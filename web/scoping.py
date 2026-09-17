@@ -187,7 +187,7 @@ def price(rows: list[dict]) -> str:
     """What the UI says at post time, before the operator pays for it rather than after."""
     kept = [r for r in rows if r.get("kept")]
     if not kept:
-        return ("No definition of done. This posts as raw intent, and the surfacing policy will "
+        return ("Nothing says what done looks like. This posts as raw intent, and the surfacing policy will "
                 "route whatever comes back into your own Judge tier.")
     bad = unverifiable(kept)
     if not bad:

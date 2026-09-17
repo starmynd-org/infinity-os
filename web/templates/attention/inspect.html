@@ -43,7 +43,7 @@
    The unreadable branch is not a degraded version of the readable one. There is no content to
    degrade: the authorisation check happened before indexing, so nothing about this item's body
    was ever stored for this reader, and there is no code path here that could fetch it. #}
-<div class="ro"><span data-evidence-origin>{{ attention_evidence_label }}</span> &middot; inspector &middot; read only. <a href="{{ url_for('attention.inbox', **return_context) }}#attention-{{ shown.item_id if shown.item_id else '' }}">Return to queue</a> It shows permitted metadata, provenance and recovery context; it never acts.</div>
+<div class="ro"><span data-evidence-origin>{{ attention_evidence_label }}</span> &middot; inspector &middot; read only. <a href="{{ url_for('attention.inbox', **return_context) }}#attention-{{ shown.item_id if shown.item_id else '' }}">Return to queue</a> It shows what you are allowed to see about this item, where it came from and how to recover it; it never acts.</div>
 
 {% if not shown.readable %}
   <div class="card">

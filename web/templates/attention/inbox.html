@@ -258,7 +258,7 @@
   </nav>
   {% if attention_intake_observation %}{% set intake = attention_intake_observation %}
   <details class="note" data-intake-observation>
-    <summary>{{ intake.source }} observation, <time datetime="{{ intake.observed_at }}">{{ intake.when }}</time>: Intake has landed nothing but the daily heartbeat since 2026-09-03 because the intake door on 3106 is not running and the mail sweep fails its health check every tick.</summary>
+    <summary>{{ intake.source }} observation, <time datetime="{{ intake.observed_at }}">{{ intake.when }}</time>: Intake has received nothing but its daily check-in since 2026-09-03, because the intake service is not running and the mail sweep fails its health check every time it runs.</summary>
     <p>{{ intake.detail }}</p>
     <p>This is a recorded observation. This page does not monitor recovery; the intake restart remains separate work.</p>
   </details>

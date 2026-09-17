@@ -534,8 +534,8 @@ def the_project_filter_degrades_honestly(page, base=None, where="this store"):
     proj = next((x for x in s["selects"] if x["id"] == "qf-project"), None)
     if col == "0":
         # THE SHAPE OF LIVE `brain` ON 2026-08-29: ledger 42, migration 44 unapplied.
-        check(f"{where}: with no project column the note says the STORE cannot hold one",
-              "migration 44" in note and "ledger" in note, note)
+        check(f"{where}: with no project column the note says the INSTALL cannot hold one yet",
+              "not yet updated to hold projects" in note, note)
         check(f"{where}: and it does not report a schema fact as an operator fact",
               "no project" not in note.lower().replace("nothing here has a project", ""), note)
         if proj is None:                                                # DENOMINATOR

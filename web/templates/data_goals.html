@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Goals and KPIs{% endblock %}
+
+{# GOALS AND KPIS. W4-V002-DATA (Commander B), v0.02. Approved mockup: Goals.dc.html, ground B
+   Slate. D-10: children of the data section, not a top-level one. Read-only over brain.goal and
+   brain.kpi; nothing here writes.
+
+   PROGRESS BARS, NAMED HERE BECAUSE THIS IS THE COMMIT THAT FIRST RENDERS ONE. Andrew ruled
+   2026-09-16 (relayed by ALPHA-COMMANDER-2, recorded in W4-V002-DATA-REGISTRY-CONTRACT.md): build
+   to the approved mockup, bars included, on the condition that the SAME commit amends
+   `web/MUST-NOT-BUILD.md:341` to state the exception. That amendment is in this commit. The rest
+   of item 4 stands: no progress bar anywhere else, Study included. A goal whose target/now cannot
+   both be parsed as numbers (`model._progress_pct`) renders with NO bar rather than a guessed one
+   -- see `dspct` below, present only when `g.pct` is not None. #}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='data.css') }}">
+{% endblock %}
+
+{% block body %}
+<h1 class="dsh">Goals and KPIs</h1>
+
+{% if not data.present %}
+<p class="dswarn"><b>waiting</b> &middot; {{ data.note or "this store cannot list goals or KPIs yet" }}</p>
+{% else %}
+
+<div class="dssub">Goals</div>
+<div class="dscount">{{ data.goals|length }}</div>
+
+{% if not data.goals %}
+<p class="dsempty">No goal yet. A goal appears here once one is added. Nothing is filled
+  in for you.</p>
+{% else %}
+<div class="dsscroll" role="region" aria-label="Goals table" tabindex="0">
+<table class="dstable dsgoals">
+  <thead>
+    <tr>
+      <th>Goal</th>
+      <th class="num">Target</th>
+      <th class="num">Now</th>
+      <th>Progress</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for g in data.goals %}
+    <tr class="dsrow">
+      <td>
+        <div class="dsname">{{ g.name }}</div>
+        {% if g.sub %}<div class="dssubtext">{{ g.sub }}</div>{% endif %}
+        {% if g.measured_from %}
+        <div class="dschips">{% for m in g.measured_from %}<span class="dschip">{{ m }}</span>{% endfor %}</div>
+        {% endif %}
+      </td>
+      <td class="num">{{ g.target }}</td>
+      <td class="num">{{ g.now }}</td>
+      <td class="dsprogresscell">
+        {% if g.pct is not none %}
+        <div class="dsbar" role="img" aria-label="{{ g.pct }} percent of target">
+          <div class="dsbarfill" style="width: {{ g.pct }}%"></div>
+        </div>
+        {% else %}
+        <span class="dsmuted">no bar: the target or the current value is not a number</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<div class="dssub">KPIs</div>
+<div class="dscount">{{ data.kpis|length }}</div>
+
+{% if not data.kpis %}
+<p class="dsempty">No KPI yet. A KPI appears here once one is added. Nothing is filled
+  in for you.</p>
+{% else %}
+<div class="dsscroll" role="region" aria-label="KPIs table" tabindex="0">
+<table class="dstable">
+  <thead>
+    <tr>
+      <th></th>
+      <th>KPI</th>
+      <th class="num">Target</th>
+      <th class="num">Now</th>
+      <th>Source</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for k in data.kpis %}
+    <tr class="dsrow ds-{{ k.src_status }}">
+      <td class="dsstatuscol"><span class="dsdot ds-{{ k.src_status }}" title="source {{ k.src_status }}"></span></td>
+      <td>
+        <div class="dsname">{{ k.name }}</div>
+        {% if k.sub %}<div class="dssubtext">{{ k.sub }}</div>{% endif %}
+      </td>
+      <td class="num">{{ k.target }}</td>
+      <td class="num">{{ k.now }}</td>
+      <td class="dssubtext">{{ k.src }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+{% endif %}
+{% endblock %}

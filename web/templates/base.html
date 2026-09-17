@@ -174,12 +174,19 @@ document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');}
        four conditions above are unchanged; it now rides the INBOX tab, first in the strip, which
        is the placement the phone reason above asks for, and it repeats on Intake in the sub-row.
        Chats and Terminal stay HELD: neither is linked here. Pinned by
-       `web/tests/test_five_tab_nav.py`. The ten-link strip below this comment is superseded. #}
+       `web/tests/test_five_tab_nav.py`. The ten-link strip below this comment is superseded.
+       ============================================ SIX TABS (D-NAV-SIX, Andrew, 2026-09-16)
+       DATA is the sixth tab: Sources (/data) and Goals and KPIs (/data/goals) as its rooms, with
+       Reports to follow in a later version. It sits after Projects because the approved
+       Main.dc.html and Goals.dc.html mockups put Data directly after Board. Everything else above
+       is unchanged, the holds included. MUST-NOT-BUILD item 11 carries the amendment; the test
+       file keeps its old name so its history stays readable. #}
     {% if not patch_only %}{% set iw = intake_waiting() %}{% else %}{% set iw = 0 %}{% endif %}
     {% set nav_groups = [
          ('inbox', 'Inbox', '/attention/', [('attention', 'Attention', '/attention/'), ('intake', 'Intake', '/intake')]),
          ('work', 'Work', '/queue', [('queue', 'Queue', '/queue'), ('table', 'The board', '/queue/table')]),
          ('projects', 'Projects', '/board', [('board', 'Board', '/board')]),
+         ('data', 'Data', '/data', [('data', 'Sources', '/data'), ('goals', 'Goals and KPIs', '/data/goals')]),
          ('agents', 'Agents', '/fleet', [('fleet', 'Fleet', '/fleet'), ('live', 'Live', '/live'), ('sessions', 'Sessions', '/sessions')]),
          ('more', 'More', '/brief', [('brief', 'Brief', '/brief'), ('scope', 'Scope', '/scope'), ('study', 'Study', '/study')]),
        ] %}
@@ -193,8 +200,8 @@ document.documentElement.setAttribute('data-theme', t==='dark'?'dark':'light');}
     {% for key, label, href, members in nav_groups %}
     <a class="room" role="tab" href="{{ href }}" data-nav-group="{{ key }}"
        aria-selected="{{ 'true' if ns.group == key else 'false' }}">{{ label }}{% if key == 'inbox' %}{% if iw is none %}
-      <span class="gate">? waiting</span>{% elif iw %}
-      <span class="gate">{{ iw }} waiting</span>{% endif %}{% endif %}</a>
+      <span class="gate">?<span class="gw"> waiting</span></span>{% elif iw %}
+      <span class="gate">{{ iw }}<span class="gw"> waiting</span></span>{% endif %}{% endif %}</a>
     {% endfor %}
   </nav>
   {% for key, label, href, members in nav_groups if key == ns.group and members|length > 1 %}

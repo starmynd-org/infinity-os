@@ -7,7 +7,7 @@
 {% if not rows %}
 <div class="note">Scope. The machine drafts, you demolish. A hurried human is a poor author and
   an excellent critic, so you never fill in a form here: you say the thing badly, the drafter
-  proposes a definition of done, and you keep, edit or kill each row.</div>
+  proposes what done looks like, and you keep, edit or kill each row.</div>
 
 <div class="blk">
   <h4>Say it badly</h4>
@@ -22,12 +22,12 @@
         {% for l in lanes %}<option>{{ l }}</option>{% endfor %}
       </select></label>
     <button class="act" type="submit" id="scope-go" style="margin-top:.5rem" disabled>
-      Draft the definition of done</button>
+      Draft what done looks like</button>
   </form>
 </div>
 
 <div class="blk">
-  <h4>What a drafted definition of done must carry</h4>
+  <h4>What a drafted "done" must carry</h4>
   <div class="ln">Rows of <b>claim · check · threshold · verifier</b>, each with the drafter's own
     statement of how the check could pass while the work is wrong.</div>
   <div class="ln">The one field the machine may not skip:
@@ -36,8 +36,8 @@
   <div class="ln">A lazy scope punishes itself one loop later: a vague definition yields low
     confidence, and the surfacing policy routes low-confidence output back to your own Judge
     tier.</div>
-  <div class="ln"><b>An agent-drafted definition of done disqualifies the work from
-    auto-accept.</b> An agent validating against a definition it wrote itself is self-grading
+  <div class="ln"><b>When an agent drafted what done looks like, the work cannot be accepted
+    automatically.</b> An agent validating against a definition it wrote itself is self-grading
     moved up one level, and that is what makes letting the draft ride safe rather than a
     loophole.</div>
 </div>
@@ -100,11 +100,10 @@
     <div class="ln">{{ price }}</div>
     <div class="ln hint">Recomputed on post from what you actually kept, not from what was
       drafted. The count below the button is the one that is true.</div>
-    <div class="ln hint">The definition of done travels in the posted body, and <b>it survives
-      the task finishing.</b> The body is stored in `work_item.brief`, which is written once by
-      `post` and overwritten by no verb: `done`, `fail`, `block` and `cancel` all report into
-      `work_item.result` instead. What you keep below is what every later attempt is dispatched
-      against, unchanged.</div>
+    <div class="ln hint">What done looks like travels with the task, and <b>it survives the task
+      finishing.</b> It is saved once when you post, and nothing afterwards overwrites it: when an
+      agent finishes, fails, blocks or cancels, its report is kept separately. What you keep above
+      is what every later attempt is checked against, unchanged.</div>
     <button class="act" type="submit" style="margin-top:.6rem">Post it with this definition</button>
     <a class="sec" href="/scope" style="line-height:2.6;margin-left:.5rem">start over</a>
   </div>

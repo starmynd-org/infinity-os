@@ -32,7 +32,7 @@
 {% if not intake.read %}
 {# A FAILED READ IS NOT AN EMPTY INBOX. Rendering nothing here would say "nothing arrived" over
    an unknown, which is the fabricated number `web/model.py` opens by forbidding. #}
-<div class="blk"><h4>The intake table could not be read</h4>
+<div class="blk"><h4>Intake could not be read</h4>
   <div class="ln"><span class="sdot" style="background:var(--wait)"></span> <b>unknown</b> &middot;
     no count is shown, on purpose. The badge in the header says the same thing.</div>
   <p>{{ intake.why }}</p>
@@ -147,13 +147,10 @@
   {# THE MECHANISM GAP, MEASURED BY WATCHING THE REFUSAL RATHER THAN BY READING THE CODE. It is
      on the surface and not only in a report because it is the reason the number above cannot
      move on its own. #}
-  <div class="ln"><b>And nothing can raise one yet.</b> The registered verb refuses this subject:
-    <code>recommend</code> takes <code>work_item</code>, <code>session</code>, <code>event</code>
-    and <code>entity</code>, and answers <code>unknown subject type 'objective'</code> to
-    anything else (<code>queue/human_queue/transitions.py</code>). Measured 2026-08-30 by running
-    it. This surface reads both <code>objective</code> and <code>entity</code> subjects, matching
-    an entity on the item's NAME, so a proposal raised the way the verb allows today renders here
-    with nothing edited.</div>
+  <div class="ln"><b>And nothing can raise one yet.</b> A recommendation today can be made about a
+    task, a session, an event or a named thing, but not about an intake item. This page also shows a
+    recommendation made about a named thing whose name matches the item, so one raised that way
+    appears here with nothing changed.</div>
   {% endif %}
 </div>
 
@@ -178,7 +175,7 @@
     {%- for a in intake.recent_accepted %} <b>{{ a.name }}</b> ({{ a.at }}){{ '' if loop.last else ' ·' }}{% endfor %}</div>
   {% endif %}
   <div class="ln">The door does not classify what arrives and this room does not either. One file
-    becomes one unsorted row; deciding what it is remains a human act through verbs that exist.</div>
+    becomes one unsorted row; deciding what it is remains a human act, with the commands above.</div>
   {# WHY THERE IS NO ACCEPT BUTTON, said once. `web/rooms.py` already grants `intake` and `accept`
      to the Scope room, so the PERMISSION exists and the control is still absent: a write door on
      this room is a second thing to get right and it was not what this row asked for. The exit is

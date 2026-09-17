@@ -89,8 +89,10 @@ SUITES=(
   "test_attention_help_note.py            none     Attention's standing note is one press away, word for word, instead of a box on every visit"
   "test_board_row_follows_its_link.py     none     a /queue/table row follows its own id link, and the board keeps no form and no new control"
   "test_served_commit_footer_removed.py   none     no served-commit footer under every room; the commit stays at /api/health and in a header"
-  "test_five_tab_nav.py                   none     the five-tab nav with a row of rooms, the intake badge on Inbox, and the chats and terminal holds kept"
+  "test_five_tab_nav.py                   none     the six-tab nav (D-NAV-SIX) with a row of rooms, Data opening Sources and Goals and KPIs, the intake badge on Inbox with its word kept, Study with no progress bar, and the chats and terminal holds kept"
   "test_board_search_and_panel.py         none     /queue/table's GET search narrows the board, and its panel lifts only Accept work and Send back"
+  "test_data_section_render.py            none     the Sources and Goals-and-KPIs panes render store-free; a stale/dead source renders differently from a fresh one; a goal's bar appears only when its target/now parse"
+  "test_no_internal_words_on_screen.py    none     no table name, migration number, heartbeat or other internal word in any template's visible text, the Attention labels, or the rendered Attention and Data pages (E11), each with a planted word caught"
   "test_board_opens_as_a_table.py         none     the board's lede, coverage paragraph and callout are one press away, not between the search and the first row"
   "test_first_visit_is_light.py           none     a visitor who has chosen nothing gets light, per the locked guide; a stored choice is still honoured"
   "test_board_search_is_one_row_on_a_phone.py none  at 375 the board search is one row with its label kept, and the queue chips hold the 44px floor"
@@ -105,10 +107,13 @@ SUITES=(
   # `body.deep{background:var(--bg);...}` rule, not only the declared custom properties.
   "test_deep_work_is_manila.py            ownbrowser  deep work's page pair resolves to the locked P2 Manila palette in both schemes, painted through body.deep, with --deep-accent pinned unmoved"
   "test_queue_board_door_tap_floor.py     none     the Queue's door to the whole board meets the 44px tap floor at 390"
-  "test_five_tabs_one_row_at_375.py       ownbrowser     at 375 and 390 the five nav tabs share one line, keep the 44px floor and their type, painted in chromium"
+  "test_five_tabs_one_row_at_375.py       ownbrowser     at 375 and 390 the six nav tabs share one line inside the nav's box, keep the 44px floor and their type, and Inbox keeps the word waiting in its accessible name, painted in chromium"
   # W5-S7. Same route-fulfilled harness as the suite above, no store. The room row squeezed the
   # nav at 1440 and hid three tabs behind its hidden scrollbar; a planted narrow nav is the control.
   "test_every_tab_is_visible_at_1440.py   ownbrowser     at 1440 on a page with a row of rooms every nav tab is inside the nav's box and the nav does not scroll, painted in chromium"
+  # W5-S7, v0.02. Same route-fulfilled harness, no store. The data tables scrolled the whole page
+  # sideways on a phone; each now sits in a scroll box, and a planted visible overflow is the control.
+  "test_data_pages_do_not_scroll_sideways.py ownbrowser  /data and /data/goals do not scroll the page sideways at 320, 375 and 390; each table sits in a scroll box, painted in chromium"
   "test_shared_receipts.py                none     receipt history current inverse and overlapping publication"
   "test_signals.py                        none     explanations from the item's declared signals"
   "test-runner-reaps-children.sh         none     a suite that dies before its teardown leaves no child, R-WEB-CHILDREN-01"

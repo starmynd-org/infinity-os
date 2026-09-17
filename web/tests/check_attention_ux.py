@@ -263,7 +263,7 @@ def main():
                 page.get_by_role('link', name='Next pending row on this page', exact=True).click()
                 assert page.locator('[data-queue-row]').first.evaluate('el=>el===document.activeElement')
                 scene.accepted.clear()
-                for label in ('Runtime store evidence', 'Synthetic fixture evidence'):
+                for label in ('Recorded on this install', 'Synthetic fixture evidence'):
                     scene.evidence_label = label
                     for path in ('/attention/', '/attention/work_item:0429'):
                         page.goto('http://attention.test' + path)

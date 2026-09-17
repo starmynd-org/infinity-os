@@ -124,8 +124,7 @@
         <b>{{ shown - enriched }}</b> of these rows carry no ranked card, so their lane, impact,
         unblocks and priority cells read <span class="tno">not ranked</span> rather than blank:
         those rows are real and the ranked read does not cover them (a done-and-unaccepted row is
-        in <b>review</b> and is not open work, so <code>brain.queue_open</code> has nothing to say
-        about it).
+        in <b>review</b> and is not open work, so the ranking has nothing to say about it).
       </p>
       {% endif %}
       {# THE OVERLAP SENTENCE ONLY APPEARS WHEN THERE IS AN OVERLAP, and this is a defect caught on
@@ -148,9 +147,9 @@
       {% endif %}
       {% if not decisions_available %}
       <p class="tsub">
-        The <b>decisions</b> queue has no <code>brain.work_item.kind</code> on this store. Apply
-        <code>migrations/0052_a_decision_is_declared.sql</code>. It is reported as unavailable and
-        never as empty, because a store with nowhere to record a decision has none to find.
+        The <b>decisions</b> queue is not available on this install until it is updated. It is
+        reported as unavailable and never as empty, because an install with nowhere to record a
+        decision has none to find.
       </p>
       {% elif counts.decisions.n == 0 %}
       {# THE EMPTY-SET TRAP, ANSWERED ON THE SURFACE RATHER THAN IN A REPORT. This tier being 0 has
@@ -160,8 +159,8 @@
          registered verb and no INSERT sets it, so every row folds to `work` and the decisions queue
          is empty BY CONSTRUCTION rather than because his week has no decisions in it. #}
       <p class="tsub">
-        Nothing in the runtime writes <code>work_item.kind</code> today &mdash; no registered verb
-        sets it and no insert supplies it &mdash; so every row folds to <b>work</b> and the
+        Nothing marks a task as a decision today &mdash; no command sets it &mdash; so every row
+        counts as <b>work</b> and the
         decisions queue is empty rather than his week having nothing to decide. Who classifies a
         row as a decision is still an open question and it is yours.
       </p>

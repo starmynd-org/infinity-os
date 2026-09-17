@@ -184,7 +184,7 @@ class EvidenceOrigin(unittest.TestCase):
             client = an_app(native.model.attention_port()).test_client()
             for path in ('/attention/',):
                 data = client.get(path).data
-                self.assertTrue(b'Runtime store evidence' in data)
+                self.assertTrue(b'Recorded on this install' in data)
                 self.assertFalse(b'fixture evidence' in data.lower())
         finally:
             fixture.stack.close()
@@ -400,7 +400,7 @@ class BoundedRecommendationTitle(unittest.TestCase):
         first_form_at = body.index('<form class="att-act"', row_at)
         self.assertLess(counter_at, inverse_at)
         self.assertLess(inverse_at, first_form_at, 'the no-inverse sentence must precede the first control')
-        self.assertEqual(body.count('Recommendation decisions have no inverse verb.'), 1)
+        self.assertEqual(body.count('A decision on a proposal cannot be undone.'), 1)
         self.assertEqual(body.count('data-att-inverse-note'), 1)
         # The human Mark done aside is untouched: does and inverse note together, before the field.
         fixture = native.Admission()

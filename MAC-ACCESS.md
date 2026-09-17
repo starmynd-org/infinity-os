@@ -158,6 +158,13 @@ and the address is the same, <http://127.0.0.1:13103/queue?tier=decide>. Bookmar
   `my-mac`). Until you do, that key still opens your console.
 - **Only add keys for people you would give a shell to.** A key that can open the tunnel can also
   log in to the server.
+- **The install user can act as root, and that includes anything you run as it.** `INSTALL.md` step 0
+  gives `infinity` passwordless `sudo`, and step 2 adds it to the `docker` group, which is also
+  root-equivalent. So any program running as `infinity` on your server, including an AI agent you
+  start there, can do anything root can. It is your own server, so that is your choice; make it
+  knowingly, and only run things as `infinity` that you would trust with root.
+- **A credential you copy onto the server is readable by anything running as that user.** A file
+  with mode `600` keeps other users out; it does not keep out programs you run as `infinity`.
 
 ## When it does not work
 

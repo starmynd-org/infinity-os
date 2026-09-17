@@ -7,9 +7,9 @@
    frozenset and web/tests/test_allowlist.py proves every registered verb in the runtime is
    refused from this room before `store.apply` is entered. That is what makes it safe for this
    to be the enjoyable room: a surface that cannot act cannot bias a decision. #}
-<div class="ro">Study · read only. This surface calls zero verbs. You cannot approve, answer,
-  pause or send anything back from here, and that is enforced server side rather than by leaving
-  the buttons out.</div>
+<div class="ro">Study · read only. Nothing on this page changes anything. You cannot approve,
+  answer, pause or send anything back from here, and the server refuses it even if you try, not just
+  because the buttons are left out.</div>
 
 <div data-region="study"><!--region:study-->
 {# Counters that are links, not charts. Tables first, every number two clicks from its receipts. #}
@@ -27,9 +27,9 @@
     {% else %}<b>{{ '%.0f'|format(study.acted_rate) }}%</b>
       <span style="opacity:.7">(falsifier threshold 30%)</span>{% endif %}</div>
   <div class="ln">agent hours <b>{{ study.agent_hours }}</b> ·
-    your minutes <span style="color:var(--wait)">not measured</span></div>
-  <div class="ln">schema version <b>{{ study.health.schema_version }}</b> ·
-    event head <b>{{ study.health.head_seq }}</b></div>
+    your minutes <span style="color:var(--wait)">not timed</span></div>
+  <div class="ln">data version <b>{{ study.health.schema_version }}</b> ·
+    latest event <b>{{ study.health.head_seq }}</b></div>
 </div>
 
 <div class="blk"><h4>Events by type</h4>
